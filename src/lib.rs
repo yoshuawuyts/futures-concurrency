@@ -11,8 +11,8 @@
 //!     block_on(async {
 //!         // Await multiple similarly-typed futures.
 //!         let fut = [ready(1u8), ready(2u8), ready(3u8)].join();
-//!         let res = fut.await;
-//!         println!("{} {} {}", res[0], res[1], res[2]);
+//!         let [a, b, c] = fut.await;
+//!         println!("{} {} {}", a, b, c);
 //!
 //!         // Await multiple differently-typed futures.
 //!         let fut = (ready(1u8), ready("hello"), ready(3u8)).join();
@@ -81,6 +81,7 @@
 #![deny(missing_debug_implementations, nonstandard_style)]
 #![warn(missing_docs, unreachable_pub)]
 #![allow(non_snake_case)]
+#![feature(maybe_uninit_uninit_array)]
 
 mod maybe_done;
 
@@ -112,27 +113,24 @@ pub trait Join {
 
 /// Implementations for the Array type.
 pub mod array {
-    use crate::iter_pin_mut;
-
     use super::{Join as JoinTrait, MaybeDone};
 
     use core::fmt;
     use core::future::Future;
-    use core::mem;
     use core::pin::Pin;
     use core::task::{Context, Poll};
-    use std::boxed::Box;
-    use std::vec::Vec;
+
+    use pin_project::pin_project;
 
     impl<T, const N: usize> JoinTrait for [T; N]
     where
         T: Future,
     {
-        type Output = Join<T>;
+        type Output = Join<T, N>;
 
         fn join(self) -> Self::Output {
             Join {
-                elems: Box::pin(self.map(MaybeDone::new)),
+                elems: self.map(MaybeDone::new),
             }
         }
     }
@@ -142,45 +140,55 @@ pub mod array {
     /// Awaits multiple futures simultaneously, returning the output of the
     /// futures once both complete.
     #[must_use = "futures do nothing unless you `.await` or poll them"]
-    pub struct Join<F>
+    #[pin_project]
+    pub struct Join<F, const N: usize>
     where
         F: Future,
     {
-        elems: Pin<Box<[MaybeDone<F>]>>,
+        elems: [MaybeDone<F>; N],
     }
 
-    impl<F> fmt::Debug for Join<F>
+    impl<F, const N: usize> fmt::Debug for Join<F, N>
     where
         F: Future + fmt::Debug,
         F::Output: fmt::Debug,
     {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.debug_struct("JoinAll")
-                .field("elems", &self.elems)
-                .finish()
+            f.debug_struct("Join").field("elems", &self.elems).finish()
         }
     }
 
-    impl<F> Future for Join<F>
+    impl<F, const N: usize> Future for Join<F, N>
     where
         F: Future,
     {
-        type Output = Vec<F::Output>;
+        type Output = [F::Output; N];
 
-        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             let mut all_done = true;
 
-            for elem in iter_pin_mut(self.elems.as_mut()) {
+            let this = self.project();
+
+            for elem in this.elems.iter_mut() {
+                let elem = unsafe { Pin::new_unchecked(elem) };
                 if elem.poll(cx).is_pending() {
                     all_done = false;
                 }
             }
 
             if all_done {
-                let mut elems = mem::replace(&mut self.elems, Box::pin([]));
-                let result = iter_pin_mut(elems.as_mut())
-                    .map(|e| e.take().unwrap())
-                    .collect();
+                use core::mem::MaybeUninit;
+
+                // Create the result array based on the indices
+                let mut out: [MaybeUninit<F::Output>; N] = MaybeUninit::uninit_array();
+
+                // NOTE: this clippy attribute can be removed once we can `collect` into `[usize; K]`.
+                #[allow(clippy::clippy::needless_range_loop)]
+                for (i, el) in this.elems.iter_mut().enumerate() {
+                    let el = unsafe { Pin::new_unchecked(el) }.take().unwrap();
+                    out[i] = MaybeUninit::new(el);
+                }
+                let result = unsafe { out.as_ptr().cast::<[F::Output; N]>().read() };
                 Poll::Ready(result)
             } else {
                 Poll::Pending
@@ -235,9 +243,7 @@ pub mod vec {
         F::Output: fmt::Debug,
     {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.debug_struct("JoinAll")
-                .field("elems", &self.elems)
-                .finish()
+            f.debug_struct("Join").field("elems", &self.elems).finish()
         }
     }
 
@@ -278,20 +284,19 @@ pub mod tuple {
     use core::pin::Pin;
     use core::task::{Context, Poll};
 
-    use pin_project_lite::pin_project;
+    use pin_project::pin_project;
 
     macro_rules! generate {
         ($(
             $(#[$doc:meta])*
             ($Join:ident, <$($Fut:ident),*>),
         )*) => ($(
-            pin_project! {
-                $(#[$doc])*
-                #[must_use = "futures do nothing unless you `.await` or poll them"]
-                #[allow(non_snake_case)]
-                pub struct $Join<$($Fut: Future),*> {
-                    $(#[pin] $Fut: MaybeDone<$Fut>,)*
-                }
+            $(#[$doc])*
+            #[pin_project]
+            #[must_use = "futures do nothing unless you `.await` or poll them"]
+            #[allow(non_snake_case)]
+            pub struct $Join<$($Fut: Future),*> {
+                $(#[pin] $Fut: MaybeDone<$Fut>,)*
             }
 
             impl<$($Fut),*> fmt::Debug for $Join<$($Fut),*>
