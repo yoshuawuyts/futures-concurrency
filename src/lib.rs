@@ -9,15 +9,21 @@
 //!
 //! fn main() {
 //!     block_on(async {
-//!         // Await multiple similarly-typed futures
+//!         // Await multiple similarly-typed futures.
 //!         let fut = [ready(1u8), ready(2u8), ready(3u8)].join();
 //!         let res = fut.await;
 //!         println!("{} {} {}", res[0], res[1], res[2]);
 //!
-//!         // Await multiple differently-typed futures
+//!         // Await multiple differently-typed futures.
 //!         let fut = (ready(1u8), ready("hello"), ready(3u8)).join();
 //!         let (a, b, c) = fut.await;
 //!         println!("{} {} {}", a, b, c);
+//!
+//!         // It even works with vectors of futures, providing an alternative
+//!         // to futures-rs' `join_all`.
+//!         let numbers = std::iter::repeat(12u8).take(6);
+//!         let fut: Vec<_> = numbers.map(ready).collect();
+//!         println!("{:?}", fut.join().await);
 //!     })
 //! }
 //! ```
