@@ -5,25 +5,29 @@
 //! ```
 //! use futures_lite::future::block_on;
 //! use std::future::ready;
+//! use std::future;
 //! use futures_concurrency::prelude::*;
 //!
 //! fn main() {
 //!     block_on(async {
 //!         // Await multiple similarly-typed futures.
-//!         let fut = [ready(1u8), ready(2u8), ready(3u8)].join();
-//!         let [a, b, c] = fut.await;
-//!         println!("{} {} {}", a, b, c);
-//!
+//!         let a = future::ready(1u8);
+//!         let b = future::ready(2u8);
+//!         let c = future::ready(3u8);
+//!         assert_eq!([a, b, c].join().await, [1, 2, 3]);
+//!    
 //!         // Await multiple differently-typed futures.
-//!         let fut = (ready(1u8), ready("hello"), ready(3u8)).join();
-//!         let (a, b, c) = fut.await;
-//!         println!("{} {} {}", a, b, c);
+//!         let a = future::ready(1u8);
+//!         let b = future::ready("hello");
+//!         let c = future::ready(3u16);
+//!         assert_eq!((a, b, c).join().await, (1, "hello", 3));
 //!
 //!         // It even works with vectors of futures, providing an alternative
 //!         // to futures-rs' `join_all`.
-//!         let numbers = std::iter::repeat(12u8).take(6);
-//!         let fut: Vec<_> = numbers.map(ready).collect();
-//!         println!("{:?}", fut.join().await);
+//!         let a = future::ready(1u8);
+//!         let b = future::ready(2u8);
+//!         let c = future::ready(3u8);
+//!         assert_eq!(vec![a, b, c].join().await, vec![1, 2, 3]);
 //!     })
 //! }
 //! ```
@@ -100,15 +104,17 @@ pub mod prelude {
 /// Awaits multiple futures simultaneously, returning the output of the futures
 /// once both complete.
 pub trait Join {
+    /// The resulting output type.
+    type Output;
     /// The resulting joined future.
-    type Output: Future;
+    type Future: Future<Output = Self::Output>;
 
     /// Waits for multiple futures to complete.
     ///
     /// Awaits multiple futures simultaneously, returning the output of the futures once both complete.
     ///
     /// This function returns a new future which polls both futures concurrently.
-    fn join(self) -> Self::Output;
+    fn join(self) -> Self::Future;
 }
 
 /// Implementations for the Array type.
@@ -126,9 +132,10 @@ pub mod array {
     where
         T: Future,
     {
-        type Output = Join<T, N>;
+        type Output = [T::Output; N];
+        type Future = Join<T, N>;
 
-        fn join(self) -> Self::Output {
+        fn join(self) -> Self::Future {
             Join {
                 elems: self.map(MaybeDone::new),
             }
@@ -215,9 +222,10 @@ pub mod vec {
     where
         T: Future,
     {
-        type Output = Join<T>;
+        type Output = Vec<T::Output>;
+        type Future = Join<T>;
 
-        fn join(self) -> Self::Output {
+        fn join(self) -> Self::Future {
             let elems: Box<[_]> = self.into_iter().map(MaybeDone::new).collect();
             Join {
                 elems: elems.into(),
@@ -327,9 +335,10 @@ pub mod tuple {
                     $Fut: Future,
                 )*
             {
-                type Output = $Join<$($Fut),*>;
+                type Output = ($($Fut::Output),*);
+                type Future = $Join<$($Fut),*>;
 
-                fn join(self) -> Self::Output {
+                fn join(self) -> Self::Future {
                     $Join::new(self)
                 }
             }
