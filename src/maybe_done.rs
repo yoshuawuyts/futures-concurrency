@@ -5,10 +5,10 @@
 //! This implementation was taken from the original `macro_rules` `join/try_join`
 //! macros in the `futures-preview` crate.
 
-use std::future::Future;
-use std::mem;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use core::future::Future;
+use core::mem;
+use core::pin::Pin;
+use core::task::{Context, Poll};
 
 use futures_core::ready;
 
