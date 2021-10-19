@@ -18,7 +18,6 @@ authors = [
 [dependencies]
 futures-core = "0.3.16"
 pin-project = "1.0.8"
-once_cell = "1.8.0"
 thread_local = "1.1.3"
 
 [dev-dependencies]
