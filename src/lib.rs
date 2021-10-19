@@ -89,12 +89,15 @@
 
 mod join;
 mod maybe_done;
+mod merge;
 
 pub(crate) use maybe_done::MaybeDone;
 
 /// The futures concurrency prelude.
 pub mod prelude {
-    pub use super::Join;
+    pub use super::Join as _;
+    pub use super::StreamExt as _;
 }
 
 pub use join::*;
+pub use merge::*;
