@@ -7,10 +7,8 @@
 
 mod fuse;
 mod maybe_done;
-mod poll_next_in_order;
 mod rng;
 
 pub(crate) use fuse::Fuse;
 pub(crate) use maybe_done::MaybeDone;
-pub(crate) use poll_next_in_order::poll_next_in_order;
 pub(crate) use rng::random;
