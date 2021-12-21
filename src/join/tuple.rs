@@ -17,7 +17,7 @@ macro_rules! generate {
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
-        pub struct $Join<$($Fut: Future),*> {
+        pub(crate) struct $Join<$($Fut: Future),*> {
             $(#[pin] $Fut: MaybeDone<$Fut>,)*
         }
 
@@ -43,6 +43,7 @@ macro_rules! generate {
             }
         }
 
+        #[async_trait::async_trait(?Send)]
         impl<$($Fut),*> JoinTrait for ($($Fut),*)
         where
             $(
@@ -50,10 +51,9 @@ macro_rules! generate {
             )*
         {
             type Output = ($($Fut::Output),*);
-            type Future = $Join<$($Fut),*>;
 
-            fn join(self) -> Self::Future {
-                $Join::new(self)
+            async fn join(self) -> Self::Output {
+                $Join::new(self).await
             }
         }
 

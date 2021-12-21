@@ -8,17 +8,18 @@ use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
+#[async_trait::async_trait(?Send)]
 impl<T, const N: usize> JoinTrait for [T; N]
 where
     T: Future,
 {
     type Output = [T::Output; N];
-    type Future = Join<T, N>;
 
-    fn join(self) -> Self::Future {
+    async fn join(self) -> Self::Output {
         Join {
             elems: self.map(MaybeDone::new),
         }
+        .await
     }
 }
 

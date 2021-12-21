@@ -3,10 +3,9 @@
 //! # Examples
 //!
 //! ```
-//! use futures_lite::future::block_on;
-//! use std::future::ready;
-//! use std::future;
 //! use futures_concurrency::prelude::*;
+//! use futures_lite::future::block_on;
+//! use std::future;
 //!
 //! fn main() {
 //!     block_on(async {
@@ -37,6 +36,7 @@
 //! The following traits have been implemented.
 //!
 //! - [x] `Join`
+//! - [x] `Merge`
 //! - [ ] `TryJoin`
 //! - [ ] `Race`
 //! - [ ] `TryRace`
@@ -87,21 +87,27 @@
 #![allow(non_snake_case)]
 #![feature(maybe_uninit_uninit_array)]
 
-mod ext;
 mod join;
 mod merge;
 
+pub mod future;
+pub mod stream;
+
 pub(crate) mod utils;
+
+pub use join::Join;
+// pub use merge::Merge;
 
 /// The futures concurrency prelude.
 pub mod prelude {
-    pub use super::ext::StreamExt as _;
+    pub use super::future::FutureExt as _;
+    pub use super::stream::StreamExt as _;
     pub use super::Join as _;
 }
 
 /// Implementations for the tuple type.
 pub mod tuple {
-    pub use crate::join::tuple::*;
+    // pub use crate::join::tuple::*;
 }
 
 /// Implementations for the array type.
@@ -114,6 +120,3 @@ pub mod array {
 pub mod vec {
     pub use crate::join::vec::*;
 }
-
-pub use ext::StreamExt;
-pub use join::*;

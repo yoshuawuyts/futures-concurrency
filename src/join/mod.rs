@@ -1,4 +1,3 @@
-use core::future::Future;
 use core::pin::Pin;
 
 pub(crate) mod array;
@@ -9,18 +8,19 @@ pub(crate) mod vec;
 ///
 /// Awaits multiple futures simultaneously, returning the output of the futures
 /// once both complete.
+#[async_trait::async_trait(?Send)]
 pub trait Join {
     /// The resulting output type.
     type Output;
-    /// The resulting joined future.
-    type Future: Future<Output = Self::Output>;
 
     /// Waits for multiple futures to complete.
     ///
-    /// Awaits multiple futures simultaneously, returning the output of the futures once both complete.
+    /// Awaits multiple futures simultaneously, returning the output of the
+    /// futures once both complete.
     ///
-    /// This function returns a new future which polls both futures concurrently.
-    fn join(self) -> Self::Future;
+    /// This function returns a new future which polls both futures
+    /// concurrently.
+    async fn join(self) -> Self::Output;
 }
 
 pub(crate) fn iter_pin_mut<T>(slice: Pin<&mut [T]>) -> impl Iterator<Item = Pin<&mut T>> {

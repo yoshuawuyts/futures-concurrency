@@ -1,5 +1,4 @@
-use crate::iter_pin_mut;
-
+use super::iter_pin_mut;
 use super::Join as JoinTrait;
 use crate::utils::MaybeDone;
 
@@ -11,18 +10,19 @@ use core::task::{Context, Poll};
 use std::boxed::Box;
 use std::vec::Vec;
 
+#[async_trait::async_trait(?Send)]
 impl<T> JoinTrait for Vec<T>
 where
     T: Future,
 {
     type Output = Vec<T::Output>;
-    type Future = Join<T>;
 
-    fn join(self) -> Self::Future {
+    async fn join(self) -> Self::Output {
         let elems: Box<[_]> = self.into_iter().map(MaybeDone::new).collect();
         Join {
             elems: elems.into(),
         }
+        .await
     }
 }
 

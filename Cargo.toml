@@ -19,6 +19,7 @@ authors = [
 futures-core = "0.3.16"
 pin-project = "1.0.8"
 thread_local = "1.1.3"
+async-trait = "0.1.52"
 
 [dev-dependencies]
 futures-lite = "1.12.0"
