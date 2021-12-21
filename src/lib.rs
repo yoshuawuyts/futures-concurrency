@@ -98,13 +98,14 @@ pub mod stream;
 pub(crate) mod utils;
 
 pub use join::Join;
-// pub use merge::Merge;
+pub use merge::Merge;
 
 /// The futures concurrency prelude.
 pub mod prelude {
     pub use super::future::FutureExt as _;
     pub use super::stream::StreamExt as _;
     pub use super::Join as _;
+    pub use super::Merge as _;
 }
 
 /// Implementations for the tuple type.

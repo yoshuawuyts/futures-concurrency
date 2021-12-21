@@ -1,7 +1,22 @@
+use crate::stream::IntoStream;
 use crate::utils::{self, Fuse};
+use crate::Merge as MergeTrait;
+
 use futures_core::Stream;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+
+impl<S, const N: usize> MergeTrait for [S; N]
+where
+    S: IntoStream,
+{
+    type Item = <Merge<S::IntoStream, N> as Stream>::Item;
+    type IntoStream = Merge<S::IntoStream, N>;
+
+    fn merge(self) -> Self::IntoStream {
+        Merge::new(self.map(|i| i.into_stream()))
+    }
+}
 
 /// A stream that merges multiple streams into a single stream.
 ///
