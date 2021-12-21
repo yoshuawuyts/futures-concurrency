@@ -22,25 +22,7 @@ pub(crate) fn pin_project_array<T, const N: usize>(slice: Pin<&mut [T; N]>) -> [
 }
 
 /// Returns a pinned mutable reference to an element or subslice depending on the
-/// type of index (see [`get`]) or `None` if the index is out of bounds.
-///
-/// [`get`]: #method.get
-///
-/// # Examples
-///
-/// ```
-/// #![feature(slice_get_pin)]
-/// use std::pin::Pin;
-///
-/// let v = vec![0, 1, 2].into_boxed_slice();
-/// let mut pinned = Pin::from(v);
-///
-/// if let Some(mut elem) = pinned.as_mut().get_pin_mut(1) {
-///     elem.set(10);
-/// }
-/// assert_eq!(&*pinned, &[0, 10, 2]);
-/// ```
-//
+/// type of index (see `get`) or `None` if the index is out of bounds.
 // From: https://github.com/rust-lang/rust/pull/78370/files
 #[inline]
 pub(crate) fn get_pin_mut<T, I>(slice: Pin<&mut [T]>, index: I) -> Option<Pin<&mut I::Output>>

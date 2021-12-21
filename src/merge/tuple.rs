@@ -12,7 +12,7 @@ where
     S1: IntoStream<Item = T>,
 {
     type Item = T;
-    type Stream = Merge2<T, S0::IntoStream, S1::IntoStream, 2>;
+    type Stream = Merge2<T, S0::IntoStream, S1::IntoStream>;
 
     fn merge(self) -> Self::Stream {
         Merge2::new((self.0.into_stream(), self.1.into_stream()))
@@ -28,7 +28,7 @@ where
 /// [`Stream`]: trait.Stream.html
 #[derive(Debug)]
 #[pin_project::pin_project]
-pub struct Merge2<T, S0, S1, const N: usize>
+pub struct Merge2<T, S0, S1>
 where
     S0: Stream<Item = T>,
     S1: Stream<Item = T>,
@@ -36,7 +36,7 @@ where
     streams: (S0, S1),
 }
 
-impl<T, S0, S1, const N: usize> Merge2<T, S0, S1, N>
+impl<T, S0, S1> Merge2<T, S0, S1>
 where
     S0: Stream<Item = T>,
     S1: Stream<Item = T>,
@@ -46,7 +46,7 @@ where
     }
 }
 
-impl<T, S0, S1, const N: usize> Stream for Merge2<T, S0, S1, N>
+impl<T, S0, S1> Stream for Merge2<T, S0, S1>
 where
     S0: Stream<Item = T>,
     S1: Stream<Item = T>,

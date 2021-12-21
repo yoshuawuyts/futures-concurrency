@@ -1,5 +1,5 @@
 //! Composable asynchronous iteration.
-use crate::array::Merge;
+use crate::Merge;
 
 use futures_core::Stream;
 
@@ -14,10 +14,10 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
+    /// use futures_concurrency::prelude::*;
     /// use futures_lite::prelude::*;
     /// use futures_lite::future::block_on;
     /// use futures_lite::stream;
-    /// use futures_concurrency::prelude::*;
     ///
     /// fn main() {
     ///     block_on(async {
@@ -32,11 +32,12 @@ pub trait StreamExt: Stream {
     ///     })
     /// }
     /// ```
-    fn merge(self, other: Self) -> Merge<Self, 2>
+    fn merge<S1>(self, other: S1) -> Box<dyn Stream<Item = Self::Item>>
     where
-        Self: Sized,
+        Self: Sized + 'static,
+        S1: Stream<Item = Self::Item> + 'static,
     {
-        Merge::new([self, other])
+        Box::new((self, other).merge())
     }
 }
 
