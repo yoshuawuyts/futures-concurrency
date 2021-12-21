@@ -111,6 +111,10 @@ pub mod prelude {
 }
 
 /// Implementations for the tuple type.
+///
+/// No types are publicly exposed here currently. All tuple return types are
+/// currently private, but you can call `join`, `merge`, and other methods on
+/// tuples without any issue.
 pub mod tuple {
     // pub use crate::join::tuple::*;
 }

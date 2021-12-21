@@ -11,9 +11,9 @@ where
     S: IntoStream,
 {
     type Item = <Merge<S::IntoStream> as Stream>::Item;
-    type IntoStream = Merge<S::IntoStream>;
+    type Stream = Merge<S::IntoStream>;
 
-    fn merge(self) -> Self::IntoStream {
+    fn merge(self) -> Self::Stream {
         Merge::new(self.into_iter().map(|i| i.into_stream()).collect())
     }
 }
@@ -55,6 +55,9 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
+        // Randomize the indexes into our streams array. This ensures that when
+        // multiple streams are ready at the same time, we don't accidentally
+        // exhaust one stream before another.
         // Randomize the indexes into our streams array. This ensures that when
         // multiple streams are ready at the same time, we don't accidentally
         // exhaust one stream before another.

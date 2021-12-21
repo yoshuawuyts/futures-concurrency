@@ -11,9 +11,9 @@ where
     S: IntoStream,
 {
     type Item = <Merge<S::IntoStream, N> as Stream>::Item;
-    type IntoStream = Merge<S::IntoStream, N>;
+    type Stream = Merge<S::IntoStream, N>;
 
-    fn merge(self) -> Self::IntoStream {
+    fn merge(self) -> Self::Stream {
         Merge::new(self.map(|i| i.into_stream()))
     }
 }

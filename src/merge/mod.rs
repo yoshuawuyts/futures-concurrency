@@ -1,6 +1,7 @@
-use crate::stream::IntoStream;
+use futures_core::Stream;
 
 pub(crate) mod array;
+pub(crate) mod tuple;
 pub(crate) mod vec;
 
 /// Merge multiple streams into a single stream.
@@ -9,8 +10,8 @@ pub trait Merge {
     type Item;
 
     /// The stream type.
-    type IntoStream: IntoStream<Item = Self::Item>;
+    type Stream: Stream<Item = Self::Item>;
 
     /// Combine multiple streams into a single stream.
-    fn merge(self) -> Self::IntoStream;
+    fn merge(self) -> Self::Stream;
 }
