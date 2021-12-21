@@ -1,4 +1,4 @@
-use crate::utils::{random, Fuse};
+use crate::utils::{self, Fuse};
 use futures_core::Stream;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -16,6 +16,7 @@ pub struct Merge<S, const N: usize>
 where
     S: Stream,
 {
+    #[pin]
     streams: [Fuse<S>; N],
 }
 
@@ -37,20 +38,21 @@ where
     type Item = S::Item;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project();
+        let mut this = self.project();
 
-        // Randomize our streams array. This ensures that when multiple streams
-        // are ready at the same time, we don't accidentally exhaust one stream
-        // before another.
-        this.streams.sort_by_cached_key(|_| random(1000));
+        // Randomize the indexes into our streams array. This ensures that when
+        // multiple streams are ready at the same time, we don't accidentally
+        // exhaust one stream before another.
+        let mut arr: [usize; N] = core::array::from_fn(|n| n);
+        arr.sort_by_cached_key(|_| utils::random(1000));
 
         // Iterate over our streams one-by-one. If a stream yields a value,
         // we exit early. By default we'll return `Poll::Ready(None)`, but
         // this changes if we encounter a `Poll::Pending`.
         let mut res = Poll::Ready(None);
-        for stream in this.streams.iter_mut() {
-            // SAFETY: this is safe because `Self` never moves and doesn't have any `Drop` impls.
-            match unsafe { Pin::new_unchecked(stream) }.poll_next(cx) {
+        for index in arr {
+            let stream = utils::get_pin_mut(this.streams.as_mut(), index).unwrap();
+            match stream.poll_next(cx) {
                 Poll::Ready(Some(item)) => return Poll::Ready(Some(item)),
                 Poll::Ready(None) => continue,
                 Poll::Pending => res = Poll::Pending,

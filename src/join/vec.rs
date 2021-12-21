@@ -1,5 +1,5 @@
-use super::iter_pin_mut;
 use super::Join as JoinTrait;
+use crate::utils::iter_pin_mut;
 use crate::utils::MaybeDone;
 
 use core::fmt;

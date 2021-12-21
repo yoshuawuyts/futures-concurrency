@@ -86,6 +86,8 @@
 #![warn(missing_docs, unreachable_pub)]
 #![allow(non_snake_case)]
 #![feature(maybe_uninit_uninit_array)]
+#![feature(array_methods)]
+#![feature(array_from_fn)]
 
 mod join;
 mod merge;
