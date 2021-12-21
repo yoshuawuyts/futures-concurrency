@@ -87,17 +87,16 @@
 #![allow(non_snake_case)]
 #![feature(maybe_uninit_uninit_array)]
 
+mod ext;
 mod join;
-mod maybe_done;
 mod merge;
-mod stream_ext;
 
-pub(crate) use maybe_done::MaybeDone;
+pub(crate) mod utils;
 
 /// The futures concurrency prelude.
 pub mod prelude {
+    pub use super::ext::StreamExt as _;
     pub use super::Join as _;
-    pub use super::StreamExt as _;
 }
 
 /// Implementations for the tuple type.
@@ -107,8 +106,8 @@ pub mod tuple {
 
 /// Implementations for the array type.
 pub mod array {
-    pub use crate::join::array::*;
-    pub use crate::merge::Merge;
+    pub use crate::join::array::Join;
+    pub use crate::merge::array::Merge;
 }
 
 /// Implementations for the vec type.
@@ -116,5 +115,5 @@ pub mod vec {
     pub use crate::join::vec::*;
 }
 
+pub use ext::StreamExt;
 pub use join::*;
-pub use stream_ext::StreamExt;

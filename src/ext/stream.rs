@@ -1,4 +1,5 @@
 use crate::array::Merge;
+
 use futures_core::Stream;
 
 /// Extend `Stream` with concurrency methods.
