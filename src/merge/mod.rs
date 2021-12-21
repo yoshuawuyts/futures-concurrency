@@ -1,6 +1,7 @@
 use crate::stream::IntoStream;
 
 pub(crate) mod array;
+pub(crate) mod vec;
 
 /// Wait for multiple futures to complete.
 ///

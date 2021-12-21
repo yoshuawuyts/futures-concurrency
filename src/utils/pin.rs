@@ -57,3 +57,21 @@ where
             .map(|x| Pin::new_unchecked(x))
     }
 }
+
+pub(crate) fn get_pin_mut_from_vec<T, I>(
+    slice: Pin<&mut Vec<T>>,
+    index: I,
+) -> Option<Pin<&mut I::Output>>
+where
+    I: SliceIndex<[T]>,
+{
+    // SAFETY: `get_unchecked_mut` is never used to move the slice inside `self` (`SliceIndex`
+    // is sealed and all `SliceIndex::get_mut` implementations never move elements).
+    // `x` is guaranteed to be pinned because it comes from `self` which is pinned.
+    unsafe {
+        slice
+            .get_unchecked_mut()
+            .get_mut(index)
+            .map(|x| Pin::new_unchecked(x))
+    }
+}
