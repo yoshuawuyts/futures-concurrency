@@ -14,8 +14,8 @@ pub trait StreamExt: Stream {
     /// # Examples
     ///
     /// ```
+    /// use futures::stream::StreamExt;
     /// use futures_concurrency::prelude::*;
-    /// use futures_lite::prelude::*;
     /// use futures_lite::future::block_on;
     /// use futures_lite::stream;
     ///
@@ -23,16 +23,18 @@ pub trait StreamExt: Stream {
     ///     block_on(async {
     ///         let a = stream::once(1u8);
     ///         let b = stream::once(2u8);
-    ///         let s = a.merge(b);
+    ///         let mut s = a.merge(b);
     ///
     ///         let mut buf = vec![];
-    ///         s.for_each(|n| buf.push(n)).await;
+    ///         while let Some(n) = s.next().await {
+    ///             buf.push(n);
+    ///         }
     ///         buf.sort_unstable();
     ///         assert_eq!(&buf, &[1u8, 2u8]);
     ///     })
     /// }
     /// ```
-    fn merge<S1>(self, other: S1) -> Box<dyn Stream<Item = Self::Item>>
+    fn merge<S1>(self, other: S1) -> Box<dyn Stream<Item = Self::Item> + Unpin>
     where
         Self: Sized + 'static,
         S1: Stream<Item = Self::Item> + 'static,
