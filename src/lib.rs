@@ -106,8 +106,8 @@ pub mod prelude {
     pub use super::future::FutureExt as _;
     pub use super::stream::IntoStream as _;
     pub use super::stream::StreamExt as _;
-    pub use super::Join as _;
-    pub use super::Merge as _;
+    pub use super::Join;
+    pub use super::Merge;
 }
 
 /// Implementations for the tuple type.

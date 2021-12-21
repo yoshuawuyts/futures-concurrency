@@ -58,6 +58,10 @@ where
     }
 }
 
+// NOTE: If this is implemented through the trait, this will work on both vecs and
+// slices.
+//
+// From: https://github.com/rust-lang/rust/pull/78370/files
 pub(crate) fn get_pin_mut_from_vec<T, I>(
     slice: Pin<&mut Vec<T>>,
     index: I,
