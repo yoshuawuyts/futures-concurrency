@@ -22,7 +22,7 @@ pub trait Join {
 }
 
 /// Implementations for the Array type.
-pub mod array {
+pub(crate) mod array {
     use super::{Join as JoinTrait, MaybeDone};
 
     use core::fmt;
@@ -109,7 +109,7 @@ pub mod array {
 }
 
 /// Implementations for the Vec type.
-pub mod vec {
+pub(crate) mod vec {
     use crate::iter_pin_mut;
 
     use super::{Join as JoinTrait, MaybeDone};
@@ -188,7 +188,7 @@ pub mod vec {
 }
 
 /// Implementations for the tuple type.
-pub mod tuple {
+pub(crate) mod tuple {
     use super::{Join as JoinTrait, MaybeDone};
 
     use core::fmt;

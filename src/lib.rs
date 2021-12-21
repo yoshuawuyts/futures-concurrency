@@ -90,6 +90,7 @@
 mod join;
 mod maybe_done;
 mod merge;
+mod stream_ext;
 
 pub(crate) use maybe_done::MaybeDone;
 
@@ -99,5 +100,21 @@ pub mod prelude {
     pub use super::StreamExt as _;
 }
 
+/// Implementations for the tuple type.
+pub mod tuple {
+    pub use crate::join::tuple::*;
+}
+
+/// Implementations for the array type.
+pub mod array {
+    pub use crate::join::array::*;
+    pub use crate::merge::Merge;
+}
+
+/// Implementations for the vec type.
+pub mod vec {
+    pub use crate::join::vec::*;
+}
+
 pub use join::*;
-pub use merge::*;
+pub use stream_ext::StreamExt;
