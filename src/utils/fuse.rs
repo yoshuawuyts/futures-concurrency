@@ -16,8 +16,8 @@ use pin_project::pin_project;
 #[derive(Clone, Debug)]
 pub(crate) struct Fuse<S> {
     #[pin]
-    pub(crate) stream: S,
-    pub(crate) done: bool,
+    stream: S,
+    done: bool,
 }
 
 impl<S> Fuse<S> {

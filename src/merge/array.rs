@@ -1,47 +1,61 @@
-use super::*;
-use crate::utils::Fuse;
-
+use crate::utils::{random, Fuse};
 use futures_core::Stream;
-use pin_project::pin_project;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
-/// A stream that merges two other streams into a single stream.
+/// A stream that merges multiple streams into a single stream.
 ///
 /// This `struct` is created by the [`merge`] method on [`Stream`]. See its
 /// documentation for more.
 ///
 /// [`merge`]: trait.Stream.html#method.merge
 /// [`Stream`]: trait.Stream.html
-#[pin_project]
 #[derive(Debug)]
-pub struct Merge<L, R> {
-    #[pin]
-    left: Fuse<L>,
-    #[pin]
-    right: Fuse<R>,
+#[pin_project::pin_project]
+pub struct Merge<S, const N: usize>
+where
+    S: Stream,
+{
+    streams: [Fuse<S>; N],
 }
 
-impl<L: Stream, R: Stream> Merge<L, R> {
-    pub(crate) fn new(left: L, right: R) -> Self {
+impl<S, const N: usize> Merge<S, N>
+where
+    S: Stream,
+{
+    pub(crate) fn new(streams: [S; N]) -> Self {
         Self {
-            left: Fuse::new(left),
-            right: Fuse::new(right),
+            streams: streams.map(Fuse::new),
         }
     }
 }
 
-impl<L, R, T> Stream for Merge<L, R>
+impl<S, const N: usize> Stream for Merge<S, N>
 where
-    L: Stream<Item = T>,
-    R: Stream<Item = T>,
+    S: Stream,
 {
-    type Item = T;
+    type Item = S::Item;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        if random(2) == 0 {
-            poll_next_in_order(this.left, this.right, cx)
-        } else {
-            poll_next_in_order(this.right, this.left, cx)
+
+        // Randomize our streams array. This ensures that when multiple streams
+        // are ready at the same time, we don't accidentally exhaust one stream
+        // before another.
+        this.streams.sort_by_cached_key(|_| random(1000));
+
+        // Iterate over our streams one-by-one. If a stream yields a value,
+        // we exit early. By default we'll return `Poll::Ready(None)`, but
+        // this changes if we encounter a `Poll::Pending`.
+        let mut res = Poll::Ready(None);
+        for stream in this.streams.iter_mut() {
+            // SAFETY: this is safe because `Self` never moves and doesn't have any `Drop` impls.
+            match unsafe { Pin::new_unchecked(stream) }.poll_next(cx) {
+                Poll::Ready(Some(item)) => return Poll::Ready(Some(item)),
+                Poll::Ready(None) => continue,
+                Poll::Pending => res = Poll::Pending,
+            }
         }
+        res
     }
 }
