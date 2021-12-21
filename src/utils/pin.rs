@@ -1,6 +1,7 @@
 use core::{array::IntoIter, pin::Pin};
 use std::{iter::Map, slice::SliceIndex};
 
+// From: `futures_rs::join_all!` -- https://github.com/rust-lang/futures-rs/blob/b48eb2e9a9485ef7388edc2f177094a27e08e28b/futures-util/src/future/join_all.rs#L18-L23
 pub(crate) fn iter_pin_mut<T>(slice: Pin<&mut [T]>) -> impl Iterator<Item = Pin<&mut T>> {
     // SAFETY: `std` _could_ make this unsound if it were to decide Pin's
     // invariants aren't required to transmit through slices. Otherwise this has
@@ -10,6 +11,7 @@ pub(crate) fn iter_pin_mut<T>(slice: Pin<&mut [T]>) -> impl Iterator<Item = Pin<
         .map(|t| unsafe { Pin::new_unchecked(t) })
 }
 
+// From: Yosh made this one up, hehehe
 pub(crate) fn pin_project_array<T, const N: usize>(slice: Pin<&mut [T; N]>) -> [Pin<&mut T>; N] {
     // SAFETY: `std` _could_ make this unsound if it were to decide Pin's
     // invariants aren't required to transmit through arrays. Otherwise this has
@@ -38,6 +40,8 @@ pub(crate) fn pin_project_array<T, const N: usize>(slice: Pin<&mut [T; N]>) -> [
 /// }
 /// assert_eq!(&*pinned, &[0, 10, 2]);
 /// ```
+//
+// From: https://github.com/rust-lang/rust/pull/78370/files
 #[inline]
 pub(crate) fn get_pin_mut<T, I>(slice: Pin<&mut [T]>, index: I) -> Option<Pin<&mut I::Output>>
 where
