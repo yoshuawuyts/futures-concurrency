@@ -1,4 +1,5 @@
 //! Composable asynchronous iteration.
+
 use crate::Merge;
 
 use futures_core::Stream;

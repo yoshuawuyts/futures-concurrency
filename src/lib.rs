@@ -1,4 +1,12 @@
-//! Concurrency extensions for `Future`.
+//! Concurrency extensions for `Future` and `Stream`.
+//!
+//! Companion library for the ["Futures Concurrency" blog post
+//! series](https://blog.yoshuawuyts.com/futures-concurrency-2/).
+//!
+//! The purpose of this library is to serve as a staging ground for what
+//! eventually may become the futures concurrency methods provided by the
+//! stdlib. As such we make liberal use of nightly features, as that's what will
+//! be available to us in the stdlib as well. __Use a nightly compiler to use this library.__
 //!
 //! # Examples
 //!
@@ -10,9 +18,9 @@
 //! fn main() {
 //!     block_on(async {
 //!         // Await multiple similarly-typed futures.
-//!         let a = future::ready(1u8);
-//!         let b = future::ready(2u8);
-//!         let c = future::ready(3u8);
+//!         let a = future::ready(1);
+//!         let b = future::ready(2);
+//!         let c = future::ready(3);
 //!         assert_eq!([a, b, c].join().await, [1, 2, 3]);
 //!    
 //!         // Await multiple differently-typed futures.
@@ -23,10 +31,32 @@
 //!
 //!         // It even works with vectors of futures, providing an alternative
 //!         // to futures-rs' `join_all`.
-//!         let a = future::ready(1u8);
-//!         let b = future::ready(2u8);
-//!         let c = future::ready(3u8);
+//!         let a = future::ready(1);
+//!         let b = future::ready(2);
+//!         let c = future::ready(3);
 //!         assert_eq!(vec![a, b, c].join().await, vec![1, 2, 3]);
+//!     })
+//! }
+//! ```
+//!
+//! Or merge multiple streams to handle values as soon as they're ready, without
+//! ever dropping a single value:
+//!
+//! ```
+//! use futures_concurrency::prelude::*;
+//! use futures_lite::future::block_on;
+//! use futures_lite::{stream, StreamExt};
+//!
+//! fn main() {
+//!     block_on(async {
+//!         let a = stream::once(1);
+//!         let b = stream::once(2);
+//!         let c = stream::once(3);
+//!         let mut s = (a, b, c).merge();
+//!
+//!         let mut counter = 0;
+//!         s.for_each(|n| counter += n).await;
+//!         assert_eq!(counter, 6);
 //!     })
 //! }
 //! ```
@@ -35,11 +65,11 @@
 //!
 //! The following traits have been implemented.
 //!
-//! - [x] `Join`
-//! - [x] `Merge`
-//! - [ ] `TryJoin`
-//! - [ ] `Race`
-//! - [ ] `TryRace`
+//! - [x] `Join` (futures)
+//! - [x] `Merge` (streams)
+//! - [ ] `TryJoin` (futures)
+//! - [ ] `Race` (futures)
+//! - [ ] `TryRace` (futures)
 //!
 //! # Base Futures Concurrency
 //!
@@ -81,6 +111,19 @@
 //! | `TryJoin`   | `Result<(T1, T2), E>`          | Return on first `Err`, wait for all to complete
 //! | `Race`      | `Result<T, E>`                 | Return on first value
 //! | `Try_race`  | `Result<T, E>`                 | Return on first `Ok`, reject on last Err
+//!
+//! # Streams Concurrency
+//!
+//! For streams we expose a single concurrency method: `merge`. This allows
+//! multiple streams to be merged into one, with items handled as soon as
+//! they're ready.
+//!
+//! By their nature streams can be short-circuited on a per-item basis, so we
+//! don't need to decide up front how we want to handle errors.
+//!
+//! | Name        | Return signature               | When does it return? |
+//! | ---         | ---                            | ---                  |
+//! | `Merge`     | `T`                            | Each value as soon as it's ready.
 
 #![deny(missing_debug_implementations, nonstandard_style)]
 #![warn(missing_docs, unreachable_pub)]
@@ -88,7 +131,6 @@
 #![feature(maybe_uninit_uninit_array)]
 #![feature(array_methods)]
 #![feature(array_from_fn)]
-#![feature(pin_deref_mut)]
 
 mod join;
 mod merge;
