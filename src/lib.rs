@@ -128,7 +128,7 @@
 #![deny(missing_debug_implementations, nonstandard_style)]
 #![warn(missing_docs, unreachable_pub)]
 #![allow(non_snake_case)]
-#![feature(array_methods)]
+#![cfg_attr(feature = "unstable", feature(array_methods))]
 
 mod join;
 mod merge;
