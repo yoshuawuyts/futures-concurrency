@@ -5,8 +5,9 @@
 //!
 //! The purpose of this library is to serve as a staging ground for what
 //! eventually may become the futures concurrency methods provided by the
-//! stdlib. As such we make liberal use of nightly features, as that's what will
-//! be available to us in the stdlib as well. __Use a nightly compiler to use this library.__
+//! stdlib. While most of this library is compatible with stable Rust, some
+//! functions require nightly features. To use these functions, enable the
+//! `unstable` feature of this crate (requires a nightly compiler).
 //!
 //! # Examples
 //!
@@ -128,9 +129,7 @@
 #![deny(missing_debug_implementations, nonstandard_style)]
 #![warn(missing_docs, unreachable_pub)]
 #![allow(non_snake_case)]
-#![feature(maybe_uninit_uninit_array)]
-#![feature(array_methods)]
-#![feature(array_from_fn)]
+#![cfg_attr(feature = "unstable", feature(array_methods))]
 
 mod join;
 mod merge;

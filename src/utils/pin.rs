@@ -12,6 +12,7 @@ pub(crate) fn iter_pin_mut<T>(slice: Pin<&mut [T]>) -> impl Iterator<Item = Pin<
 }
 
 // From: Yosh made this one up, hehehe
+#[cfg(feature = "unstable")]
 pub(crate) fn pin_project_array<T, const N: usize>(slice: Pin<&mut [T; N]>) -> [Pin<&mut T>; N] {
     // SAFETY: `std` _could_ make this unsound if it were to decide Pin's
     // invariants aren't required to transmit through arrays. Otherwise this has

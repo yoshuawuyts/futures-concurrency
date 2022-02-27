@@ -68,7 +68,11 @@ where
             use core::mem::MaybeUninit;
 
             // Create the result array based on the indices
-            let mut out: [MaybeUninit<F::Output>; N] = MaybeUninit::uninit_array();
+            let mut out: [MaybeUninit<F::Output>; N] = {
+                // inlined version of unstable `MaybeUninit::uninit_array()`
+                // TODO: replace with `MaybeUninit::uninit_array()` when it becomes stable
+                unsafe { MaybeUninit::<[MaybeUninit<_>; N]>::uninit().assume_init() }
+            };
 
             // NOTE: this clippy attribute can be removed once we can `collect` into `[usize; K]`.
             #[allow(clippy::clippy::needless_range_loop)]

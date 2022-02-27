@@ -58,7 +58,17 @@ where
         // Randomize the indexes into our streams array. This ensures that when
         // multiple streams are ready at the same time, we don't accidentally
         // exhaust one stream before another.
-        let mut arr: [usize; N] = core::array::from_fn(|n| n);
+        let mut arr: [usize; N] = {
+            // this is an inlined version of `core::array::from_fn`
+            // TODO: replace this with `core::array::from_fn` when it becomes stable
+            let cb = |n| n;
+            let mut idx = 0;
+            [(); N].map(|_| {
+                let res = cb(idx);
+                idx += 1;
+                res
+            })
+        };
         arr.sort_by_cached_key(|_| utils::random(1000));
 
         // Iterate over our streams one-by-one. If a stream yields a value,
