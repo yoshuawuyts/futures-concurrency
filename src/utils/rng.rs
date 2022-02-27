@@ -1,5 +1,6 @@
 use std::cell::Cell;
 use std::num::Wrapping;
+use std::thread_local;
 
 /// Generates a random number in `0..n`.
 pub(crate) fn random(n: u32) -> u32 {
