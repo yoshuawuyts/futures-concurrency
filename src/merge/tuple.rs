@@ -223,7 +223,7 @@ where
         let s1 = unsafe { Pin::new_unchecked(&mut this.streams.1) };
         let s2 = unsafe { Pin::new_unchecked(&mut this.streams.2) };
         let s3 = unsafe { Pin::new_unchecked(&mut this.streams.3) };
-        match utils::random(10) {
+        match utils::random(24) {
             // s0 first
             0 => poll_in_order!(cx, s0, s1, s2, s3),
             1 => poll_in_order!(cx, s0, s1, s3, s2),
