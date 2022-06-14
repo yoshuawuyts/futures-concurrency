@@ -133,6 +133,7 @@
 
 mod join;
 mod merge;
+mod race;
 
 pub mod future;
 pub mod stream;
@@ -141,6 +142,7 @@ pub(crate) mod utils;
 
 pub use join::Join;
 pub use merge::Merge;
+pub use race::Race;
 
 /// The futures concurrency prelude.
 pub mod prelude {
@@ -164,9 +166,11 @@ pub mod tuple {
 pub mod array {
     pub use crate::join::array::Join;
     pub use crate::merge::array::Merge;
+    pub use crate::race::array::Race;
 }
 
 /// Implementations for the vec type.
 pub mod vec {
     pub use crate::join::vec::*;
+    pub use crate::race::vec::*;
 }
