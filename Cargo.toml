@@ -24,3 +24,4 @@ async-trait = "0.1.52"
 [dev-dependencies]
 futures-lite = "1.12.0"
 futures = "0.3.19"
+async-io = "1.6.0"

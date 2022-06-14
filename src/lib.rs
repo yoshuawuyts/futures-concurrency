@@ -69,8 +69,8 @@
 //! - [x] `Join` (futures)
 //! - [x] `Merge` (streams)
 //! - [ ] `TryJoin` (futures)
-//! - [ ] `First` (futures)
-//! - [ ] `FirstOk` (futures)
+//! - [ ] `Race` (futures)
+//! - [ ] `RaceOk` (futures)
 //!
 //! # Base Futures Concurrency
 //!
@@ -85,7 +85,7 @@
 //! | Name     | Return signature | When does it return?     |
 //! | ---      | ---              | ---                      |
 //! | `Join`   | `(T1, T2)`       | Wait for all to complete
-//! | `First`  | `T`              | Return on first value
+//! | `Race`   | `T`              | Return on  value
 //!
 //! ## Fallible Futures Concurrency
 //!
@@ -97,9 +97,9 @@
 //! futures are dropped and an error is returned. This is referred to as
 //! "short-circuiting".
 //!
-//! In the case of `first_ok`, instead of returning the first future that
+//! In the case of `race_ok`, instead of returning the  future that
 //! completes it returns the first future that _successfully_ completes. This
-//! means `first_ok` will keep going until any one of the futures returns
+//! means `race_ok` will keep going until any one of the futures returns
 //! `Ok`, or _all_ futures have returned `Err`.
 //!
 //! However sometimes it can be useful to use the base variants of the functions
@@ -109,9 +109,9 @@
 //! | Name        | Return signature               | When does it return? |
 //! | ---         | ---                            | ---                  |
 //! | `Join`      | `(Result<T, E>, Result<T, E>)` | Wait for all to complete
-//! | `TryJoin`   | `Result<(T1, T2), E>`          | Return on first `Err`, wait for all to complete
-//! | `First`     | `Result<T, E>`                 | Return on first value
-//! | `FirstOk`   | `Result<T, E>`                 | Return on first `Ok`, reject on last Err
+//! | `TryJoin`   | `Result<(T1, T2), E>`          | Return on  `Err`, wait for all to complete
+//! | `Race`      | `Result<T, E>`                 | Return on  value
+//! | `RaceOk`    | `Result<T, E>`                 | Return on  `Ok`, reject on last Err
 //!
 //! # Streams Concurrency
 //!
@@ -133,6 +133,7 @@
 
 mod join;
 mod merge;
+mod race;
 
 pub mod future;
 pub mod stream;
@@ -141,6 +142,7 @@ pub(crate) mod utils;
 
 pub use join::Join;
 pub use merge::Merge;
+pub use race::Race;
 
 /// The futures concurrency prelude.
 pub mod prelude {
@@ -164,9 +166,11 @@ pub mod tuple {
 pub mod array {
     pub use crate::join::array::Join;
     pub use crate::merge::array::Merge;
+    pub use crate::race::array::Race;
 }
 
 /// Implementations for the vec type.
 pub mod vec {
     pub use crate::join::vec::*;
+    pub use crate::race::vec::*;
 }
