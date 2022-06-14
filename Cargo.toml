@@ -1,6 +1,6 @@
 [package]
 name = "futures-concurrency"
-version = "2.0.3"
+version = "3.0.0"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/yoshuawuyts/futures-concurrency"
 documentation = "https://docs.rs/futures-concurrency"
