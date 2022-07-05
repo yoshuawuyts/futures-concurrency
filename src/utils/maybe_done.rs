@@ -9,6 +9,8 @@ use futures_core::ready;
 #[derive(Debug)]
 pub(crate) enum MaybeDone<Fut: Future> {
     /// A not-yet-completed future
+    ///
+    /// The Option<usize> field is the index of the next one to poll
     Future(Fut),
 
     /// The output of the completed future
