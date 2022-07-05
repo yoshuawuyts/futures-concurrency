@@ -5,6 +5,8 @@ use core::fmt;
 use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
+use std::sync::Arc;
+use std::task::{Waker, Wake};
 
 use pin_project::pin_project;
 
@@ -16,10 +18,44 @@ where
     type Output = [T::Output; N];
 
     async fn join(self) -> Self::Output {
+        let len = self.len();
+        let mut i = 0;
+        let elems = self.map(|f| {
+            let ret = Elem::new(f, (i == len).then(|| i + 1));
+            i += 1;
+            ret
+        });
         Join {
-            elems: self.map(MaybeDone::new),
+            elems,
+            poll_next: if len > 0 { Some(0) } else { None },
         }
         .await
+    }
+}
+
+/// A future + index of the next future to poll.
+struct Elem<F: Future> {
+    elem: MaybeDone<F>,
+    poll_next: Option<usize>,
+}
+
+impl<F: Future> Elem<F> {
+    fn new(fut: F, index: Option<usize>) -> Self {
+        Self {
+            elem: MaybeDone::new(fut),
+            poll_next: index,
+            done_count = 0,
+        }
+    }
+}
+
+impl<F> fmt::Debug for Elem<F>
+where
+    F: Future + fmt::Debug,
+    F::Output: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Elem").field("elem", &self.elem).finish()
     }
 }
 
@@ -33,8 +69,28 @@ pub struct Join<F, const N: usize>
 where
     F: Future,
 {
-    elems: [MaybeDone<F>; N],
+    elems: [Elem<F>; N],
+    poll_next: Option<usize>,
+    done_count: usize,
 }
+
+/// When polling `Join`
+///
+/// 1. let t = self.elems[poll_next].poll(waker_for_i)
+/// 2. self.poll_next = self.elems[poll_next].next
+/// 3. if t is Pending, continue
+/// 4. if t is complete, also do nothing...
+///
+/// This is in a loop until we traverse the whole list
+
+/// Wakers
+///
+/// We need a waker per element
+///
+/// waker.wake(i):
+/// 1. self.elems[i].next = self.poll_next
+/// 2. self.poll_next = i
+/// 3. call parent waker
 
 impl<F, const N: usize> fmt::Debug for Join<F, N>
 where
@@ -53,18 +109,34 @@ where
     type Output = [F::Output; N];
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut all_done = true;
-
+        let unsafe_self = unsafe { self.get_unchecked_mut() };
         let this = self.project();
 
-        for elem in this.elems.iter_mut() {
-            let elem = unsafe { Pin::new_unchecked(elem) };
-            if elem.poll(cx).is_pending() {
-                all_done = false;
+        let mut next = *this.poll_next;
+        loop {
+            match next {
+                Some(i) => {
+                    let elem = unsafe { Pin::new_unchecked(&mut this.elems[i].elem) };
+                    *this.poll_next = this.elems[i].poll_next;
+                    // FIXME: need to create a waker for this element
+                    let waker = ElemWaker {
+                        elem: i,
+                        join: unsafe_self, // address of self
+                        parent: cx.waker().clone(),
+                    };
+                    if elem.poll(&mut Context::from_waker(&Arc::new(waker).into())).is_ready() {
+                        self.done_count += 1;
+                    }
+
+                    // We need to make sure this line comes after elem.poll, since elem.poll might
+                    // wake itself before returning Pending
+                    next = *this.poll_next;
+                }
+                None => break,
             }
         }
 
-        if all_done {
+        if *this.done_count == N {
             use core::mem::MaybeUninit;
 
             // Create the result array based on the indices
@@ -77,13 +149,35 @@ where
             // NOTE: this clippy attribute can be removed once we can `collect` into `[usize; K]`.
             #[allow(clippy::clippy::needless_range_loop)]
             for (i, el) in this.elems.iter_mut().enumerate() {
-                let el = unsafe { Pin::new_unchecked(el) }.take().unwrap();
+                let el = unsafe { Pin::new_unchecked(&mut el.elem) }.take().unwrap();
                 out[i] = MaybeUninit::new(el);
             }
             let result = unsafe { out.as_ptr().cast::<[F::Output; N]>().read() };
             Poll::Ready(result)
         } else {
             Poll::Pending
+        }
+    }
+}
+
+struct ElemWaker<F: Future, const N: usize> {
+    elem: usize,
+    join: *mut Join<F, N>,
+    parent: Waker,
+}
+
+impl<F: Future, const N: usize> Wake for ElemWaker<F, N> {
+    fn wake(self: Arc<Self>) {
+        let next = self.join.poll_next;
+        let me = &mut self.join.elems[self.elem];
+        self.join.poll_next = Some(self.elem);
+        match next {
+            Some(i) => {
+                me.poll_next = Some(i)
+            },
+            None => {
+                self.parent.wake()
+            }
         }
     }
 }
