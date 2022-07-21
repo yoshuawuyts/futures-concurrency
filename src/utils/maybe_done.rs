@@ -42,18 +42,16 @@ impl<Fut: Future> MaybeDone<Fut> {
     /// towards completion.
     #[inline]
     pub(crate) fn take(self: Pin<&mut Self>) -> Option<Fut::Output> {
-        
-            let this = unsafe { self.get_unchecked_mut() };
-            match this {
-                MaybeDone::Done(_) => {}
-                MaybeDone::Future(_) | MaybeDone::Gone => return None,
-            };
-            if let MaybeDone::Done(output) = mem::replace(this, MaybeDone::Gone) {
-                Some(output)
-            } else {
-                unreachable!()
-            }
-        
+        let this = unsafe { self.get_unchecked_mut() };
+        match this {
+            MaybeDone::Done(_) => {}
+            MaybeDone::Future(_) | MaybeDone::Gone => return None,
+        };
+        if let MaybeDone::Done(output) = mem::replace(this, MaybeDone::Gone) {
+            Some(output)
+        } else {
+            unreachable!()
+        }
     }
 }
 
