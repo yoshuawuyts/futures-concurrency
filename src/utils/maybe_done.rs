@@ -42,8 +42,8 @@ impl<Fut: Future> MaybeDone<Fut> {
     /// towards completion.
     #[inline]
     pub(crate) fn take(self: Pin<&mut Self>) -> Option<Fut::Output> {
-        unsafe {
-            let this = self.get_unchecked_mut();
+        
+            let this = unsafe { self.get_unchecked_mut() };
             match this {
                 MaybeDone::Done(_) => {}
                 MaybeDone::Future(_) | MaybeDone::Gone => return None,
@@ -53,7 +53,7 @@ impl<Fut: Future> MaybeDone<Fut> {
             } else {
                 unreachable!()
             }
-        }
+        
     }
 }
 
