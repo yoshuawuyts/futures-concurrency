@@ -2,7 +2,7 @@ pub(crate) mod array;
 pub(crate) mod tuple;
 pub(crate) mod vec;
 
-/// Wait for multiple futures to complete.
+/// Wait for all futures to complete.
 ///
 /// Awaits multiple futures simultaneously, returning the output of the futures
 /// once both complete.
