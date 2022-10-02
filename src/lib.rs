@@ -175,4 +175,5 @@ pub mod array {
 pub mod vec {
     pub use crate::join::vec::Join;
     pub use crate::race::vec::Race;
+    pub use crate::try_join::vec::TryJoin;
 }
