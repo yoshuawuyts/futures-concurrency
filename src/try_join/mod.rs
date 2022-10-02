@@ -1,3 +1,4 @@
+pub(crate) mod array;
 pub(crate) mod vec;
 
 /// Wait for all futures to complete successfully, or abort early on error.

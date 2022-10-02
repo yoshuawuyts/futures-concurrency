@@ -169,6 +169,7 @@ pub mod array {
     pub use crate::join::array::Join;
     pub use crate::merge::array::Merge;
     pub use crate::race::array::Race;
+    pub use crate::try_join::array::TryJoin;
 }
 
 /// Implementations for the vec type.
