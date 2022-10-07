@@ -65,6 +65,7 @@ where
         let this = self.project();
 
         for elem in this.elems.iter_mut() {
+            // SAFETY: we don't ever move the pinned container here; we only pin project
             let mut elem = unsafe { Pin::new_unchecked(elem) };
             if let Poll::Pending = elem.as_mut().poll(cx) {
                 all_done = false
@@ -86,6 +87,7 @@ where
             // NOTE: this clippy attribute can be removed once we can `collect` into `[usize; K]`.
             #[allow(clippy::clippy::needless_range_loop)]
             for (i, el) in this.elems.iter_mut().enumerate() {
+                // SAFETY: we don't ever move the pinned container here; we only pin project
                 let el = unsafe { Pin::new_unchecked(el) }.take().unwrap().unwrap();
                 out[i] = MaybeUninit::new(el);
             }
