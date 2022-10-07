@@ -166,6 +166,7 @@ pub mod tuple {
 
 /// Implementations for the array type.
 pub mod array {
+    pub use crate::first_ok::array::FirstOk;
     pub use crate::join::array::Join;
     pub use crate::merge::array::Merge;
     pub use crate::race::array::Race;
