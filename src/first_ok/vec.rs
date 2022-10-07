@@ -112,4 +112,19 @@ mod test {
             assert_eq!(res.unwrap(), "hello");
         });
     }
+
+    #[test]
+    fn all_err() {
+        async_io::block_on(async {
+            let err1 = Error::new(ErrorKind::Other, "oops");
+            let err2 = Error::new(ErrorKind::Other, "oh no");
+            let res: Result<&str, Vec<Error>> =
+                vec![future::ready(Err(err1)), future::ready(Err(err2))]
+                    .first_ok()
+                    .await;
+            let errs = res.unwrap_err();
+            assert_eq!(errs[0].to_string(), "oops");
+            assert_eq!(errs[1].to_string(), "oh no");
+        });
+    }
 }
