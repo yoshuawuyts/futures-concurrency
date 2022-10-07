@@ -174,6 +174,7 @@ pub mod array {
 
 /// Implementations for the vec type.
 pub mod vec {
+    pub use crate::first_ok::vec::FirstOk;
     pub use crate::join::vec::Join;
     pub use crate::race::vec::Race;
     pub use crate::try_join::vec::TryJoin;

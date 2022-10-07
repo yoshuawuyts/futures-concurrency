@@ -1,3 +1,6 @@
+// pub(crate) mod array;
+pub(crate) mod vec;
+
 /// Wait for the first successful future to complete.
 ///
 /// Awaits multiple futures simultaneously, returning the output of the first
