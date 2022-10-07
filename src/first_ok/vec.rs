@@ -8,7 +8,53 @@ use core::mem;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 use std::boxed::Box;
+use std::ops::Deref;
+use std::ops::DerefMut;
 use std::vec::Vec;
+
+/// A collection of errors.
+#[repr(transparent)]
+pub struct AggregateError<T> {
+    inner: Vec<T>,
+}
+
+impl<T> AggregateError<T> {
+    fn new(inner: Vec<T>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for AggregateError<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut list = f.debug_list();
+        for err in &self.inner {
+            list.entry(err);
+        }
+        list.finish()
+    }
+}
+
+impl<T: fmt::Debug> fmt::Display for AggregateError<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
+impl<T> Deref for AggregateError<T> {
+    type Target = Vec<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<T> DerefMut for AggregateError<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
+impl<T: fmt::Debug> std::error::Error for AggregateError<T> {}
 
 #[async_trait::async_trait(?Send)]
 impl<F, T, E> FirstOkTrait for Vec<F>
@@ -18,7 +64,7 @@ where
     F: Future<Output = Result<T, E>>,
 {
     type Output = T;
-    type Error = Vec<E>;
+    type Error = AggregateError<E>;
 
     async fn first_ok(self) -> Result<Self::Output, Self::Error> {
         let elems: Box<[_]> = self.into_iter().map(MaybeDone::new).collect();
@@ -59,7 +105,7 @@ where
     E: fmt::Debug,
     F: Future<Output = Result<T, E>>,
 {
-    type Output = Result<T, Vec<E>>;
+    type Output = Result<T, AggregateError<E>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut all_done = true;
@@ -77,7 +123,7 @@ where
             let result: Vec<E> = iter_pin_mut(elems.as_mut())
                 .map(|e| e.take().unwrap().unwrap_err())
                 .collect();
-            Poll::Ready(Err(result))
+            Poll::Ready(Err(AggregateError::new(result)))
         } else {
             Poll::Pending
         }
@@ -93,7 +139,7 @@ mod test {
     #[test]
     fn all_ok() {
         async_io::block_on(async {
-            let res: Result<&str, Vec<Error>> =
+            let res: Result<&str, AggregateError<Error>> =
                 vec![future::ready(Ok("hello")), future::ready(Ok("world"))]
                     .first_ok()
                     .await;
@@ -105,7 +151,7 @@ mod test {
     fn one_err() {
         async_io::block_on(async {
             let err = Error::new(ErrorKind::Other, "oh no");
-            let res: Result<&str, Vec<Error>> =
+            let res: Result<&str, AggregateError<Error>> =
                 vec![future::ready(Ok("hello")), future::ready(Err(err))]
                     .first_ok()
                     .await;
@@ -118,7 +164,7 @@ mod test {
         async_io::block_on(async {
             let err1 = Error::new(ErrorKind::Other, "oops");
             let err2 = Error::new(ErrorKind::Other, "oh no");
-            let res: Result<&str, Vec<Error>> =
+            let res: Result<&str, AggregateError<Error>> =
                 vec![future::ready(Err(err1)), future::ready(Err(err2))]
                     .first_ok()
                     .await;

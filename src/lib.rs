@@ -166,7 +166,7 @@ pub mod tuple {
 
 /// Implementations for the array type.
 pub mod array {
-    pub use crate::first_ok::array::FirstOk;
+    pub use crate::first_ok::array::{AggregateError, FirstOk};
     pub use crate::join::array::Join;
     pub use crate::merge::array::Merge;
     pub use crate::race::array::Race;
@@ -175,7 +175,7 @@ pub mod array {
 
 /// Implementations for the vec type.
 pub mod vec {
-    pub use crate::first_ok::vec::FirstOk;
+    pub use crate::first_ok::vec::{AggregateError, FirstOk};
     pub use crate::join::vec::Join;
     pub use crate::race::vec::Race;
     pub use crate::try_join::vec::TryJoin;

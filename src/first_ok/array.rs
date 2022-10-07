@@ -5,18 +5,63 @@ use core::fmt;
 use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
+use std::ops::{Deref, DerefMut};
 
 use pin_project::pin_project;
+
+/// A collection of errors.
+#[repr(transparent)]
+pub struct AggregateError<T, const N: usize> {
+    inner: [T; N],
+}
+
+impl<T, const N: usize> AggregateError<T, N> {
+    fn new(inner: [T; N]) -> Self {
+        Self { inner }
+    }
+}
+
+impl<T: fmt::Debug, const N: usize> fmt::Debug for AggregateError<T, N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut list = f.debug_list();
+        for err in self.inner.as_ref() {
+            list.entry(err);
+        }
+        list.finish()
+    }
+}
+
+impl<T: fmt::Debug, const N: usize> fmt::Display for AggregateError<T, N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
+impl<T, const N: usize> Deref for AggregateError<T, N> {
+    type Target = [T; N];
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<T, const N: usize> DerefMut for AggregateError<T, N> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
+impl<T: fmt::Debug, const N: usize> std::error::Error for AggregateError<T, N> {}
 
 #[async_trait::async_trait(?Send)]
 impl<F, T, E, const N: usize> FirstOkTrait for [F; N]
 where
-    T: std::fmt::Debug,
+    T: fmt::Debug,
     F: Future<Output = Result<T, E>>,
     E: fmt::Debug,
 {
     type Output = T;
-    type Error = [E; N];
+    type Error = AggregateError<E, N>;
 
     async fn first_ok(self) -> Result<Self::Output, Self::Error> {
         FirstOk {
@@ -57,7 +102,7 @@ where
     F: Future<Output = Result<T, E>>,
     E: fmt::Debug,
 {
-    type Output = Result<T, [E; N]>;
+    type Output = Result<T, AggregateError<E, N>>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut all_done = true;
@@ -95,7 +140,7 @@ where
                 out[i] = MaybeUninit::new(el);
             }
             let result = unsafe { out.as_ptr().cast::<[E; N]>().read() };
-            Poll::Ready(Err(result))
+            Poll::Ready(Err(AggregateError::new(result)))
         } else {
             Poll::Pending
         }
@@ -111,7 +156,7 @@ mod test {
     #[test]
     fn all_ok() {
         async_io::block_on(async {
-            let res: Result<&str, [Error; 2]> =
+            let res: Result<&str, AggregateError<Error, 2>> =
                 [future::ready(Ok("hello")), future::ready(Ok("world"))]
                     .first_ok()
                     .await;
@@ -123,7 +168,7 @@ mod test {
     fn one_err() {
         async_io::block_on(async {
             let err = Error::new(ErrorKind::Other, "oh no");
-            let res: Result<&str, [Error; 2]> =
+            let res: Result<&str, AggregateError<Error, 2>> =
                 [future::ready(Ok("hello")), future::ready(Err(err))]
                     .first_ok()
                     .await;
@@ -136,7 +181,7 @@ mod test {
         async_io::block_on(async {
             let err1 = Error::new(ErrorKind::Other, "oops");
             let err2 = Error::new(ErrorKind::Other, "oh no");
-            let res: Result<&str, [Error; 2]> =
+            let res: Result<&str, AggregateError<Error, 2>> =
                 [future::ready(Err(err1)), future::ready(Err(err2))]
                     .first_ok()
                     .await;
