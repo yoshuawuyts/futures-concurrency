@@ -62,16 +62,6 @@
 //! }
 //! ```
 //!
-//! # Progress
-//!
-//! The following traits have been implemented.
-//!
-//! - [x] `Join` (futures)
-//! - [x] `Merge` (streams)
-//! - [ ] `TryJoin` (futures)
-//! - [ ] `Race` (futures)
-//! - [ ] `RaceOk` (futures)
-//!
 //! # Base Futures Concurrency
 //!
 //! Often it's desireable to await multiple futures as if it was a single
