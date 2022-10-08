@@ -2,22 +2,22 @@ use super::Join as JoinTrait;
 use crate::utils::MaybeDone;
 
 use core::fmt;
-use core::future::Future;
+use core::future::{Future, IntoFuture};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
 #[async_trait::async_trait(?Send)]
-impl<T, const N: usize> JoinTrait for [T; N]
+impl<Fut, const N: usize> JoinTrait for [Fut; N]
 where
-    T: Future,
+    Fut: IntoFuture,
 {
-    type Output = [T::Output; N];
+    type Output = [Fut::Output; N];
 
     async fn join(self) -> Self::Output {
         Join {
-            elems: self.map(MaybeDone::new),
+            elems: self.map(|fut| MaybeDone::new(fut.into_future())),
         }
         .await
     }

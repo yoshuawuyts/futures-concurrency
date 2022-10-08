@@ -3,7 +3,7 @@ use crate::utils::MaybeDone;
 use crate::TryJoin as TryJoinTrait;
 
 use core::fmt;
-use core::future::Future;
+use core::future::{Future, IntoFuture};
 use core::mem;
 use core::pin::Pin;
 use core::task::{Context, Poll};
@@ -20,7 +20,10 @@ where
     type Error = E;
 
     async fn try_join(self) -> Result<Self::Output, Self::Error> {
-        let elems: Box<[_]> = self.into_iter().map(MaybeDone::new).collect();
+        let elems: Box<[_]> = self
+            .into_iter()
+            .map(|fut| MaybeDone::new(fut.into_future()))
+            .collect();
         TryJoin {
             elems: elems.into(),
         }

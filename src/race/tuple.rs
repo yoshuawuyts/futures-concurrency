@@ -1,7 +1,7 @@
 use super::Race as RaceTrait;
 
 use core::fmt;
-use core::future::Future;
+use core::future::{Future, IntoFuture};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
@@ -10,13 +10,13 @@ use pin_project::pin_project;
 macro_rules! generate {
     ($(
         $(#[$doc:meta])*
-        ($Race:ident, <$($Fut:ident),*>),
+        ($TyName:ident, <$($Fut:ident),*>),
     )*) => ($(
         $(#[$doc])*
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
-        pub(crate) struct $Race<T, $($Fut),*>
+        pub(crate) struct $TyName<T, $($Fut),*>
         where
             $($Fut: Future<Output = T>),*
         {
@@ -24,7 +24,7 @@ macro_rules! generate {
             $(#[pin] $Fut: $Fut,)*
         }
 
-        impl<T, $($Fut),*> fmt::Debug for $Race<T, $($Fut),*>
+        impl<T, $($Fut),*> fmt::Debug for $TyName<T, $($Fut),*>
         where
             $(
                 $Fut: Future<Output = T> + fmt::Debug,
@@ -32,37 +32,29 @@ macro_rules! generate {
             )*
         {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.debug_struct(stringify!($Race))
+                f.debug_struct(stringify!($TyName))
                     $(.field(stringify!($Fut), &self.$Fut))*
                     .finish()
-            }
-        }
-
-        impl<T, $($Fut),*> $Race<T, $($Fut),*>
-        where
-            $($Fut: Future<Output = T>),*
-        {
-            fn new(($($Fut),*): ($($Fut),*)) -> Self {
-                Self {
-                    done: false,
-                    $($Fut: $Fut),*
-                }
             }
         }
 
         #[async_trait::async_trait(?Send)]
         impl<T, $($Fut),*> RaceTrait for ($($Fut),*)
         where
-            $($Fut: Future<Output = T>),*
+            $($Fut: IntoFuture<Output = T>),*
         {
             type Output = T;
 
             async fn race(self) -> Self::Output {
-                $Race::new(self).await
+                let ($($Fut),*): ($($Fut),*) = self;
+                $TyName {
+                    done: false,
+                    $($Fut: $Fut.into_future()),*
+                }.await
             }
         }
 
-        impl<T, $($Fut: Future),*> Future for $Race<T, $($Fut),*>
+        impl<T, $($Fut: Future),*> Future for $TyName<T, $($Fut),*>
         where
             $($Fut: Future<Output = T>),*
         {

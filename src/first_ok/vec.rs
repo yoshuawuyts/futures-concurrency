@@ -3,7 +3,7 @@ use crate::utils::MaybeDone;
 use crate::FirstOk as FirstOkTrait;
 
 use core::fmt;
-use core::future::Future;
+use core::future::{Future, IntoFuture};
 use core::mem;
 use core::pin::Pin;
 use core::task::{Context, Poll};
@@ -61,13 +61,16 @@ impl<F, T, E> FirstOkTrait for Vec<F>
 where
     T: fmt::Debug,
     E: fmt::Debug,
-    F: Future<Output = Result<T, E>>,
+    F: IntoFuture<Output = Result<T, E>>,
 {
     type Output = T;
     type Error = AggregateError<E>;
 
     async fn first_ok(self) -> Result<Self::Output, Self::Error> {
-        let elems: Box<[_]> = self.into_iter().map(MaybeDone::new).collect();
+        let elems: Box<[_]> = self
+            .into_iter()
+            .map(|fut| MaybeDone::new(fut.into_future()))
+            .collect();
         FirstOk {
             elems: elems.into(),
         }

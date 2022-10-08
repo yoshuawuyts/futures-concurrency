@@ -2,7 +2,7 @@ use super::FirstOk as FirstOkTrait;
 use crate::utils::MaybeDone;
 
 use core::fmt;
-use core::future::Future;
+use core::future::{Future, IntoFuture};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 use std::ops::{Deref, DerefMut};
@@ -57,7 +57,7 @@ impl<T: fmt::Debug, const N: usize> std::error::Error for AggregateError<T, N> {
 impl<F, T, E, const N: usize> FirstOkTrait for [F; N]
 where
     T: fmt::Debug,
-    F: Future<Output = Result<T, E>>,
+    F: IntoFuture<Output = Result<T, E>>,
     E: fmt::Debug,
 {
     type Output = T;
@@ -65,7 +65,7 @@ where
 
     async fn first_ok(self) -> Result<Self::Output, Self::Error> {
         FirstOk {
-            elems: self.map(MaybeDone::new),
+            elems: self.map(|fut| MaybeDone::new(fut.into_future())),
         }
         .await
     }

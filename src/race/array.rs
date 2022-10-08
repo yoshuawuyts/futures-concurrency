@@ -1,22 +1,22 @@
 use super::Race as RaceTrait;
 
 use core::fmt;
-use core::future::Future;
+use core::future::{Future, IntoFuture};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
 #[async_trait::async_trait(?Send)]
-impl<T, const N: usize> RaceTrait for [T; N]
+impl<Fut, const N: usize> RaceTrait for [Fut; N]
 where
-    T: Future,
+    Fut: IntoFuture,
 {
-    type Output = T::Output;
+    type Output = Fut::Output;
 
     async fn race(self) -> Self::Output {
         Race {
-            futs: self,
+            futs: self.map(|fut| fut.into_future()),
             done: false,
         }
         .await

@@ -1,4 +1,4 @@
-use core::future::Future;
+use core::future::{Future, IntoFuture};
 use core::mem;
 use core::pin::Pin;
 use core::task::{Context, Poll};

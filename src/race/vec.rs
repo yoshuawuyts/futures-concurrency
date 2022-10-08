@@ -1,22 +1,22 @@
 use super::Race as RaceTrait;
 
 use core::fmt;
-use core::future::Future;
+use core::future::{Future, IntoFuture};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
 #[async_trait::async_trait(?Send)]
-impl<T> RaceTrait for Vec<T>
+impl<Fut> RaceTrait for Vec<Fut>
 where
-    T: Future,
+    Fut: IntoFuture,
 {
-    type Output = T::Output;
+    type Output = Fut::Output;
 
     async fn race(self) -> Self::Output {
         Race {
-            futs: self,
+            futs: self.into_iter().map(|fut| fut.into_future()).collect(),
             done: false,
         }
         .await

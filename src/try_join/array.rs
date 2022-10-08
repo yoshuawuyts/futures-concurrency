@@ -2,7 +2,7 @@ use super::TryJoin as TryJoinTrait;
 use crate::utils::MaybeDone;
 
 use core::fmt;
-use core::future::Future;
+use core::future::{Future, IntoFuture};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
@@ -20,7 +20,7 @@ where
 
     async fn try_join(self) -> Result<Self::Output, Self::Error> {
         TryJoin {
-            elems: self.map(MaybeDone::new),
+            elems: self.map(|fut| MaybeDone::new(fut.into_future())),
         }
         .await
     }
