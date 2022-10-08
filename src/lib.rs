@@ -62,16 +62,6 @@
 //! }
 //! ```
 //!
-//! # Progress
-//!
-//! The following traits have been implemented.
-//!
-//! - [x] `Join` (futures)
-//! - [x] `Merge` (streams)
-//! - [ ] `TryJoin` (futures)
-//! - [ ] `Race` (futures)
-//! - [ ] `RaceOk` (futures)
-//!
 //! # Base Futures Concurrency
 //!
 //! Often it's desireable to await multiple futures as if it was a single
@@ -131,17 +121,21 @@
 #![allow(non_snake_case)]
 #![cfg_attr(feature = "unstable", feature(array_methods))]
 
+mod first_ok;
 mod join;
 mod merge;
 mod race;
+mod try_join;
 
 pub mod stream;
 
 pub(crate) mod utils;
 
+pub use first_ok::FirstOk;
 pub use join::Join;
 pub use merge::Merge;
 pub use race::Race;
+pub use try_join::TryJoin;
 
 /// The futures concurrency prelude.
 pub mod prelude {
@@ -162,13 +156,17 @@ pub mod tuple {
 
 /// Implementations for the array type.
 pub mod array {
+    pub use crate::first_ok::array::{AggregateError, FirstOk};
     pub use crate::join::array::Join;
     pub use crate::merge::array::Merge;
     pub use crate::race::array::Race;
+    pub use crate::try_join::array::TryJoin;
 }
 
 /// Implementations for the vec type.
 pub mod vec {
+    pub use crate::first_ok::vec::{AggregateError, FirstOk};
     pub use crate::join::vec::Join;
     pub use crate::race::vec::Race;
+    pub use crate::try_join::vec::TryJoin;
 }
