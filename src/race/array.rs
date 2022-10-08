@@ -1,22 +1,22 @@
 use super::Race as RaceTrait;
 
 use core::fmt;
-use core::future::Future;
+use core::future::{Future, IntoFuture};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
 #[async_trait::async_trait(?Send)]
-impl<T, const N: usize> RaceTrait for [T; N]
+impl<Fut, const N: usize> RaceTrait for [Fut; N]
 where
-    T: Future,
+    Fut: IntoFuture,
 {
-    type Output = T::Output;
+    type Output = Fut::Output;
 
     async fn race(self) -> Self::Output {
         Race {
-            futs: self,
+            futs: self.map(|fut| fut.into_future()),
             done: false,
         }
         .await
@@ -29,29 +29,29 @@ where
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub struct Race<F, const N: usize>
+pub struct Race<Fut, const N: usize>
 where
-    F: Future,
+    Fut: Future,
 {
-    futs: [F; N],
+    futs: [Fut; N],
     done: bool,
 }
 
-impl<F, const N: usize> fmt::Debug for Race<F, N>
+impl<Fut, const N: usize> fmt::Debug for Race<Fut, N>
 where
-    F: Future + fmt::Debug,
-    F::Output: fmt::Debug,
+    Fut: Future + fmt::Debug,
+    Fut::Output: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Race").field("futs", &self.futs).finish()
     }
 }
 
-impl<F, const N: usize> Future for Race<F, N>
+impl<Fut, const N: usize> Future for Race<Fut, N>
 where
-    F: Future,
+    Fut: Future,
 {
-    type Output = F::Output;
+    type Output = Fut::Output;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();

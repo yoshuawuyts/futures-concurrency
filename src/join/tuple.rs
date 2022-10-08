@@ -2,7 +2,7 @@ use super::Join as JoinTrait;
 use crate::utils::MaybeDone;
 
 use core::fmt;
-use core::future::Future;
+use core::future::{Future, IntoFuture};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
@@ -11,17 +11,17 @@ use pin_project::pin_project;
 macro_rules! generate {
     ($(
         $(#[$doc:meta])*
-        ($Join:ident, <$($Fut:ident),*>),
+        ($TyName:ident, <$($Fut:ident),*>),
     )*) => ($(
         $(#[$doc])*
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
-        pub(crate) struct $Join<$($Fut: Future),*> {
+        pub(crate) struct $TyName<$($Fut: Future),*> {
             $(#[pin] $Fut: MaybeDone<$Fut>,)*
         }
 
-        impl<$($Fut),*> fmt::Debug for $Join<$($Fut),*>
+        impl<$($Fut),*> fmt::Debug for $TyName<$($Fut),*>
         where
             $(
                 $Fut: Future + fmt::Debug,
@@ -29,17 +29,9 @@ macro_rules! generate {
             )*
         {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.debug_struct(stringify!($Join))
+                f.debug_struct(stringify!($TyName))
                     $(.field(stringify!($Fut), &self.$Fut))*
                     .finish()
-            }
-        }
-
-        impl<$($Fut: Future),*> $Join<$($Fut),*> {
-            fn new(($($Fut),*): ($($Fut),*)) -> Self {
-                Self {
-                    $($Fut: MaybeDone::new($Fut)),*
-                }
             }
         }
 
@@ -47,17 +39,20 @@ macro_rules! generate {
         impl<$($Fut),*> JoinTrait for ($($Fut),*)
         where
             $(
-                $Fut: Future,
+                $Fut: IntoFuture,
             )*
         {
             type Output = ($($Fut::Output),*);
 
             async fn join(self) -> Self::Output {
-                $Join::new(self).await
+                let ($($Fut),*): ($($Fut),*) = self;
+                $TyName {
+                    $($Fut: MaybeDone::new($Fut.into_future())),*
+                }.await
             }
         }
 
-        impl<$($Fut: Future),*> Future for $Join<$($Fut),*> {
+        impl<$($Fut: Future),*> Future for $TyName<$($Fut),*> {
             type Output = ($($Fut::Output),*);
 
             fn poll(

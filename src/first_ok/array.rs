@@ -2,7 +2,7 @@ use super::FirstOk as FirstOkTrait;
 use crate::utils::MaybeDone;
 
 use core::fmt;
-use core::future::Future;
+use core::future::{Future, IntoFuture};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 use std::ops::{Deref, DerefMut};
@@ -11,17 +11,17 @@ use pin_project::pin_project;
 
 /// A collection of errors.
 #[repr(transparent)]
-pub struct AggregateError<T, const N: usize> {
-    inner: [T; N],
+pub struct AggregateError<E, const N: usize> {
+    inner: [E; N],
 }
 
-impl<T, const N: usize> AggregateError<T, N> {
-    fn new(inner: [T; N]) -> Self {
+impl<E, const N: usize> AggregateError<E, N> {
+    fn new(inner: [E; N]) -> Self {
         Self { inner }
     }
 }
 
-impl<T: fmt::Debug, const N: usize> fmt::Debug for AggregateError<T, N> {
+impl<E: fmt::Debug, const N: usize> fmt::Debug for AggregateError<E, N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut list = f.debug_list();
         for err in self.inner.as_ref() {
@@ -31,33 +31,33 @@ impl<T: fmt::Debug, const N: usize> fmt::Debug for AggregateError<T, N> {
     }
 }
 
-impl<T: fmt::Debug, const N: usize> fmt::Display for AggregateError<T, N> {
+impl<E: fmt::Debug, const N: usize> fmt::Display for AggregateError<E, N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(self, f)
     }
 }
 
-impl<T, const N: usize> Deref for AggregateError<T, N> {
-    type Target = [T; N];
+impl<E, const N: usize> Deref for AggregateError<E, N> {
+    type Target = [E; N];
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl<T, const N: usize> DerefMut for AggregateError<T, N> {
+impl<E, const N: usize> DerefMut for AggregateError<E, N> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<T: fmt::Debug, const N: usize> std::error::Error for AggregateError<T, N> {}
+impl<E: fmt::Debug, const N: usize> std::error::Error for AggregateError<E, N> {}
 
 #[async_trait::async_trait(?Send)]
-impl<F, T, E, const N: usize> FirstOkTrait for [F; N]
+impl<Fut, T, E, const N: usize> FirstOkTrait for [Fut; N]
 where
     T: fmt::Debug,
-    F: Future<Output = Result<T, E>>,
+    Fut: IntoFuture<Output = Result<T, E>>,
     E: fmt::Debug,
 {
     type Output = T;
@@ -65,7 +65,7 @@ where
 
     async fn first_ok(self) -> Result<Self::Output, Self::Error> {
         FirstOk {
-            elems: self.map(MaybeDone::new),
+            elems: self.map(|fut| MaybeDone::new(fut.into_future())),
         }
         .await
     }
@@ -77,18 +77,18 @@ where
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub struct FirstOk<F, T, E, const N: usize>
+pub struct FirstOk<Fut, T, E, const N: usize>
 where
     T: fmt::Debug,
-    F: Future<Output = Result<T, E>>,
+    Fut: Future<Output = Result<T, E>>,
 {
-    elems: [MaybeDone<F>; N],
+    elems: [MaybeDone<Fut>; N],
 }
 
-impl<F, T, E, const N: usize> fmt::Debug for FirstOk<F, T, E, N>
+impl<Fut, T, E, const N: usize> fmt::Debug for FirstOk<Fut, T, E, N>
 where
-    F: Future<Output = Result<T, E>> + fmt::Debug,
-    F::Output: fmt::Debug,
+    Fut: Future<Output = Result<T, E>> + fmt::Debug,
+    Fut::Output: fmt::Debug,
     T: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -96,10 +96,10 @@ where
     }
 }
 
-impl<F, T, E, const N: usize> Future for FirstOk<F, T, E, N>
+impl<Fut, T, E, const N: usize> Future for FirstOk<Fut, T, E, N>
 where
     T: fmt::Debug,
-    F: Future<Output = Result<T, E>>,
+    Fut: Future<Output = Result<T, E>>,
     E: fmt::Debug,
 {
     type Output = Result<T, AggregateError<E, N>>;

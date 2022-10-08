@@ -2,22 +2,22 @@ use super::Join as JoinTrait;
 use crate::utils::MaybeDone;
 
 use core::fmt;
-use core::future::Future;
+use core::future::{Future, IntoFuture};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
 #[async_trait::async_trait(?Send)]
-impl<T, const N: usize> JoinTrait for [T; N]
+impl<Fut, const N: usize> JoinTrait for [Fut; N]
 where
-    T: Future,
+    Fut: IntoFuture,
 {
-    type Output = [T::Output; N];
+    type Output = [Fut::Output; N];
 
     async fn join(self) -> Self::Output {
         Join {
-            elems: self.map(MaybeDone::new),
+            elems: self.map(|fut| MaybeDone::new(fut.into_future())),
         }
         .await
     }
@@ -29,28 +29,28 @@ where
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub struct Join<F, const N: usize>
+pub struct Join<Fut, const N: usize>
 where
-    F: Future,
+    Fut: Future,
 {
-    elems: [MaybeDone<F>; N],
+    elems: [MaybeDone<Fut>; N],
 }
 
-impl<F, const N: usize> fmt::Debug for Join<F, N>
+impl<Fut, const N: usize> fmt::Debug for Join<Fut, N>
 where
-    F: Future + fmt::Debug,
-    F::Output: fmt::Debug,
+    Fut: Future + fmt::Debug,
+    Fut::Output: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Join").field("elems", &self.elems).finish()
     }
 }
 
-impl<F, const N: usize> Future for Join<F, N>
+impl<Fut, const N: usize> Future for Join<Fut, N>
 where
-    F: Future,
+    Fut: Future,
 {
-    type Output = [F::Output; N];
+    type Output = [Fut::Output; N];
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut all_done = true;
@@ -68,7 +68,7 @@ where
             use core::mem::MaybeUninit;
 
             // Create the result array based on the indices
-            let mut out: [MaybeUninit<F::Output>; N] = {
+            let mut out: [MaybeUninit<Fut::Output>; N] = {
                 // inlined version of unstable `MaybeUninit::uninit_array()`
                 // TODO: replace with `MaybeUninit::uninit_array()` when it becomes stable
                 unsafe { MaybeUninit::<[MaybeUninit<_>; N]>::uninit().assume_init() }
@@ -80,7 +80,7 @@ where
                 let el = unsafe { Pin::new_unchecked(el) }.take().unwrap();
                 out[i] = MaybeUninit::new(el);
             }
-            let result = unsafe { out.as_ptr().cast::<[F::Output; N]>().read() };
+            let result = unsafe { out.as_ptr().cast::<[Fut::Output; N]>().read() };
             Poll::Ready(result)
         } else {
             Poll::Pending
