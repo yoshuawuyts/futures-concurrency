@@ -14,17 +14,17 @@ use std::vec::Vec;
 
 /// A collection of errors.
 #[repr(transparent)]
-pub struct AggregateError<T> {
-    inner: Vec<T>,
+pub struct AggregateError<E> {
+    inner: Vec<E>,
 }
 
-impl<T> AggregateError<T> {
-    fn new(inner: Vec<T>) -> Self {
+impl<E> AggregateError<E> {
+    fn new(inner: Vec<E>) -> Self {
         Self { inner }
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for AggregateError<T> {
+impl<E: fmt::Debug> fmt::Debug for AggregateError<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut list = f.debug_list();
         for err in &self.inner {
@@ -34,27 +34,27 @@ impl<T: fmt::Debug> fmt::Debug for AggregateError<T> {
     }
 }
 
-impl<T: fmt::Debug> fmt::Display for AggregateError<T> {
+impl<E: fmt::Debug> fmt::Display for AggregateError<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(self, f)
     }
 }
 
-impl<T> Deref for AggregateError<T> {
-    type Target = Vec<T>;
+impl<E> Deref for AggregateError<E> {
+    type Target = Vec<E>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl<T> DerefMut for AggregateError<T> {
+impl<E> DerefMut for AggregateError<E> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<T: fmt::Debug> std::error::Error for AggregateError<T> {}
+impl<E: fmt::Debug> std::error::Error for AggregateError<E> {}
 
 #[async_trait::async_trait(?Send)]
 impl<Fut, T, E> FirstOkTrait for Vec<Fut>

@@ -11,17 +11,17 @@ use pin_project::pin_project;
 
 /// A collection of errors.
 #[repr(transparent)]
-pub struct AggregateError<T, const N: usize> {
-    inner: [T; N],
+pub struct AggregateError<E, const N: usize> {
+    inner: [E; N],
 }
 
-impl<T, const N: usize> AggregateError<T, N> {
-    fn new(inner: [T; N]) -> Self {
+impl<E, const N: usize> AggregateError<E, N> {
+    fn new(inner: [E; N]) -> Self {
         Self { inner }
     }
 }
 
-impl<T: fmt::Debug, const N: usize> fmt::Debug for AggregateError<T, N> {
+impl<E: fmt::Debug, const N: usize> fmt::Debug for AggregateError<E, N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut list = f.debug_list();
         for err in self.inner.as_ref() {
@@ -31,27 +31,27 @@ impl<T: fmt::Debug, const N: usize> fmt::Debug for AggregateError<T, N> {
     }
 }
 
-impl<T: fmt::Debug, const N: usize> fmt::Display for AggregateError<T, N> {
+impl<E: fmt::Debug, const N: usize> fmt::Display for AggregateError<E, N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(self, f)
     }
 }
 
-impl<T, const N: usize> Deref for AggregateError<T, N> {
-    type Target = [T; N];
+impl<E, const N: usize> Deref for AggregateError<E, N> {
+    type Target = [E; N];
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl<T, const N: usize> DerefMut for AggregateError<T, N> {
+impl<E, const N: usize> DerefMut for AggregateError<E, N> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<T: fmt::Debug, const N: usize> std::error::Error for AggregateError<T, N> {}
+impl<E: fmt::Debug, const N: usize> std::error::Error for AggregateError<E, N> {}
 
 #[async_trait::async_trait(?Send)]
 impl<Fut, T, E, const N: usize> FirstOkTrait for [Fut; N]
