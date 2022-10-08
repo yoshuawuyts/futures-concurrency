@@ -57,11 +57,11 @@ impl<T> DerefMut for AggregateError<T> {
 impl<T: fmt::Debug> std::error::Error for AggregateError<T> {}
 
 #[async_trait::async_trait(?Send)]
-impl<F, T, E> FirstOkTrait for Vec<F>
+impl<Fut, T, E> FirstOkTrait for Vec<Fut>
 where
     T: fmt::Debug,
     E: fmt::Debug,
-    F: IntoFuture<Output = Result<T, E>>,
+    Fut: IntoFuture<Output = Result<T, E>>,
 {
     type Output = T;
     type Error = AggregateError<E>;
@@ -83,17 +83,17 @@ where
 /// Awaits multiple futures simultaneously, returning the output of the
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct FirstOk<F, T, E>
+pub struct FirstOk<Fut, T, E>
 where
-    F: Future<Output = Result<T, E>>,
+    Fut: Future<Output = Result<T, E>>,
 {
-    elems: Pin<Box<[MaybeDone<F>]>>,
+    elems: Pin<Box<[MaybeDone<Fut>]>>,
 }
 
-impl<F, T, E> fmt::Debug for FirstOk<F, T, E>
+impl<Fut, T, E> fmt::Debug for FirstOk<Fut, T, E>
 where
-    F: Future<Output = Result<T, E>> + fmt::Debug,
-    F::Output: fmt::Debug,
+    Fut: Future<Output = Result<T, E>> + fmt::Debug,
+    Fut::Output: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FirstOk")
@@ -102,11 +102,11 @@ where
     }
 }
 
-impl<F, T, E> Future for FirstOk<F, T, E>
+impl<Fut, T, E> Future for FirstOk<Fut, T, E>
 where
     T: std::fmt::Debug,
     E: fmt::Debug,
-    F: Future<Output = Result<T, E>>,
+    Fut: Future<Output = Result<T, E>>,
 {
     type Output = Result<T, AggregateError<E>>;
 

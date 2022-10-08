@@ -9,10 +9,10 @@ use core::task::{Context, Poll};
 use pin_project::pin_project;
 
 #[async_trait::async_trait(?Send)]
-impl<F, T, E, const N: usize> TryJoinTrait for [F; N]
+impl<Fut, T, E, const N: usize> TryJoinTrait for [Fut; N]
 where
     T: std::fmt::Debug,
-    F: Future<Output = Result<T, E>>,
+    Fut: Future<Output = Result<T, E>>,
     E: fmt::Debug,
 {
     type Output = [T; N];
@@ -32,18 +32,18 @@ where
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub struct TryJoin<F, T, E, const N: usize>
+pub struct TryJoin<Fut, T, E, const N: usize>
 where
     T: fmt::Debug,
-    F: Future<Output = Result<T, E>>,
+    Fut: Future<Output = Result<T, E>>,
 {
-    elems: [MaybeDone<F>; N],
+    elems: [MaybeDone<Fut>; N],
 }
 
-impl<F, T, E, const N: usize> fmt::Debug for TryJoin<F, T, E, N>
+impl<Fut, T, E, const N: usize> fmt::Debug for TryJoin<Fut, T, E, N>
 where
-    F: Future<Output = Result<T, E>> + fmt::Debug,
-    F::Output: fmt::Debug,
+    Fut: Future<Output = Result<T, E>> + fmt::Debug,
+    Fut::Output: fmt::Debug,
     T: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -51,10 +51,10 @@ where
     }
 }
 
-impl<F, T, E, const N: usize> Future for TryJoin<F, T, E, N>
+impl<Fut, T, E, const N: usize> Future for TryJoin<Fut, T, E, N>
 where
     T: fmt::Debug,
-    F: Future<Output = Result<T, E>>,
+    Fut: Future<Output = Result<T, E>>,
     E: fmt::Debug,
 {
     type Output = Result<[T; N], E>;

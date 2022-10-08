@@ -11,10 +11,10 @@ use std::boxed::Box;
 use std::vec::Vec;
 
 #[async_trait::async_trait(?Send)]
-impl<F, T, E> TryJoinTrait for Vec<F>
+impl<Fut, T, E> TryJoinTrait for Vec<Fut>
 where
     T: std::fmt::Debug,
-    F: Future<Output = Result<T, E>>,
+    Fut: Future<Output = Result<T, E>>,
 {
     type Output = Vec<T>;
     type Error = E;
@@ -36,17 +36,17 @@ where
 /// Awaits multiple futures simultaneously, returning the output of the
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct TryJoin<F, T, E>
+pub struct TryJoin<Fut, T, E>
 where
-    F: Future<Output = Result<T, E>>,
+    Fut: Future<Output = Result<T, E>>,
 {
-    elems: Pin<Box<[MaybeDone<F>]>>,
+    elems: Pin<Box<[MaybeDone<Fut>]>>,
 }
 
-impl<F, T, E> fmt::Debug for TryJoin<F, T, E>
+impl<Fut, T, E> fmt::Debug for TryJoin<Fut, T, E>
 where
-    F: Future<Output = Result<T, E>> + fmt::Debug,
-    F::Output: fmt::Debug,
+    Fut: Future<Output = Result<T, E>> + fmt::Debug,
+    Fut::Output: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TryJoin")
@@ -55,10 +55,10 @@ where
     }
 }
 
-impl<F, T, E> Future for TryJoin<F, T, E>
+impl<Fut, T, E> Future for TryJoin<Fut, T, E>
 where
     T: std::fmt::Debug,
-    F: Future<Output = Result<T, E>>,
+    Fut: Future<Output = Result<T, E>>,
 {
     type Output = Result<Vec<T>, E>;
 

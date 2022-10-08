@@ -51,11 +51,11 @@ where
     }
 }
 
-impl<F> Future for Join<F>
+impl<Fut> Future for Join<Fut>
 where
-    F: Future,
+    Fut: Future,
 {
-    type Output = Vec<F::Output>;
+    type Output = Vec<Fut::Output>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut all_done = true;
