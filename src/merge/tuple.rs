@@ -22,50 +22,43 @@ macro_rules! poll_in_order {
     }};
 }
 
-impl<T, S0, S1> MergeTrait for (S0, S1)
+impl<T, A, B> MergeTrait for (A, B)
 where
-    S0: IntoStream<Item = T>,
-    S1: IntoStream<Item = T>,
+    A: IntoStream<Item = T>,
+    B: IntoStream<Item = T>,
 {
     type Item = T;
-    type Stream = Merge2<T, S0::IntoStream, S1::IntoStream>;
+    type Stream = Merge2<T, A::IntoStream, B::IntoStream>;
 
     fn merge(self) -> Self::Stream {
         Merge2::new((self.0.into_stream(), self.1.into_stream()))
     }
 }
 
-/// A stream that merges multiple streams into a single stream.
-///
-/// This `struct` is created by the [`merge`] method on [`Stream`]. See its
-/// documentation for more.
-///
-/// [`merge`]: trait.Stream.html#method.merge
-/// [`Stream`]: trait.Stream.html
 #[derive(Debug)]
 #[pin_project::pin_project]
-pub struct Merge2<T, S0, S1>
+pub struct Merge2<T, A, B>
 where
-    S0: Stream<Item = T>,
-    S1: Stream<Item = T>,
+    A: Stream<Item = T>,
+    B: Stream<Item = T>,
 {
-    streams: (S0, S1),
+    streams: (A, B),
 }
 
-impl<T, S0, S1> Merge2<T, S0, S1>
+impl<T, A, B> Merge2<T, A, B>
 where
-    S0: Stream<Item = T>,
-    S1: Stream<Item = T>,
+    A: Stream<Item = T>,
+    B: Stream<Item = T>,
 {
-    pub(crate) fn new(streams: (S0, S1)) -> Self {
+    pub(crate) fn new(streams: (A, B)) -> Self {
         Self { streams }
     }
 }
 
-impl<T, S0, S1> Stream for Merge2<T, S0, S1>
+impl<T, A, B> Stream for Merge2<T, A, B>
 where
-    S0: Stream<Item = T>,
-    S1: Stream<Item = T>,
+    A: Stream<Item = T>,
+    B: Stream<Item = T>,
 {
     type Item = T;
 
@@ -84,14 +77,14 @@ where
 
 // TODO: automate this!
 
-impl<T, S0, S1, S2> MergeTrait for (S0, S1, S2)
+impl<T, A, B, C> MergeTrait for (A, B, C)
 where
-    S0: IntoStream<Item = T>,
-    S1: IntoStream<Item = T>,
-    S2: IntoStream<Item = T>,
+    A: IntoStream<Item = T>,
+    B: IntoStream<Item = T>,
+    C: IntoStream<Item = T>,
 {
     type Item = T;
-    type Stream = Merge3<T, S0::IntoStream, S1::IntoStream, S2::IntoStream>;
+    type Stream = Merge3<T, A::IntoStream, B::IntoStream, C::IntoStream>;
 
     fn merge(self) -> Self::Stream {
         Merge3::new((
@@ -102,40 +95,33 @@ where
     }
 }
 
-/// A stream that merges multiple streams into a single stream.
-///
-/// This `struct` is created by the [`merge`] method on [`Stream`]. See its
-/// documentation for more.
-///
-/// [`merge`]: trait.Stream.html#method.merge
-/// [`Stream`]: trait.Stream.html
 #[derive(Debug)]
 #[pin_project::pin_project]
-pub struct Merge3<T, S0, S1, S2>
+pub struct Merge3<T, A, B, C>
 where
-    S0: Stream<Item = T>,
-    S1: Stream<Item = T>,
-    S2: Stream<Item = T>,
+    A: Stream<Item = T>,
+    B: Stream<Item = T>,
+    C: Stream<Item = T>,
 {
-    streams: (S0, S1, S2),
+    streams: (A, B, C),
 }
 
-impl<T, S0, S1, S2> Merge3<T, S0, S1, S2>
+impl<T, A, B, C> Merge3<T, A, B, C>
 where
-    S0: Stream<Item = T>,
-    S1: Stream<Item = T>,
-    S2: Stream<Item = T>,
+    A: Stream<Item = T>,
+    B: Stream<Item = T>,
+    C: Stream<Item = T>,
 {
-    pub(crate) fn new(streams: (S0, S1, S2)) -> Self {
+    pub(crate) fn new(streams: (A, B, C)) -> Self {
         Self { streams }
     }
 }
 
-impl<T, S0, S1, S2> Stream for Merge3<T, S0, S1, S2>
+impl<T, A, B, C> Stream for Merge3<T, A, B, C>
 where
-    S0: Stream<Item = T>,
-    S1: Stream<Item = T>,
-    S2: Stream<Item = T>,
+    A: Stream<Item = T>,
+    B: Stream<Item = T>,
+    C: Stream<Item = T>,
 {
     type Item = T;
 
@@ -156,15 +142,15 @@ where
         }
     }
 }
-impl<T, S0, S1, S2, S3> MergeTrait for (S0, S1, S2, S3)
+impl<T, A, B, C, D> MergeTrait for (A, B, C, D)
 where
-    S0: IntoStream<Item = T>,
-    S1: IntoStream<Item = T>,
-    S2: IntoStream<Item = T>,
-    S3: IntoStream<Item = T>,
+    A: IntoStream<Item = T>,
+    B: IntoStream<Item = T>,
+    C: IntoStream<Item = T>,
+    D: IntoStream<Item = T>,
 {
     type Item = T;
-    type Stream = Merge4<T, S0::IntoStream, S1::IntoStream, S2::IntoStream, S3::IntoStream>;
+    type Stream = Merge4<T, A::IntoStream, B::IntoStream, C::IntoStream, D::IntoStream>;
 
     fn merge(self) -> Self::Stream {
         Merge4::new((
@@ -176,43 +162,36 @@ where
     }
 }
 
-/// A stream that merges multiple streams into a single stream.
-///
-/// This `struct` is created by the [`merge`] method on [`Stream`]. See its
-/// documentation for more.
-///
-/// [`merge`]: trait.Stream.html#method.merge
-/// [`Stream`]: trait.Stream.html
 #[derive(Debug)]
 #[pin_project::pin_project]
-pub struct Merge4<T, S0, S1, S2, S3>
+pub struct Merge4<T, A, B, C, D>
 where
-    S0: Stream<Item = T>,
-    S1: Stream<Item = T>,
-    S2: Stream<Item = T>,
-    S3: Stream<Item = T>,
+    A: Stream<Item = T>,
+    B: Stream<Item = T>,
+    C: Stream<Item = T>,
+    D: Stream<Item = T>,
 {
-    streams: (S0, S1, S2, S3),
+    streams: (A, B, C, D),
 }
 
-impl<T, S0, S1, S2, S3> Merge4<T, S0, S1, S2, S3>
+impl<T, A, B, C, D> Merge4<T, A, B, C, D>
 where
-    S0: Stream<Item = T>,
-    S1: Stream<Item = T>,
-    S2: Stream<Item = T>,
-    S3: Stream<Item = T>,
+    A: Stream<Item = T>,
+    B: Stream<Item = T>,
+    C: Stream<Item = T>,
+    D: Stream<Item = T>,
 {
-    pub(crate) fn new(streams: (S0, S1, S2, S3)) -> Self {
+    pub(crate) fn new(streams: (A, B, C, D)) -> Self {
         Self { streams }
     }
 }
 
-impl<T, S0, S1, S2, S3> Stream for Merge4<T, S0, S1, S2, S3>
+impl<T, A, B, C, D> Stream for Merge4<T, A, B, C, D>
 where
-    S0: Stream<Item = T>,
-    S1: Stream<Item = T>,
-    S2: Stream<Item = T>,
-    S3: Stream<Item = T>,
+    A: Stream<Item = T>,
+    B: Stream<Item = T>,
+    C: Stream<Item = T>,
+    D: Stream<Item = T>,
 {
     type Item = T;
 
