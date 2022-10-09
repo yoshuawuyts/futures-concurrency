@@ -10,10 +10,8 @@ use pin_project::pin_project;
 
 macro_rules! generate {
     ($(
-        $(#[$doc:meta])*
         ($TyName:ident, <$($Fut:ident),*>),
     )*) => ($(
-        $(#[$doc])*
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
@@ -75,69 +73,15 @@ macro_rules! generate {
 }
 
 generate! {
-    /// Waits for two similarly-typed futures to complete.
-    ///
-    /// Awaits multiple futures simultaneously, returning the output of the
-    /// futures once both complete.
     (Join2, <A, B>),
-
-    /// Waits for three similarly-typed futures to complete.
-    ///
-    /// Awaits multiple futures simultaneously, returning the output of the
-    /// futures once both complete.
     (Join3, <A, B, C>),
-
-    /// Waits for four similarly-typed futures to complete.
-    ///
-    /// Awaits multiple futures simultaneously, returning the output of the
-    /// futures once both complete.
     (Join4, <A, B, C, D>),
-
-    /// Waits for five similarly-typed futures to complete.
-    ///
-    /// Awaits multiple futures simultaneously, returning the output of the
-    /// futures once both complete.
     (Join5, <A, B, C, D, E>),
-
-    /// Waits for six similarly-typed futures to complete.
-    ///
-    /// Awaits multiple futures simultaneously, returning the output of the
-    /// futures once both complete.
     (Join6, <A, B, C, D, E, F>),
-
-    /// Waits for seven similarly-typed futures to complete.
-    ///
-    /// Awaits multiple futures simultaneously, returning the output of the
-    /// futures once both complete.
     (Join7, <A, B, C, D, E, F, G>),
-
-    /// Waits for eight similarly-typed futures to complete.
-    ///
-    /// Awaits multiple futures simultaneously, returning the output of the
-    /// futures once both complete.
     (Join8, <A, B, C, D, E, F, G, H>),
-
-    /// Waits for nine similarly-typed futures to complete.
-    ///
-    /// Awaits multiple futures simultaneously, returning the output of the
-    /// futures once both complete.
     (Join9, <A, B, C, D, E, F, G, H, I>),
-
-    /// Waits for ten similarly-typed futures to complete.
-    ///
-    /// Awaits multiple futures simultaneously, returning the output of the
-    /// futures once both complete.
     (Join10, <A, B, C, D, E, F, G, H, I, J>),
-
-    /// Waits for eleven similarly-typed futures to complete.
-    ///
-    /// Awaits multiple futures simultaneously, returning the output of the
-    /// futures once both complete.
     (Join11, <A, B, C, D, E, F, G, H, I, J, K>),
-
-    /// Waits for twelve similarly-typed futures to complete.
-    ///
-    /// Awaits multiple futures simultaneously, returning the output of the
-    /// futures once both complete.
     (Join12, <A, B, C, D, E, F, G, H, I, J, K, L>),
 }
