@@ -19,7 +19,6 @@ unstable = []
 [dependencies]
 futures-core = "0.3.16"
 pin-project = "1.0.8"
-async-trait = "0.1.52"
 
 [dev-dependencies]
 futures-lite = "1.12.0"
