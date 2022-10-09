@@ -16,7 +16,7 @@ macro_rules! generate {
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
-        pub(crate) struct $TyName<T, $($Fut),*>
+        pub struct $TyName<T, $($Fut),*>
         where
             $($Fut: Future<Output = T>),*
         {
@@ -38,19 +38,19 @@ macro_rules! generate {
             }
         }
 
-        #[async_trait::async_trait(?Send)]
         impl<T, $($Fut),*> RaceTrait for ($($Fut),*)
         where
             $($Fut: IntoFuture<Output = T>),*
         {
             type Output = T;
+            type Future = $TyName<T, $($Fut::IntoFuture),*>;
 
-            async fn race(self) -> Self::Output {
+            fn race(self) -> Self::Future {
                 let ($($Fut),*): ($($Fut),*) = self;
                 $TyName {
                     done: false,
                     $($Fut: $Fut.into_future()),*
-                }.await
+                }
             }
         }
 

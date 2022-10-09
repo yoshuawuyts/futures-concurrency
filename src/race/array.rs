@@ -7,19 +7,18 @@ use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
-#[async_trait::async_trait(?Send)]
 impl<Fut, const N: usize> RaceTrait for [Fut; N]
 where
     Fut: IntoFuture,
 {
     type Output = Fut::Output;
+    type Future = Race<Fut::IntoFuture, N>;
 
-    async fn race(self) -> Self::Output {
+    fn race(self) -> Self::Future {
         Race {
             futs: self.map(|fut| fut.into_future()),
             done: false,
         }
-        .await
     }
 }
 

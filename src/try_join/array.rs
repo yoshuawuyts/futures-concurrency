@@ -8,21 +8,20 @@ use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
-#[async_trait::async_trait(?Send)]
 impl<Fut, T, E, const N: usize> TryJoinTrait for [Fut; N]
 where
     T: std::fmt::Debug,
-    Fut: Future<Output = Result<T, E>>,
+    Fut: IntoFuture<Output = Result<T, E>>,
     E: fmt::Debug,
 {
     type Output = [T; N];
     type Error = E;
+    type Future = TryJoin<Fut::IntoFuture, T, E, N>;
 
-    async fn try_join(self) -> Result<Self::Output, Self::Error> {
+    fn try_join(self) -> Self::Future {
         TryJoin {
             elems: self.map(|fut| MaybeDone::new(fut.into_future())),
         }
-        .await
     }
 }
 
