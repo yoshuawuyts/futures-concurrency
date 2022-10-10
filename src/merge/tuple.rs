@@ -1,6 +1,6 @@
+use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
 use crate::utils;
-use crate::Merge as MergeTrait;
 
 use futures_core::Stream;
 use std::pin::Pin;

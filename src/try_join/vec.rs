@@ -1,6 +1,6 @@
+use super::TryJoin as TryJoinTrait;
 use crate::utils::iter_pin_mut;
 use crate::utils::MaybeDone;
-use crate::TryJoin as TryJoinTrait;
 
 use core::fmt;
 use core::future::{Future, IntoFuture};

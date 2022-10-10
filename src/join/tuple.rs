@@ -10,16 +10,16 @@ use pin_project::pin_project;
 
 macro_rules! generate {
     ($(
-        ($TyName:ident, <$($Fut:ident),*>),
-    )*) => ($(
+        (<$($Fut:ident),*>),
+    )*) => ($( #[allow(non_snake_case)] const _: () = {
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
-        pub struct $TyName<$($Fut: Future),*> {
+        pub struct Join<$($Fut: Future),*> {
             $(#[pin] $Fut: MaybeDone<$Fut>,)*
         }
 
-        impl<$($Fut),*> fmt::Debug for $TyName<$($Fut),*>
+        impl<$($Fut),*> fmt::Debug for Join<$($Fut),*>
         where
             $(
                 $Fut: Future + fmt::Debug,
@@ -27,7 +27,7 @@ macro_rules! generate {
             )*
         {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.debug_struct(stringify!($TyName))
+                f.debug_struct(stringify!(Join))
                     $(.field(stringify!($Fut), &self.$Fut))*
                     .finish()
             }
@@ -40,17 +40,17 @@ macro_rules! generate {
             )*
         {
             type Output = ($($Fut::Output),*);
-            type Future = $TyName<$($Fut::IntoFuture),*>;
+            type Future = Join<$($Fut::IntoFuture),*>;
 
             fn join(self) -> Self::Future {
                 let ($($Fut),*): ($($Fut),*) = self;
-                $TyName {
+                Join {
                     $($Fut: MaybeDone::new($Fut.into_future())),*
                 }
             }
         }
 
-        impl<$($Fut: Future),*> Future for $TyName<$($Fut),*> {
+        impl<$($Fut: Future),*> Future for Join<$($Fut),*> {
             type Output = ($($Fut::Output),*);
 
             fn poll(
@@ -69,19 +69,19 @@ macro_rules! generate {
                 }
             }
         }
-    )*)
+    }; )*)
 }
 
 generate! {
-    (Join2, <A, B>),
-    (Join3, <A, B, C>),
-    (Join4, <A, B, C, D>),
-    (Join5, <A, B, C, D, E>),
-    (Join6, <A, B, C, D, E, F>),
-    (Join7, <A, B, C, D, E, F, G>),
-    (Join8, <A, B, C, D, E, F, G, H>),
-    (Join9, <A, B, C, D, E, F, G, H, I>),
-    (Join10, <A, B, C, D, E, F, G, H, I, J>),
-    (Join11, <A, B, C, D, E, F, G, H, I, J, K>),
-    (Join12, <A, B, C, D, E, F, G, H, I, J, K, L>),
+    (<A, B>),
+    (<A, B, C>),
+    (<A, B, C, D>),
+    (<A, B, C, D, E>),
+    (<A, B, C, D, E, F>),
+    (<A, B, C, D, E, F, G>),
+    (<A, B, C, D, E, F, G, H>),
+    (<A, B, C, D, E, F, G, H, I>),
+    (<A, B, C, D, E, F, G, H, I, J>),
+    (<A, B, C, D, E, F, G, H, I, J, K>),
+    (<A, B, C, D, E, F, G, H, I, J, K, L>),
 }

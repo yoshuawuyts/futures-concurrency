@@ -1,6 +1,6 @@
+use super::FirstOk as FirstOkTrait;
 use crate::utils::iter_pin_mut;
 use crate::utils::MaybeDone;
-use crate::FirstOk as FirstOkTrait;
 
 use core::fmt;
 use core::future::{Future, IntoFuture};

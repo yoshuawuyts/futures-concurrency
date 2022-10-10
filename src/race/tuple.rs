@@ -9,12 +9,12 @@ use pin_project::pin_project;
 
 macro_rules! generate {
     ($(
-        ($TyName:ident, <$($Fut:ident),*>),
-    )*) => ($(
+        (<$($Fut:ident),*>),
+    )*) => ($( #[allow(non_snake_case)] const _: () = {
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
-        pub struct $TyName<T, $($Fut),*>
+        pub struct Race<T, $($Fut),*>
         where
             $($Fut: Future<Output = T>),*
         {
@@ -22,7 +22,7 @@ macro_rules! generate {
             $(#[pin] $Fut: $Fut,)*
         }
 
-        impl<T, $($Fut),*> fmt::Debug for $TyName<T, $($Fut),*>
+        impl<T, $($Fut),*> fmt::Debug for Race<T, $($Fut),*>
         where
             $(
                 $Fut: Future<Output = T> + fmt::Debug,
@@ -30,7 +30,7 @@ macro_rules! generate {
             )*
         {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.debug_struct(stringify!($TyName))
+                f.debug_struct(stringify!(Race))
                     $(.field(stringify!($Fut), &self.$Fut))*
                     .finish()
             }
@@ -41,18 +41,18 @@ macro_rules! generate {
             $($Fut: IntoFuture<Output = T>),*
         {
             type Output = T;
-            type Future = $TyName<T, $($Fut::IntoFuture),*>;
+            type Future = Race<T, $($Fut::IntoFuture),*>;
 
             fn race(self) -> Self::Future {
                 let ($($Fut),*): ($($Fut),*) = self;
-                $TyName {
+                Race {
                     done: false,
                     $($Fut: $Fut.into_future()),*
                 }
             }
         }
 
-        impl<T, $($Fut: Future),*> Future for $TyName<T, $($Fut),*>
+        impl<T, $($Fut: Future),*> Future for Race<T, $($Fut),*>
         where
             $($Fut: Future<Output = T>),*
         {
@@ -77,21 +77,21 @@ macro_rules! generate {
                 Poll::Pending
             }
         }
-    )*)
+    }; )*)
 }
 
 generate! {
-    (Race2, <A, B>),
-    (Race3, <A, B, C>),
-    (Race4, <A, B, C, D>),
-    (Race5, <A, B, C, D, E>),
-    (Race6, <A, B, C, D, E, F>),
-    (Race7, <A, B, C, D, E, F, G>),
-    (Race8, <A, B, C, D, E, F, G, H>),
-    (Race9, <A, B, C, D, E, F, G, H, I>),
-    (Race10, <A, B, C, D, E, F, G, H, I, J>),
-    (Race11, <A, B, C, D, E, F, G, H, I, J, K>),
-    (Race12, <A, B, C, D, E, F, G, H, I, J, K, L>),
+    (<A, B>),
+    (<A, B, C>),
+    (<A, B, C, D>),
+    (<A, B, C, D, E>),
+    (<A, B, C, D, E, F>),
+    (<A, B, C, D, E, F, G>),
+    (<A, B, C, D, E, F, G, H>),
+    (<A, B, C, D, E, F, G, H, I>),
+    (<A, B, C, D, E, F, G, H, I, J>),
+    (<A, B, C, D, E, F, G, H, I, J, K>),
+    (<A, B, C, D, E, F, G, H, I, J, K, L>),
 }
 
 #[cfg(test)]
