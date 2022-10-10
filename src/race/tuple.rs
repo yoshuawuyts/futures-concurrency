@@ -7,10 +7,8 @@ use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
-macro_rules! generate {
-    ($(
-        ($($F:ident),*),
-    )*) => ($( const _: () = {
+macro_rules! impl_race_tuple {
+    ($($F:ident)+) => (const _: () = {
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
@@ -70,22 +68,20 @@ macro_rules! generate {
                 Poll::Pending
             }
         }
-    }; )*)
+    }; )
 }
 
-generate! {
-    (A, B),
-    (A, B, C),
-    (A, B, C, D),
-    (A, B, C, D, E),
-    (A, B, C, D, E, F),
-    (A, B, C, D, E, F, G),
-    (A, B, C, D, E, F, G, H),
-    (A, B, C, D, E, F, G, H, I),
-    (A, B, C, D, E, F, G, H, I, J),
-    (A, B, C, D, E, F, G, H, I, J, K),
-    (A, B, C, D, E, F, G, H, I, J, K, L),
-}
+impl_race_tuple! { A B }
+impl_race_tuple! { A B C }
+impl_race_tuple! { A B C D }
+impl_race_tuple! { A B C D E }
+impl_race_tuple! { A B C D E F }
+impl_race_tuple! { A B C D E F G }
+impl_race_tuple! { A B C D E F G H }
+impl_race_tuple! { A B C D E F G H I }
+impl_race_tuple! { A B C D E F G H I J }
+impl_race_tuple! { A B C D E F G H I J K }
+impl_race_tuple! { A B C D E F G H I J K L }
 
 #[cfg(test)]
 mod test {
