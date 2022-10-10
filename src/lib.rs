@@ -10,6 +10,24 @@
 //! The purpose of this library is to serve as a staging ground for what
 //! eventually may become the futures concurrency methods provided by the
 //! stdlib. See the [`future`] and [`stream`] submodules for more.
+//!
+//! # Examples
+//!
+//! Concurrently await multiple heterogenous futures:
+//! ```rust
+//! use futures_concurrency::prelude::*;
+//! use futures_lite::future::block_on;
+//! use std::future;
+//!
+//! fn main() {
+//!     block_on(async {
+//!         let a = future::ready(1u8);
+//!         let b = future::ready("hello");
+//!         let c = future::ready(3u16);
+//!         assert_eq!((a, b, c).join().await, (1, "hello", 3));
+//!     })
+//! }
+//! ```
 
 #![deny(missing_debug_implementations, nonstandard_style)]
 #![warn(missing_docs, unreachable_pub)]
