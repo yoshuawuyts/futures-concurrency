@@ -2,7 +2,7 @@
 //!
 //! Companion library for the "Futures Concurrency" blog post
 //! series:
-//! - [Futures Concurrency I: Introduction](https://blog.yoshuawuyts.com/futures-concurrency-1/)
+//! - [Futures Concurrency I: Introduction](https://blog.yoshuawuyts.com/futures-concurrency/)
 //! - [Futures Concurrency II: A Trait Approach](https://blog.yoshuawuyts.com/futures-concurrency-2/)
 //! - [Futures Concurrency III: `select!`](https://blog.yoshuawuyts.com/futures-concurrency-3/)
 //! - [Futures Concurrency IV: Join Semantics](https://blog.yoshuawuyts.com/futures-concurrency-4/)
