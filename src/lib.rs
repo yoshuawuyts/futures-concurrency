@@ -71,28 +71,6 @@ pub mod prelude {
 /// }
 /// ```
 ///
-/// Or merge multiple streams to handle values as soon as they're ready, without
-/// ever dropping a single value:
-///
-/// ```
-/// use futures_concurrency::prelude::*;
-/// use futures_lite::future::block_on;
-/// use futures_lite::{stream, StreamExt};
-///
-/// fn main() {
-///     block_on(async {
-///         let a = stream::once(1);
-///         let b = stream::once(2);
-///         let c = stream::once(3);
-///         let mut s = (a, b, c).merge();
-///
-///         let mut counter = 0;
-///         s.for_each(|n| counter += n).await;
-///         assert_eq!(counter, 6);
-///     })
-/// }
-/// ```
-///
 /// # Base Futures Concurrency
 ///
 /// Often it's desireable to await multiple futures as if it was a single
@@ -143,14 +121,36 @@ pub mod future {
 
 /// Composable asynchronous iteration.
 ///
+/// # Examples
+///
+/// Merge multiple streams to handle values as soon as they're ready, without
+/// ever dropping a single value:
+///
+/// ```
+/// use futures_concurrency::prelude::*;
+/// use futures_lite::future::block_on;
+/// use futures_lite::{stream, StreamExt};
+///
+/// fn main() {
+///     block_on(async {
+///         let a = stream::once(1);
+///         let b = stream::once(2);
+///         let c = stream::once(3);
+///         let mut s = (a, b, c).merge();
+///
+///         let mut counter = 0;
+///         s.for_each(|n| counter += n).await;
+///         assert_eq!(counter, 6);
+///     })
+/// }
+/// ```
+///
 /// # Concurrency
 ///
 /// For streams we expose a single concurrency method: `merge`. This allows
 /// multiple streams to be merged into one, with items handled as soon as
-/// they're ready.
-///
-/// By their nature streams can be short-circuited on a per-item basis, so we
-/// don't need to decide up front how we want to handle errors.
+/// they're ready. By their nature streams can be short-circuited on a per-item
+/// basis, so we don't need to decide up front how we want to handle errors.
 ///
 /// | Name        | Return signature               | When does it return? |
 /// | ---         | ---                            | ---                  |
@@ -171,56 +171,6 @@ pub mod array {
 
 /// A contiguous growable array type with heap-allocated contents, written
 /// `Vec<T>`.
-///
-/// Vectors have *O*(1) indexing, amortized *O*(1) push (to the end) and
-/// *O*(1) pop (from the end).
-///
-/// Vectors ensure they never allocate more than `isize::MAX` bytes.
-///
-/// # Examples
-///
-/// You can explicitly create a [`Vec`] with [`Vec::new`]:
-///
-/// ```
-/// let v: Vec<i32> = Vec::new();
-/// ```
-///
-/// ...or by using the [`vec!`] macro:
-///
-/// ```
-/// let v: Vec<i32> = vec![];
-///
-/// let v = vec![1, 2, 3, 4, 5];
-///
-/// let v = vec![0; 10]; // ten zeroes
-/// ```
-///
-/// You can [`push`] values onto the end of a vector (which will grow the vector
-/// as needed):
-///
-/// ```
-/// let mut v = vec![1, 2];
-///
-/// v.push(3);
-/// ```
-///
-/// Popping values works in much the same way:
-///
-/// ```
-/// let mut v = vec![1, 2];
-///
-/// let two = v.pop();
-/// ```
-///
-/// Vectors also support indexing (through the [`Index`] and [`IndexMut`] traits):
-///
-/// ```
-/// let mut v = vec![1, 2, 3];
-/// let three = v[2];
-/// v[1] = v[1] + 5;
-/// ```
-///
-/// [`push`]: Vec::push
 pub mod vec {
     pub use crate::first_ok::vec::{AggregateError, FirstOk};
     pub use crate::join::vec::Join;
