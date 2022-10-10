@@ -154,7 +154,7 @@ mod test {
 
     #[test]
     fn all_ok() {
-        async_io::block_on(async {
+        futures_lite::future::block_on(async {
             let res: Result<&str, AggregateError<Error, 2>> =
                 [future::ready(Ok("hello")), future::ready(Ok("world"))]
                     .first_ok()
@@ -165,7 +165,7 @@ mod test {
 
     #[test]
     fn one_err() {
-        async_io::block_on(async {
+        futures_lite::future::block_on(async {
             let err = Error::new(ErrorKind::Other, "oh no");
             let res: Result<&str, AggregateError<Error, 2>> =
                 [future::ready(Ok("hello")), future::ready(Err(err))]
@@ -177,7 +177,7 @@ mod test {
 
     #[test]
     fn all_err() {
-        async_io::block_on(async {
+        futures_lite::future::block_on(async {
             let err1 = Error::new(ErrorKind::Other, "oops");
             let err2 = Error::new(ErrorKind::Other, "oh no");
             let res: Result<&str, AggregateError<Error, 2>> =

@@ -32,7 +32,6 @@
 #![deny(missing_debug_implementations, nonstandard_style)]
 #![warn(missing_docs, unreachable_pub)]
 #![allow(non_snake_case)]
-#![cfg_attr(feature = "unstable", feature(array_methods))]
 
 mod first_ok;
 mod join;

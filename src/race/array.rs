@@ -77,7 +77,7 @@ mod test {
     // NOTE: we should probably poll in random order.
     #[test]
     fn no_fairness() {
-        async_io::block_on(async {
+        futures_lite::future::block_on(async {
             let res = [future::ready("hello"), future::ready("world")]
                 .race()
                 .await;

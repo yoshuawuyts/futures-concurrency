@@ -16,6 +16,3 @@ pub use into_stream::IntoStream;
 pub(crate) use maybe_done::MaybeDone;
 pub(crate) use pin::{get_pin_mut, get_pin_mut_from_vec, iter_pin_mut};
 pub(crate) use rng::random;
-
-#[cfg(feature = "unstable")]
-pub(crate) use pin::pin_project_array;

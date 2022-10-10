@@ -12,15 +12,15 @@ pub(crate) fn iter_pin_mut<T>(slice: Pin<&mut [T]>) -> impl Iterator<Item = Pin<
 }
 
 // From: Yosh made this one up, hehehe
-#[cfg(feature = "unstable")]
-pub(crate) fn pin_project_array<T, const N: usize>(slice: Pin<&mut [T; N]>) -> [Pin<&mut T>; N] {
-    // SAFETY: `std` _could_ make this unsound if it were to decide Pin's
-    // invariants aren't required to transmit through arrays. Otherwise this has
-    // the same safety as a normal field pin projection.
-    unsafe { slice.get_unchecked_mut() }
-        .each_mut()
-        .map(|t| unsafe { Pin::new_unchecked(t) })
-}
+// #[cfg(feature = "unstable")]
+// pub(crate) fn pin_project_array<T, const N: usize>(slice: Pin<&mut [T; N]>) -> [Pin<&mut T>; N] {
+//     // SAFETY: `std` _could_ make this unsound if it were to decide Pin's
+//     // invariants aren't required to transmit through arrays. Otherwise this has
+//     // the same safety as a normal field pin projection.
+//     unsafe { slice.get_unchecked_mut() }
+//         .each_mut()
+//         .map(|t| unsafe { Pin::new_unchecked(t) })
+// }
 
 /// Returns a pinned mutable reference to an element or subslice depending on the
 /// type of index (see `get`) or `None` if the index is out of bounds.

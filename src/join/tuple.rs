@@ -1,7 +1,7 @@
 use super::Join as JoinTrait;
 use crate::utils::MaybeDone;
 
-use core::fmt;
+use core::fmt::{self, Debug};
 use core::future::{Future, IntoFuture};
 use core::pin::Pin;
 use core::task::{Context, Poll};
@@ -9,61 +9,58 @@ use core::task::{Context, Poll};
 use pin_project::pin_project;
 
 macro_rules! generate {
-    ($(
-        (<$($Fut:ident),*>),
-    )*) => ($( #[allow(non_snake_case)] const _: () = {
+    ($(($($F:ident),*),)*) => ($(const _: () = {
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
-        pub struct Join<$($Fut: Future),*> {
-            $(#[pin] $Fut: MaybeDone<$Fut>,)*
+        pub struct Join<$($F: Future),*> {
+            done: bool,
+            $(#[pin] $F: MaybeDone<$F>,)*
         }
 
-        impl<$($Fut),*> fmt::Debug for Join<$($Fut),*>
-        where
-            $(
-                $Fut: Future + fmt::Debug,
-                $Fut::Output: fmt::Debug,
-            )*
-        {
+        impl<$($F),*> Debug for Join<$($F),*>
+        where $(
+            $F: Future + Debug,
+            $F::Output: Debug,
+        )* {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.debug_struct(stringify!(Join))
-                    $(.field(stringify!($Fut), &self.$Fut))*
+                f.debug_tuple("Join")
+                    $(.field(&self.$F))*
                     .finish()
             }
         }
 
-        impl<$($Fut),*> JoinTrait for ($($Fut),*)
-        where
-            $(
-                $Fut: IntoFuture,
-            )*
-        {
-            type Output = ($($Fut::Output),*);
-            type Future = Join<$($Fut::IntoFuture),*>;
+        impl<$($F),*> JoinTrait for ($($F),*)
+        where $(
+            $F: IntoFuture,
+        )* {
+            type Output = ($($F::Output),*);
+            type Future = Join<$($F::IntoFuture),*>;
 
             fn join(self) -> Self::Future {
-                let ($($Fut),*): ($($Fut),*) = self;
+                let ($($F),*): ($($F),*) = self;
                 Join {
-                    $($Fut: MaybeDone::new($Fut.into_future())),*
+                    done: false,
+                    $($F: MaybeDone::new($F.into_future())),*
                 }
             }
         }
 
-        impl<$($Fut: Future),*> Future for Join<$($Fut),*> {
-            type Output = ($($Fut::Output),*);
+        impl<$($F: Future),*> Future for Join<$($F),*> {
+            type Output = ($($F::Output),*);
 
             fn poll(
                 self: Pin<&mut Self>, cx: &mut Context<'_>
             ) -> Poll<Self::Output> {
                 let mut all_done = true;
-                let mut futures = self.project();
-                $(
-                    all_done &= futures.$Fut.as_mut().poll(cx).is_ready();
-                )*
+                let mut this = self.project();
+                assert!(!*this.done, "Futures must not be polled after completing");
+
+                $(all_done &= this.$F.as_mut().poll(cx).is_ready();)*
 
                 if all_done {
-                    Poll::Ready(($(futures.$Fut.take().unwrap()), *))
+                    *this.done = true;
+                    Poll::Ready(($(this.$F.take().unwrap()),*))
                 } else {
                     Poll::Pending
                 }
@@ -73,15 +70,15 @@ macro_rules! generate {
 }
 
 generate! {
-    (<A, B>),
-    (<A, B, C>),
-    (<A, B, C, D>),
-    (<A, B, C, D, E>),
-    (<A, B, C, D, E, F>),
-    (<A, B, C, D, E, F, G>),
-    (<A, B, C, D, E, F, G, H>),
-    (<A, B, C, D, E, F, G, H, I>),
-    (<A, B, C, D, E, F, G, H, I, J>),
-    (<A, B, C, D, E, F, G, H, I, J, K>),
-    (<A, B, C, D, E, F, G, H, I, J, K, L>),
+    (A, B),
+    (A, B, C),
+    (A, B, C, D),
+    (A, B, C, D, E),
+    (A, B, C, D, E, F),
+    (A, B, C, D, E, F, G),
+    (A, B, C, D, E, F, G, H),
+    (A, B, C, D, E, F, G, H, I),
+    (A, B, C, D, E, F, G, H, I, J),
+    (A, B, C, D, E, F, G, H, I, J, K),
+    (A, B, C, D, E, F, G, H, I, J, K, L),
 }

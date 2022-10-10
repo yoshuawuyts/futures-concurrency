@@ -19,5 +19,3 @@ pin-project = "1.0.8"
 
 [dev-dependencies]
 futures-lite = "1.12.0"
-futures = "0.3.19"
-async-io = "1.6.0"

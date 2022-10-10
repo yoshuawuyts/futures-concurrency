@@ -106,7 +106,7 @@ mod test {
 
     #[test]
     fn all_ok() {
-        async_io::block_on(async {
+        futures_lite::future::block_on(async {
             let res: io::Result<_> = [future::ready(Ok("hello")), future::ready(Ok("world"))]
                 .try_join()
                 .await;
@@ -116,7 +116,7 @@ mod test {
 
     #[test]
     fn one_err() {
-        async_io::block_on(async {
+        futures_lite::future::block_on(async {
             let err = Error::new(ErrorKind::Other, "oh no");
             let res: io::Result<_> = [future::ready(Ok("hello")), future::ready(Err(err))]
                 .try_join()
