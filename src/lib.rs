@@ -11,6 +11,24 @@
 //! eventually may become the futures concurrency methods provided by the
 //! stdlib. See the [`future`] and [`stream`] submodules for more.
 //!
+//! # Limitations
+//!
+//! Because of orphan rules this library can't implement everything the stdlib
+//! can. The missing implementations are:
+//!
+//! - `impl<T> IntoFuture for Vec<T>`
+//! - `impl<T, const N: usize> IntoFuture for [T; N]`
+//! - `impl<T..> IntoFuture for (T..)`
+//! - `impl<T> IntoAsyncIterator for Vec<T>`
+//! - `impl<T, const N: usize> IntoAsyncIterator for [T; N]`
+//! - `impl<T..> IntoAsyncIterator for (T..)`
+//!
+//! This would enable containers of futures to directly be `.await`ed to get
+//! `merge` semantics. Or containers of async iterators to be passed directly to
+//! `for..await in` loops to be iterated over using `merge` semantics. This would
+//! remove the need to think of "merge" as a verb, and would enable treating
+//! sets of futures concurrently.
+//!
 //! # Examples
 //!
 //! Concurrently await multiple heterogenous futures:
@@ -24,7 +42,7 @@
 //!         let a = future::ready(1u8);
 //!         let b = future::ready("hello");
 //!         let c = future::ready(3u16);
-//!         assert_eq!((a, b, c).join().await, (1, "hello", 3));
+//!         assert_eq!((a, b, c).merge().await, (1, "hello", 3));
 //!     })
 //! }
 //! ```

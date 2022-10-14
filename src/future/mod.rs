@@ -18,64 +18,57 @@
 //!         let a = future::ready(1);
 //!         let b = future::ready(2);
 //!         let c = future::ready(3);
-//!         assert_eq!([a, b, c].join().await, [1, 2, 3]);
+//!         assert_eq!([a, b, c].merge().await, [1, 2, 3]);
 //!    
 //!         // Await multiple differently-typed futures.
 //!         let a = future::ready(1u8);
 //!         let b = future::ready("hello");
 //!         let c = future::ready(3u16);
-//!         assert_eq!((a, b, c).join().await, (1, "hello", 3));
+//!         assert_eq!((a, b, c).merge().await, (1, "hello", 3));
 //!
 //!         // It even works with vectors of futures, providing an alternative
 //!         // to futures-rs' `join_all`.
 //!         let a = future::ready(1);
 //!         let b = future::ready(2);
 //!         let c = future::ready(3);
-//!         assert_eq!(vec![a, b, c].join().await, vec![1, 2, 3]);
+//!         assert_eq!(vec![a, b, c].merge().await, vec![1, 2, 3]);
 //!     })
 //! }
 //! ```
 //!
-//! # Base Futures Concurrency
+//! # Concurrency
 //!
-//! Often it's desireable to await multiple futures as if it was a single
-//! future. The `join` family of operations converts multiple futures into a
-//! single future that returns all of their outputs. The `race` family of
-//! operations converts multiple future into a single future that returns the
-//! first output.
+//! It's common for operations to depend on the output of multiple futures.
+//! Instead of awaiting each future in sequence it can be more efficient to
+//! await them _concurrently_. Rust provides built-in mechanisms in the library
+//! to make this easy and convenient to do.
 //!
-//! For operating on futures the following functions can be used:
+//! ## Infallible Concurrency
 //!
-//! | Name     | Return signature | When does it return?     |
-//! | ---      | ---              | ---                      |
-//! | `Join`   | `(T1, T2)`       | Wait for all to complete
-//! | `Race`   | `T`              | Return on  value
+//! When working with futures which don't return `Result` types, we
+//! provide two built-in concurrency operations:
 //!
-//! ## Fallible Futures Concurrency
+//! - `future::Merge`: wait for all futures in the set to complete
+//! - `future::Race`: wait for the _first_ future in the set to complete
 //!
-//! For operating on futures that return `Result` additional `try_` variants of
-//! the functions mentioned before can be used. These functions are aware of `Result`,
-//! and will behave slightly differently from their base variants.
+//! Because futures can be considered to be an async sequence of one, see
+//! the [async iterator concurrency][crate::stream#concurrency] section for
+//! additional async concurrency operations.
 //!
-//! In the case of `try_merge`, if any of the futures returns `Err` all
-//! futures are dropped and an error is returned. This is referred to as
-//! "short-circuiting".
+//! ## Fallible Concurrency
 //!
-//! In the case of `race_ok`, instead of returning the  future that
-//! completes it returns the first future that _successfully_ completes. This
-//! means `race_ok` will keep going until any one of the futures returns
-//! `Ok`, or _all_ futures have returned `Err`.
+//! When working with futures which return `Result` types, the meaning of the
+//! existing operations changes, and additional `Result`-aware concurrency
+//! operations become available:
 //!
-//! However sometimes it can be useful to use the base variants of the functions
-//! even on futures that return `Result`. Here is an overview of operations that
-//! work on `Result`, and their respective semantics:
+//! |                             | __Wait for all outputs__ | __Wait for first output__ |
+//! | ---                         | ---                      | ---                       |
+//! | __Continue on error__       | `future::Merge`          | `future::RaceOk`
+//! | __Return early on error__   | `future::TryMerge`       | `future::Race`
 //!
-//! | Name        | Return signature               | When does it return? |
-//! | ---         | ---                            | ---                  |
-//! | `Join`      | `(Result<T, E>, Result<T, E>)` | Wait for all to complete
-//! | `TryJoin`   | `Result<(T1, T2), E>`          | Return on  `Err`, wait for all to complete
-//! | `Race`      | `Result<T, E>`                 | Return on  value
-//! | `RaceOk`    | `Result<T, E>`                 | Return on  `Ok`, reject on last Err
+//! - `future::TryMerge`: wait for all futures in the set to complete _successfully_, or return on the first error.
+//! - `future::RaceOk`: wait for the first _successful_ future in the set to
+//! complete, or return an `Err` if *no* futures complete successfully.
 //!
 pub use merge::Merge;
 pub use race::Race;

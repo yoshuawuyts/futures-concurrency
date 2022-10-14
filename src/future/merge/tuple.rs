@@ -8,7 +8,7 @@ use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
-macro_rules! impl_join_tuple {
+macro_rules! impl_merge_tuple {
     ($($F:ident)+) => (const _: () = {
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
@@ -68,14 +68,14 @@ macro_rules! impl_join_tuple {
     }; )
 }
 
-impl_join_tuple! { A B }
-impl_join_tuple! { A B C }
-impl_join_tuple! { A B C D }
-impl_join_tuple! { A B C D E }
-impl_join_tuple! { A B C D E F }
-impl_join_tuple! { A B C D E F G }
-impl_join_tuple! { A B C D E F G H }
-impl_join_tuple! { A B C D E F G H I }
-impl_join_tuple! { A B C D E F G H I J }
-impl_join_tuple! { A B C D E F G H I J K }
-impl_join_tuple! { A B C D E F G H I J K L }
+impl_merge_tuple! { A B }
+impl_merge_tuple! { A B C }
+impl_merge_tuple! { A B C D }
+impl_merge_tuple! { A B C D E }
+impl_merge_tuple! { A B C D E F }
+impl_merge_tuple! { A B C D E F G }
+impl_merge_tuple! { A B C D E F G H }
+impl_merge_tuple! { A B C D E F G H I }
+impl_merge_tuple! { A B C D E F G H I J }
+impl_merge_tuple! { A B C D E F G H I J K }
+impl_merge_tuple! { A B C D E F G H I J K L }

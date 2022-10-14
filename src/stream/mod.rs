@@ -26,14 +26,29 @@
 //!
 //! # Concurrency
 //!
-//! For streams we expose a single concurrency method: `merge`. This allows
-//! multiple streams to be merged into one, with items handled as soon as
-//! they're ready. By their nature streams can be short-circuited on a per-item
-//! basis, so we don't need to decide up front how we want to handle errors.
+//! When working with multiple (async) iterators, the ordering in which
+//! iterators are awaited is important. As part of async iterators, Rust
+//! provides built-in operations to control the order of execution of sets of
+//! iterators:
 //!
-//! | Name        | Return signature               | When does it return? |
-//! | ---         | ---                            | ---                  |
-//! | `Merge`     | `T`                            | Each value as soon as it's ready.
+//! - `merge`: combine multiple iterators into a single iterator, where the new
+//! iterator yields an item as soon as one is available from one of the
+//! underlying iterators.
+//! - `zip`: combine multiple iterators into an iterator of pairs. The
+//! underlying iterators will be awaited concurrently.
+//! - `chain`: iterate over multiple iterators in sequence. The next iterator in
+//! the sequence won't start until the previous iterator has finished.
+//!
+//! ## Futures
+//!
+//! Futures can be thought of as async sequences of single items. Using
+//! `stream::once`, futures can be converted into async iterators and then used
+//! with any of the iterator concurrency methods. This enables operations such
+//! as `stream::Merge` to be used to execute sets of futures concurrently, but
+//! obtain the invididual future's outputs as soon as they're available.
+//!
+//! See the [future concurrency][crate::future#concurrency] documentation for
+//! more on futures concurrency.
 pub use crate::utils::IntoStream;
 pub use merge::Merge;
 
