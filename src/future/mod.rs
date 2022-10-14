@@ -77,12 +77,12 @@
 //! | `Race`      | `Result<T, E>`                 | Return on  value
 //! | `RaceOk`    | `Result<T, E>`                 | Return on  `Ok`, reject on last Err
 //!
-pub use first_ok::FirstOk;
 pub use merge::Merge;
 pub use race::Race;
+pub use race_ok::RaceOk;
 pub use try_merge::TryMerge;
 
-mod first_ok;
 mod merge;
 mod race;
+mod race_ok;
 mod try_merge;
