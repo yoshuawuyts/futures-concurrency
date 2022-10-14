@@ -1,4 +1,4 @@
-use super::FirstOk as FirstOkTrait;
+use super::RaceOk as RaceOkTrait;
 use crate::utils::iter_pin_mut;
 use crate::utils::MaybeDone;
 
@@ -56,7 +56,8 @@ impl<E> DerefMut for AggregateError<E> {
 
 impl<E: fmt::Debug> std::error::Error for AggregateError<E> {}
 
-impl<Fut, T, E> FirstOkTrait for Vec<Fut>
+#[async_trait::async_trait(?Send)]
+impl<Fut, T, E> RaceOkTrait for Vec<Fut>
 where
     T: fmt::Debug,
     E: fmt::Debug,
@@ -64,16 +65,16 @@ where
 {
     type Output = T;
     type Error = AggregateError<E>;
-    type Future = FirstOk<Fut::IntoFuture, T, E>;
 
-    fn first_ok(self) -> Self::Future {
+    async fn race_ok(self) -> Result<Self::Output, Self::Error> {
         let elems: Box<[_]> = self
             .into_iter()
             .map(|fut| MaybeDone::new(fut.into_future()))
             .collect();
-        FirstOk {
+        RaceOk {
             elems: elems.into(),
         }
+        .await
     }
 }
 
@@ -82,26 +83,26 @@ where
 /// Awaits multiple futures simultaneously, returning the output of the
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct FirstOk<Fut, T, E>
+pub(super) struct RaceOk<Fut, T, E>
 where
     Fut: Future<Output = Result<T, E>>,
 {
     elems: Pin<Box<[MaybeDone<Fut>]>>,
 }
 
-impl<Fut, T, E> fmt::Debug for FirstOk<Fut, T, E>
+impl<Fut, T, E> fmt::Debug for RaceOk<Fut, T, E>
 where
     Fut: Future<Output = Result<T, E>> + fmt::Debug,
     Fut::Output: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FirstOk")
+        f.debug_struct("RaceOk")
             .field("elems", &self.elems)
             .finish()
     }
 }
 
-impl<Fut, T, E> Future for FirstOk<Fut, T, E>
+impl<Fut, T, E> Future for RaceOk<Fut, T, E>
 where
     T: std::fmt::Debug,
     E: fmt::Debug,
@@ -143,7 +144,7 @@ mod test {
         futures_lite::future::block_on(async {
             let res: Result<&str, AggregateError<Error>> =
                 vec![future::ready(Ok("hello")), future::ready(Ok("world"))]
-                    .first_ok()
+                    .race_ok()
                     .await;
             assert!(res.is_ok());
         })
@@ -155,7 +156,7 @@ mod test {
             let err = Error::new(ErrorKind::Other, "oh no");
             let res: Result<&str, AggregateError<Error>> =
                 vec![future::ready(Ok("hello")), future::ready(Err(err))]
-                    .first_ok()
+                    .race_ok()
                     .await;
             assert_eq!(res.unwrap(), "hello");
         });
@@ -168,7 +169,7 @@ mod test {
             let err2 = Error::new(ErrorKind::Other, "oh no");
             let res: Result<&str, AggregateError<Error>> =
                 vec![future::ready(Err(err1)), future::ready(Err(err2))]
-                    .first_ok()
+                    .race_ok()
                     .await;
             let errs = res.unwrap_err();
             assert_eq!(errs[0].to_string(), "oops");

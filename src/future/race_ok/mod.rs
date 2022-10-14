@@ -1,5 +1,3 @@
-use core::future::Future;
-
 pub(crate) mod array;
 pub(crate) mod vec;
 
@@ -8,16 +6,14 @@ pub(crate) mod vec;
 /// Awaits multiple futures simultaneously, returning the output of the first
 /// future which completes. If no future completes successfully, returns an
 /// aggregate error of all failed futures.
-pub trait FirstOk {
+#[async_trait::async_trait(?Send)]
+pub trait RaceOk {
     /// The resulting output type.
     type Output;
 
     /// The resulting error type.
     type Error;
 
-    /// Which kind of future are we turning this into?
-    type Future: Future<Output = Result<Self::Output, Self::Error>>;
-
     /// Waits for the first successful future to complete.
-    fn first_ok(self) -> Self::Future;
+    async fn race_ok(self) -> Result<Self::Output, Self::Error>;
 }

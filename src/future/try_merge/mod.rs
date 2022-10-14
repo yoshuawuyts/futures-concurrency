@@ -1,5 +1,3 @@
-use core::future::Future;
-
 pub(crate) mod array;
 pub(crate) mod vec;
 
@@ -10,18 +8,16 @@ pub(crate) mod vec;
 ///
 /// If you want to keep partial data in the case of failure, see the `merge`
 /// operation.
-pub trait TryJoin {
+#[async_trait::async_trait(?Send)]
+pub trait TryMerge {
     /// The resulting output type.
     type Output;
 
     /// The resulting error type.
     type Error;
 
-    /// Which kind of future are we turning this into?
-    type Future: Future<Output = Result<Self::Output, Self::Error>>;
-
     /// Waits for multiple futures to complete, either returning when all
     /// futures complete successfully, or return early when any future completes
     /// with an error.
-    fn try_join(self) -> Self::Future;
+    async fn try_merge(self) -> Result<Self::Output, Self::Error>;
 }
