@@ -65,3 +65,14 @@ pub mod prelude {
 
 pub mod future;
 pub mod stream;
+
+/// Helper functions and types for fixed-length arrays.
+pub mod array {
+    pub use crate::future::race_ok::array::AggregateError;
+    pub use crate::stream::merge::array::Merge;
+}
+/// A contiguous growable array type with heap-allocated contents, written `Vec<T>`.
+pub mod vec {
+    pub use crate::future::race_ok::vec::AggregateError;
+    pub use crate::stream::merge::vec::Merge;
+}

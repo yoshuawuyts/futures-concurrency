@@ -52,4 +52,4 @@
 pub use crate::utils::IntoStream;
 pub use merge::Merge;
 
-mod merge;
+pub(crate) mod merge;

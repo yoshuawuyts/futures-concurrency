@@ -77,5 +77,5 @@ pub use try_merge::TryMerge;
 
 mod merge;
 mod race;
-mod race_ok;
+pub(crate) mod race_ok;
 mod try_merge;
