@@ -9,7 +9,7 @@ pub(crate) mod vec;
 /// If you want to keep partial data in the case of failure, see the `merge`
 /// operation.
 #[async_trait::async_trait(?Send)]
-pub trait TryJoin {
+pub trait TryMerge {
     /// The resulting output type.
     type Output;
 
@@ -19,5 +19,5 @@ pub trait TryJoin {
     /// Waits for multiple futures to complete, either returning when all
     /// futures complete successfully, or return early when any future completes
     /// with an error.
-    async fn try_join(self) -> Result<Self::Output, Self::Error>;
+    async fn try_merge(self) -> Result<Self::Output, Self::Error>;
 }

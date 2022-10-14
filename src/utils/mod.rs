@@ -2,7 +2,7 @@
 
 //! A type that wraps a future to keep track of its completion status.
 //!
-//! This implementation was taken from the original `macro_rules` `join/try_join`
+//! This implementation was taken from the original `macro_rules` `join/try_merge`
 //! macros in the `futures-preview` crate.
 
 mod fuse;

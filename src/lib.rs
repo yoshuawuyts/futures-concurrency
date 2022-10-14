@@ -37,11 +37,11 @@ mod utils;
 
 /// The futures concurrency prelude.
 pub mod prelude {
-    pub use super::future::FirstOk;
-    pub use super::future::Join;
-    pub use super::future::Race;
-    pub use super::future::TryJoin;
-    pub use super::stream::Merge;
+    pub use super::future::FirstOk as _;
+    pub use super::future::Merge as _;
+    pub use super::future::Race as _;
+    pub use super::future::TryMerge as _;
+    pub use super::stream::Merge as _;
     pub use super::utils::IntoStream as _;
 }
 

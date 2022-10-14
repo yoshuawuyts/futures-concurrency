@@ -1,4 +1,4 @@
-use super::Join as JoinTrait;
+use super::Merge as MergeTrait;
 use crate::utils::iter_pin_mut;
 use crate::utils::MaybeDone;
 
@@ -11,12 +11,12 @@ use std::boxed::Box;
 use std::vec::Vec;
 
 #[async_trait::async_trait(?Send)]
-impl<Fut> JoinTrait for Vec<Fut>
+impl<Fut> MergeTrait for Vec<Fut>
 where
     Fut: IntoFuture,
 {
     type Output = Vec<Fut::Output>;
-    async fn join(self) -> Self::Output {
+    async fn merge(self) -> Self::Output {
         Join {
             elems: self
                 .into_iter()

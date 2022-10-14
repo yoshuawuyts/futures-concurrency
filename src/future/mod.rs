@@ -57,7 +57,7 @@
 //! the functions mentioned before can be used. These functions are aware of `Result`,
 //! and will behave slightly differently from their base variants.
 //!
-//! In the case of `try_join`, if any of the futures returns `Err` all
+//! In the case of `try_merge`, if any of the futures returns `Err` all
 //! futures are dropped and an error is returned. This is referred to as
 //! "short-circuiting".
 //!
@@ -78,11 +78,11 @@
 //! | `RaceOk`    | `Result<T, E>`                 | Return on  `Ok`, reject on last Err
 //!
 pub use first_ok::FirstOk;
-pub use join::Join;
+pub use merge::Merge;
 pub use race::Race;
-pub use try_join::TryJoin;
+pub use try_merge::TryMerge;
 
 mod first_ok;
-mod join;
+mod merge;
 mod race;
-mod try_join;
+mod try_merge;

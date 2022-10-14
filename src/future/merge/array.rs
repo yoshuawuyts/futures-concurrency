@@ -1,4 +1,4 @@
-use super::Join as JoinTrait;
+use super::Merge as MergeTrait;
 use crate::utils::MaybeDone;
 
 use core::fmt;
@@ -9,12 +9,12 @@ use core::task::{Context, Poll};
 use pin_project::pin_project;
 
 #[async_trait::async_trait(?Send)]
-impl<Fut, const N: usize> JoinTrait for [Fut; N]
+impl<Fut, const N: usize> MergeTrait for [Fut; N]
 where
     Fut: IntoFuture,
 {
     type Output = [Fut::Output; N];
-    async fn join(self) -> Self::Output {
+    async fn merge(self) -> Self::Output {
         Join {
             elems: self.map(|fut| MaybeDone::new(fut.into_future())),
         }
