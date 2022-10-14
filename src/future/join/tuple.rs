@@ -13,7 +13,7 @@ macro_rules! impl_join_tuple {
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
-        pub struct Join<$($F: Future),*> {
+        pub(super) struct Join<$($F: Future),*> {
             done: bool,
             $(#[pin] $F: MaybeDone<$F>,)*
         }
@@ -30,19 +30,18 @@ macro_rules! impl_join_tuple {
             }
         }
 
+        #[async_trait::async_trait(?Send)]
         impl<$($F),*> JoinTrait for ($($F),*)
         where $(
             $F: IntoFuture,
         )* {
             type Output = ($($F::Output),*);
-            type Future = Join<$($F::IntoFuture),*>;
-
-            fn join(self) -> Self::Future {
+            async fn join(self) -> Self::Output {
                 let ($($F),*): ($($F),*) = self;
                 Join {
                     done: false,
                     $($F: MaybeDone::new($F.into_future())),*
-                }
+                }.await
             }
         }
 

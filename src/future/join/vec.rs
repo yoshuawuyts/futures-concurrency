@@ -10,14 +10,13 @@ use core::task::{Context, Poll};
 use std::boxed::Box;
 use std::vec::Vec;
 
+#[async_trait::async_trait(?Send)]
 impl<Fut> JoinTrait for Vec<Fut>
 where
     Fut: IntoFuture,
 {
     type Output = Vec<Fut::Output>;
-    type Future = Join<Fut::IntoFuture>;
-
-    fn join(self) -> Self::Future {
+    async fn join(self) -> Self::Output {
         Join {
             elems: self
                 .into_iter()
@@ -25,6 +24,7 @@ where
                 .collect::<Box<_>>()
                 .into(),
         }
+        .await
     }
 }
 
@@ -33,7 +33,7 @@ where
 /// Awaits multiple futures simultaneously, returning the output of the
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Join<Fut>
+pub(super) struct Join<Fut>
 where
     Fut: Future,
 {

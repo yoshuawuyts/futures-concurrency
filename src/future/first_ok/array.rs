@@ -53,6 +53,7 @@ impl<E, const N: usize> DerefMut for AggregateError<E, N> {
 
 impl<E: fmt::Debug, const N: usize> std::error::Error for AggregateError<E, N> {}
 
+#[async_trait::async_trait(?Send)]
 impl<Fut, T, E, const N: usize> FirstOkTrait for [Fut; N]
 where
     T: fmt::Debug,
@@ -61,12 +62,12 @@ where
 {
     type Output = T;
     type Error = AggregateError<E, N>;
-    type Future = FirstOk<Fut::IntoFuture, T, E, N>;
 
-    fn first_ok(self) -> Self::Future {
+    async fn first_ok(self) -> Result<Self::Output, Self::Error> {
         FirstOk {
             elems: self.map(|fut| MaybeDone::new(fut.into_future())),
         }
+        .await
     }
 }
 
@@ -76,7 +77,7 @@ where
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub struct FirstOk<Fut, T, E, const N: usize>
+pub(super) struct FirstOk<Fut, T, E, const N: usize>
 where
     T: fmt::Debug,
     Fut: Future<Output = Result<T, E>>,
