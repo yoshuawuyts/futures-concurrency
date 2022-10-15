@@ -17,14 +17,12 @@ where
 {
     type Output = Vec<Fut::Output>;
     async fn merge(self) -> Self::Output {
-        Join {
-            elems: self
-                .into_iter()
-                .map(|fut| MaybeDone::new(fut.into_future()))
-                .collect::<Box<_>>()
-                .into(),
-        }
-        .await
+        let elems = self
+            .into_iter()
+            .map(|fut| MaybeDone::new(fut.into_future()))
+            .collect::<Box<_>>()
+            .into();
+        Merge::new(elems).await
     }
 }
 
@@ -33,14 +31,23 @@ where
 /// Awaits multiple futures simultaneously, returning the output of the
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub(super) struct Join<Fut>
+pub struct Merge<Fut>
 where
     Fut: Future,
 {
     elems: Pin<Box<[MaybeDone<Fut>]>>,
 }
 
-impl<Fut> fmt::Debug for Join<Fut>
+impl<Fut> Merge<Fut>
+where
+    Fut: Future,
+{
+    pub(crate) fn new(elems: Pin<Box<[MaybeDone<Fut>]>>) -> Self {
+        Self { elems }
+    }
+}
+
+impl<Fut> fmt::Debug for Merge<Fut>
 where
     Fut: Future + fmt::Debug,
     Fut::Output: fmt::Debug,
@@ -50,7 +57,7 @@ where
     }
 }
 
-impl<Fut> Future for Join<Fut>
+impl<Fut> Future for Merge<Fut>
 where
     Fut: Future,
 {

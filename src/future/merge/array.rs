@@ -15,7 +15,7 @@ where
 {
     type Output = [Fut::Output; N];
     async fn merge(self) -> Self::Output {
-        Join {
+        Merge {
             elems: self.map(|fut| MaybeDone::new(fut.into_future())),
         }
         .await
@@ -28,14 +28,14 @@ where
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub(super) struct Join<Fut, const N: usize>
+pub struct Merge<Fut, const N: usize>
 where
     Fut: Future,
 {
-    elems: [MaybeDone<Fut>; N],
+    pub(crate) elems: [MaybeDone<Fut>; N],
 }
 
-impl<Fut, const N: usize> fmt::Debug for Join<Fut, N>
+impl<Fut, const N: usize> fmt::Debug for Merge<Fut, N>
 where
     Fut: Future + fmt::Debug,
     Fut::Output: fmt::Debug,
@@ -45,7 +45,7 @@ where
     }
 }
 
-impl<Fut, const N: usize> Future for Join<Fut, N>
+impl<Fut, const N: usize> Future for Merge<Fut, N>
 where
     Fut: Future,
 {

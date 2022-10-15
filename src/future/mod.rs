@@ -70,11 +70,13 @@
 //! - `future::RaceOk`: wait for the first _successful_ future in the set to
 //! complete, or return an `Err` if *no* futures complete successfully.
 //!
+pub use into_future::IntoFuture;
 pub use merge::Merge;
 pub use race::Race;
 pub use race_ok::RaceOk;
 pub use try_merge::TryMerge;
 
+mod into_future;
 mod merge;
 mod race;
 pub(crate) mod race_ok;
