@@ -15,7 +15,6 @@ authors = [
 
 [dependencies]
 async-trait = "0.1.57"
-futures-core = "0.3.16"
 pin-project = "1.0.8"
 
 [dev-dependencies]

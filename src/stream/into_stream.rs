@@ -1,4 +1,6 @@
-use futures_core::Stream;
+use crate::stream::Stream;
+
+use super::Merge;
 
 /// Conversion into a `Stream`.
 ///
@@ -26,5 +28,23 @@ impl<S: Stream> IntoStream for S {
     #[inline]
     fn into_stream(self) -> S {
         self
+    }
+}
+
+impl<S: IntoStream> IntoStream for Vec<S> {
+    type Item = <crate::vec::Merge<S::IntoStream> as Stream>::Item;
+    type IntoStream = crate::vec::Merge<S::IntoStream>;
+
+    fn into_stream(self) -> Self::IntoStream {
+        self.merge()
+    }
+}
+
+impl<S: IntoStream, const N: usize> IntoStream for [S; N] {
+    type Item = <crate::array::Merge<S::IntoStream, N> as Stream>::Item;
+    type IntoStream = crate::array::Merge<S::IntoStream, N>;
+
+    fn into_stream(self) -> Self::IntoStream {
+        self.merge()
     }
 }

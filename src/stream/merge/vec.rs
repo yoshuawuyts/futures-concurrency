@@ -2,7 +2,7 @@ use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
 use crate::utils::{self, Fuse};
 
-use futures_core::Stream;
+use crate::stream::Stream;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 

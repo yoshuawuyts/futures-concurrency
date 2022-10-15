@@ -2,7 +2,7 @@ use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
 use crate::utils;
 
-use futures_core::Stream;
+use crate::stream::Stream;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -242,18 +242,20 @@ mod tests {
 
     #[test]
     fn merge_tuple_4() {
+        use crate::stream;
         use futures_lite::future::block_on;
-        use futures_lite::{stream, StreamExt};
 
         block_on(async {
             let a = stream::once(1);
             let b = stream::once(2);
             let c = stream::once(3);
             let d = stream::once(4);
-            let s = (a, b, c, d).merge();
+            let mut s = (a, b, c, d).merge();
 
             let mut counter = 0;
-            s.for_each(|n| counter += n).await;
+            while let Some(n) = s.next().await {
+                counter += n;
+            }
             assert_eq!(counter, 10);
         })
     }

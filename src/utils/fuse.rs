@@ -1,8 +1,7 @@
+use core::task::{ready, Context, Poll};
 use std::pin::Pin;
-use std::task::Context;
-use std::task::Poll;
 
-use futures_core::Stream;
+use crate::stream::Stream;
 use pin_project::pin_project;
 
 /// A stream that yields `None` forever after the underlying stream yields `None` once.
@@ -37,7 +36,7 @@ impl<S: Stream> Stream for Fuse<S> {
         if *this.done {
             Poll::Ready(None)
         } else {
-            let next = futures_core::ready!(this.stream.poll_next(cx));
+            let next = ready!(this.stream.poll_next(cx));
             if next.is_none() {
                 *this.done = true;
             }

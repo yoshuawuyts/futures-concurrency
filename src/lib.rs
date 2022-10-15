@@ -59,8 +59,9 @@ pub mod prelude {
     pub use super::future::Race as _;
     pub use super::future::RaceOk as _;
     pub use super::future::TryMerge as _;
+    pub use super::stream::IntoStream as _;
     pub use super::stream::Merge as _;
-    pub use super::utils::IntoStream as _;
+    pub use super::stream::Stream as _;
 }
 
 pub mod future;
