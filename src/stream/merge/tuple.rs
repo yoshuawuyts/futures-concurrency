@@ -6,6 +6,19 @@ use crate::stream::Stream;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+/// Compute the number of permutations for a number
+const fn permutations(mut num: u32) -> u32 {
+    let mut total = 1;
+    loop {
+        total *= num;
+        num -= 1;
+        if num == 0 {
+            break;
+        }
+    }
+    total
+}
+
 macro_rules! poll_in_order {
     ($cx:expr, $stream:expr) => { $stream.poll_next($cx) };
     ($cx:expr, $stream:expr, $($next:tt),*) => {{
@@ -18,6 +31,14 @@ macro_rules! poll_in_order {
         match poll_in_order!($cx, $($next),*) {
             Poll::Ready(None) if pending => Poll::Pending,
             other => other,
+        }
+    }};
+}
+
+macro_rules! poll_and_then_return {
+    ($stream:expr, $cx:expr) => {{
+        if let Poll::Ready(value) = unsafe { Pin::new_unchecked($stream) }.poll_next($cx) {
+            return Poll::Ready(value);
         }
     }};
 }
@@ -64,14 +85,20 @@ where
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        // SAFETY: we're manually projecting the tuple fields here.
-        let s0 = unsafe { Pin::new_unchecked(&mut this.streams.0) };
-        let s1 = unsafe { Pin::new_unchecked(&mut this.streams.1) };
-        match utils::random(2) {
-            0 => poll_in_order!(cx, s0, s1),
-            1 => poll_in_order!(cx, s1, s0),
-            _ => unreachable!(),
+        const LEN: u32 = 2;
+        const PERMUTATIONS: u32 = permutations(LEN);
+        const DIVISOR: u32 = PERMUTATIONS / LEN;
+        let r = utils::random(PERMUTATIONS);
+        for i in 1..=LEN {
+            if i == r.wrapping_div(DIVISOR) {
+                poll_and_then_return!(&mut this.streams.0, cx)
+            } else if i == (r + 1).wrapping_div(DIVISOR) {
+                poll_and_then_return!(&mut this.streams.1, cx)
+            } else {
+                unreachable!();
+            }
         }
+        Poll::Pending
     }
 }
 
@@ -131,7 +158,8 @@ where
         let s0 = unsafe { Pin::new_unchecked(&mut this.streams.0) };
         let s1 = unsafe { Pin::new_unchecked(&mut this.streams.1) };
         let s2 = unsafe { Pin::new_unchecked(&mut this.streams.2) };
-        match utils::random(6) {
+        const MAX: u32 = permutations(3);
+        match utils::random(MAX) {
             0 => poll_in_order!(cx, s0, s1, s2),
             1 => poll_in_order!(cx, s0, s2, s1),
             2 => poll_in_order!(cx, s1, s0, s2),
@@ -202,7 +230,8 @@ where
         let s1 = unsafe { Pin::new_unchecked(&mut this.streams.1) };
         let s2 = unsafe { Pin::new_unchecked(&mut this.streams.2) };
         let s3 = unsafe { Pin::new_unchecked(&mut this.streams.3) };
-        match utils::random(24) {
+        const MAX: u32 = permutations(4);
+        match utils::random(MAX) {
             // s0 first
             0 => poll_in_order!(cx, s0, s1, s2, s3),
             1 => poll_in_order!(cx, s0, s1, s3, s2),
@@ -239,6 +268,24 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn merge_tuple_2() {
+        use crate::stream;
+        use futures_lite::future::block_on;
+
+        block_on(async {
+            let a = stream::once(1);
+            let b = stream::once(2);
+            let mut s = (a, b).merge();
+
+            let mut counter = 0;
+            while let Some(n) = s.next().await {
+                counter += n;
+            }
+            assert_eq!(counter, 3);
+        })
+    }
 
     #[test]
     fn merge_tuple_4() {
