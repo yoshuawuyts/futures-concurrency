@@ -6,7 +6,7 @@
 //! ever dropping a single value:
 //!
 //! ```
-//! use futures_concurrency::prelude::*;
+//! use futures_concurrency::stream::Merge;
 //! use futures_concurrency::stream;
 //! use futures_lite::future::block_on;
 //!
