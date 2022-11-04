@@ -22,20 +22,8 @@ const fn permutations(mut num: u32) -> u32 {
 
 /// Calculate the number of tuples currently being operated on.
 macro_rules! tuple_len {
-    // Increment the counter.
-    (@inner $counter:expr, $F:ident, $($rest:ident,)*) => {
-        tuple_len!(@inner $counter + 1, $($rest,)*)
-    };
-
-    // End of recursion.
-    (@inner $counter:expr,) => {
-        $counter
-    };
-
-    // Base condition.
-    ($($F:ident,)*) => {
-        tuple_len!(@inner 0, $($F,)*)
-    }
+    (@count_one $F:ident) => (1);
+    ($($F:ident,)*) => (0 $(+ tuple_len!(@count_one $F))*);
 }
 
 /// Generate the `match` conditions inside the main `poll_next` body. This macro
