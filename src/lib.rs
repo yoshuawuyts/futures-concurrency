@@ -42,7 +42,7 @@
 //!         let a = future::ready(1u8);
 //!         let b = future::ready("hello");
 //!         let c = future::ready(3u16);
-//!         assert_eq!((a, b, c).merge().await, (1, "hello", 3));
+//!         assert_eq!((a, b, c).join().await, (1, "hello", 3));
 //!     })
 //! }
 //! ```
