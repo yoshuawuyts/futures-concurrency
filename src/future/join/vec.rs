@@ -1,5 +1,5 @@
 use super::Join as JoinTrait;
-use crate::utils::{iter_pin_mut_vec, Metadata};
+use crate::utils::{iter_pin_mut_vec, PollState};
 
 use core::fmt;
 use core::future::{Future, IntoFuture};
@@ -20,10 +20,12 @@ pub struct Join<Fut>
 where
     Fut: Future,
 {
+    consumed: bool,
+    pending: usize,
+    items: Vec<MaybeUninit<<Fut as Future>::Output>>,
+    state: Vec<PollState>,
     #[pin]
     futures: Vec<Fut>,
-    items: Vec<MaybeUninit<<Fut as Future>::Output>>,
-    metadata: Vec<Metadata>,
 }
 
 impl<Fut> Join<Fut>
@@ -32,13 +34,12 @@ where
 {
     pub(crate) fn new(futures: Vec<Fut>) -> Self {
         Join {
+            consumed: false,
+            pending: futures.len(),
             items: std::iter::repeat_with(|| MaybeUninit::uninit())
                 .take(futures.len())
                 .collect(),
-            metadata: std::iter::successors(Some(0), |prev| Some(prev + 1))
-                .take(futures.len())
-                .map(Metadata::new)
-                .collect(),
+            state: vec![PollState::default(); futures.len()],
             futures,
         }
     }
@@ -62,8 +63,7 @@ where
     Fut::Output: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: fix debug output
-        f.debug_struct("Join").finish()
+        f.debug_list().entries(self.state.iter()).finish()
     }
 }
 
@@ -73,32 +73,36 @@ where
 {
     type Output = Vec<Fut::Output>;
 
-    // SAFETY: see https://github.com/rust-lang/rust/issues/104108,
-    // projecting through slices is fine now, but it's not yet guaranteed to
-    // work. We need to guarantee structural pinning works as expected for it to
-    // be provably sound.
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
+
+        assert!(
+            !*this.consumed,
+            "Futures must not be polled after completing"
+        );
 
         // Poll all futures
         let futures = this.futures.as_mut();
         for (i, fut) in iter_pin_mut_vec(futures).enumerate() {
-            if this.metadata[i].is_done() {
-                continue;
-            }
-
-            if let Poll::Ready(value) = fut.poll(cx) {
-                this.items[i] = MaybeUninit::new(value);
-                this.metadata[i].set_done();
+            if this.state[i].is_pending() {
+                if let Poll::Ready(value) = fut.poll(cx) {
+                    this.items[i] = MaybeUninit::new(value);
+                    this.state[i] = PollState::Done;
+                    *this.pending -= 1;
+                }
             }
         }
 
         // Check whether we're all done now or need to keep going.
-        if this.metadata.iter().all(|meta| meta.is_done()) {
-            // Mark all data as "taken" before we actually take it.
-            this.metadata.iter_mut().for_each(|meta| meta.set_taken());
+        if *this.pending == 0 {
+            // Mark all data as "consumed" before we take it
+            *this.consumed = true;
+            this.state.iter_mut().for_each(|state| {
+                debug_assert!(state.is_done(), "Future should have reached a `Done` state");
+                *state = PollState::Consumed;
+            });
 
-            // SAFETY: we've checked with the metadata that all of our outputs have been
+            // SAFETY: we've checked with the state that all of our outputs have been
             // filled, which means we're ready to take the data and assume it's initialized.
             let items = unsafe {
                 let items = mem::take(this.items);
@@ -122,10 +126,11 @@ where
 
         // Get the indexes of the initialized values.
         let indexes = this
-            .metadata
+            .state
             .iter_mut()
-            .filter(|meta| meta.is_done())
-            .map(|meta| meta.index());
+            .enumerate()
+            .filter(|(_, state)| state.is_done())
+            .map(|(i, _)| i);
 
         // Drop each value at the index.
         for i in indexes {
@@ -141,9 +146,8 @@ mod test {
     use super::*;
     use std::future;
 
-    // NOTE: we should probably poll in random order.
     #[test]
-    fn no_fairness() {
+    fn smoke() {
         futures_lite::future::block_on(async {
             let res = vec![future::ready("hello"), future::ready("world")]
                 .join()
