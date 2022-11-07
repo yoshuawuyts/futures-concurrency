@@ -1,14 +1,49 @@
 use super::Join as JoinTrait;
-use crate::utils::iter_pin_mut;
-use crate::utils::MaybeDone;
+use crate::utils::{iter_pin_mut_vec, PollState};
 
 use core::fmt;
 use core::future::{Future, IntoFuture};
-use core::mem;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use std::boxed::Box;
+use std::mem::{self, MaybeUninit};
 use std::vec::Vec;
+
+use pin_project::{pin_project, pinned_drop};
+
+/// Waits for two similarly-typed futures to complete.
+///
+/// Awaits multiple futures simultaneously, returning the output of the
+/// futures once both complete.
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+#[pin_project(PinnedDrop)]
+pub struct Join<Fut>
+where
+    Fut: Future,
+{
+    consumed: bool,
+    pending: usize,
+    items: Vec<MaybeUninit<<Fut as Future>::Output>>,
+    state: Vec<PollState>,
+    #[pin]
+    futures: Vec<Fut>,
+}
+
+impl<Fut> Join<Fut>
+where
+    Fut: Future,
+{
+    pub(crate) fn new(futures: Vec<Fut>) -> Self {
+        Join {
+            consumed: false,
+            pending: futures.len(),
+            items: std::iter::repeat_with(|| MaybeUninit::uninit())
+                .take(futures.len())
+                .collect(),
+            state: vec![PollState::default(); futures.len()],
+            futures,
+        }
+    }
+}
 
 impl<Fut> JoinTrait for Vec<Fut>
 where
@@ -18,33 +53,7 @@ where
     type Future = Join<Fut::IntoFuture>;
 
     fn join(self) -> Self::Future {
-        let elems = self
-            .into_iter()
-            .map(|fut| MaybeDone::new(fut.into_future()))
-            .collect::<Box<_>>()
-            .into();
-        Join::new(elems)
-    }
-}
-
-/// Waits for two similarly-typed futures to complete.
-///
-/// Awaits multiple futures simultaneously, returning the output of the
-/// futures once both complete.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Join<Fut>
-where
-    Fut: Future,
-{
-    elems: Pin<Box<[MaybeDone<Fut>]>>,
-}
-
-impl<Fut> Join<Fut>
-where
-    Fut: Future,
-{
-    pub(crate) fn new(elems: Pin<Box<[MaybeDone<Fut>]>>) -> Self {
-        Self { elems }
+        Join::new(self.into_iter().map(IntoFuture::into_future).collect())
     }
 }
 
@@ -54,7 +63,7 @@ where
     Fut::Output: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Join").field("elems", &self.elems).finish()
+        f.debug_list().entries(self.state.iter()).finish()
     }
 }
 
@@ -64,23 +73,86 @@ where
 {
     type Output = Vec<Fut::Output>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut all_done = true;
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
 
-        for elem in iter_pin_mut(self.elems.as_mut()) {
-            if elem.poll(cx).is_pending() {
-                all_done = false;
+        assert!(
+            !*this.consumed,
+            "Futures must not be polled after completing"
+        );
+
+        // Poll all futures
+        let futures = this.futures.as_mut();
+        for (i, fut) in iter_pin_mut_vec(futures).enumerate() {
+            if this.state[i].is_pending() {
+                if let Poll::Ready(value) = fut.poll(cx) {
+                    this.items[i] = MaybeUninit::new(value);
+                    this.state[i] = PollState::Done;
+                    *this.pending -= 1;
+                }
             }
         }
 
-        if all_done {
-            let mut elems = mem::replace(&mut self.elems, Box::pin([]));
-            let result = iter_pin_mut(elems.as_mut())
-                .map(|e| e.take().unwrap())
-                .collect();
-            Poll::Ready(result)
+        // Check whether we're all done now or need to keep going.
+        if *this.pending == 0 {
+            // Mark all data as "consumed" before we take it
+            *this.consumed = true;
+            this.state.iter_mut().for_each(|state| {
+                debug_assert!(state.is_done(), "Future should have reached a `Done` state");
+                *state = PollState::Consumed;
+            });
+
+            // SAFETY: we've checked with the state that all of our outputs have been
+            // filled, which means we're ready to take the data and assume it's initialized.
+            let items = unsafe {
+                let items = mem::take(this.items);
+                mem::transmute::<_, Vec<Fut::Output>>(items)
+            };
+            Poll::Ready(items)
         } else {
             Poll::Pending
         }
+    }
+}
+
+/// Drop the already initialized values on cancellation.
+#[pinned_drop]
+impl<Fut> PinnedDrop for Join<Fut>
+where
+    Fut: Future,
+{
+    fn drop(self: Pin<&mut Self>) {
+        let this = self.project();
+
+        // Get the indexes of the initialized values.
+        let indexes = this
+            .state
+            .iter_mut()
+            .enumerate()
+            .filter(|(_, state)| state.is_done())
+            .map(|(i, _)| i);
+
+        // Drop each value at the index.
+        for i in indexes {
+            // SAFETY: we've just filtered down to *only* the initialized values.
+            // We can assume they're initialized, and this is where we drop them.
+            unsafe { this.items[i].assume_init_drop() };
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::future;
+
+    #[test]
+    fn smoke() {
+        futures_lite::future::block_on(async {
+            let res = vec![future::ready("hello"), future::ready("world")]
+                .join()
+                .await;
+            assert_eq!(res, vec!["hello", "world"]);
+        });
     }
 }

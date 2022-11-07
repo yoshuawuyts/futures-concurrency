@@ -19,12 +19,8 @@ impl<Fut: Future> IntoFuture for Vec<Fut> {
     type IntoFuture = crate::future::join::vec::Join<Fut>;
 
     fn into_future(self) -> Self::IntoFuture {
-        let elems = self
-            .into_iter()
-            .map(|fut| MaybeDone::new(core::future::IntoFuture::into_future(fut)))
-            .collect::<Box<_>>()
-            .into();
-        crate::future::join::vec::Join::new(elems)
+        use crate::future::join::vec::Join;
+        Join::new(self.into_iter().collect())
     }
 }
 
