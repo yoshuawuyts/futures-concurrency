@@ -1,4 +1,4 @@
-use super::Merge as MergeTrait;
+use super::Join as JoinTrait;
 use crate::utils::MaybeDone;
 
 use core::fmt;
@@ -9,13 +9,13 @@ use core::task::{Context, Poll};
 use pin_project::pin_project;
 
 #[async_trait::async_trait(?Send)]
-impl<Fut, const N: usize> MergeTrait for [Fut; N]
+impl<Fut, const N: usize> JoinTrait for [Fut; N]
 where
     Fut: IntoFuture,
 {
     type Output = [Fut::Output; N];
-    async fn merge(self) -> Self::Output {
-        Merge {
+    async fn join(self) -> Self::Output {
+        Join {
             elems: self.map(|fut| MaybeDone::new(fut.into_future())),
         }
         .await
@@ -28,14 +28,14 @@ where
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub struct Merge<Fut, const N: usize>
+pub struct Join<Fut, const N: usize>
 where
     Fut: Future,
 {
     pub(crate) elems: [MaybeDone<Fut>; N],
 }
 
-impl<Fut, const N: usize> fmt::Debug for Merge<Fut, N>
+impl<Fut, const N: usize> fmt::Debug for Join<Fut, N>
 where
     Fut: Future + fmt::Debug,
     Fut::Output: fmt::Debug,
@@ -45,7 +45,7 @@ where
     }
 }
 
-impl<Fut, const N: usize> Future for Merge<Fut, N>
+impl<Fut, const N: usize> Future for Join<Fut, N>
 where
     Fut: Future,
 {

@@ -72,12 +72,12 @@
 //!
 pub use first_ok::FirstOk;
 pub use into_future::IntoFuture;
-pub use merge::Merge;
+pub use join::Join;
 pub use race::Race;
-pub use try_merge::TryMerge;
+pub use try_join::TryJoin;
 
-mod first_ok;
-mod into_future;
-mod merge;
-mod race;
-mod try_merge;
+pub(crate) mod first_ok;
+pub(crate) mod into_future;
+pub(crate) mod join;
+pub(crate) mod race;
+pub(crate) mod try_join;

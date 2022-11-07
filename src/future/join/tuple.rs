@@ -1,4 +1,4 @@
-use super::Merge as MergeTrait;
+use super::Join as JoinTrait;
 use crate::utils::MaybeDone;
 
 use core::fmt::{self, Debug};
@@ -31,12 +31,12 @@ macro_rules! impl_merge_tuple {
         }
 
         #[async_trait::async_trait(?Send)]
-        impl<$($F),*> MergeTrait for ($($F),*)
+        impl<$($F),*> JoinTrait for ($($F),*)
         where $(
             $F: IntoFuture,
         )* {
             type Output = ($($F::Output),*);
-            async fn merge(self) -> Self::Output {
+            async fn join(self) -> Self::Output {
                 let ($($F),*): ($($F),*) = self;
                 Join {
                     done: false,

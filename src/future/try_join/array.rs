@@ -1,4 +1,4 @@
-use super::TryMerge as TryMergeTrait;
+use super::TryJoin as TryJoinTrait;
 use crate::utils::MaybeDone;
 
 use core::fmt;
@@ -9,7 +9,7 @@ use core::task::{Context, Poll};
 use pin_project::pin_project;
 
 #[async_trait::async_trait(?Send)]
-impl<Fut, T, E, const N: usize> TryMergeTrait for [Fut; N]
+impl<Fut, T, E, const N: usize> TryJoinTrait for [Fut; N]
 where
     T: std::fmt::Debug,
     Fut: IntoFuture<Output = Result<T, E>>,
@@ -17,7 +17,7 @@ where
 {
     type Output = [T; N];
     type Error = E;
-    async fn try_merge(self) -> Result<Self::Output, Self::Error> {
+    async fn try_join(self) -> Result<Self::Output, Self::Error> {
         TryJoin {
             elems: self.map(|fut| MaybeDone::new(fut.into_future())),
         }
@@ -108,7 +108,7 @@ mod test {
     fn all_ok() {
         futures_lite::future::block_on(async {
             let res: io::Result<_> = [future::ready(Ok("hello")), future::ready(Ok("world"))]
-                .try_merge()
+                .try_join()
                 .await;
             assert_eq!(res.unwrap(), ["hello", "world"]);
         })
@@ -119,7 +119,7 @@ mod test {
         futures_lite::future::block_on(async {
             let err = Error::new(ErrorKind::Other, "oh no");
             let res: io::Result<_> = [future::ready(Ok("hello")), future::ready(Err(err))]
-                .try_merge()
+                .try_join()
                 .await;
             assert_eq!(res.unwrap_err().to_string(), String::from("oh no"));
         });

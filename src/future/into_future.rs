@@ -16,7 +16,7 @@ pub trait IntoFuture {
 impl<Fut: Future> IntoFuture for Vec<Fut> {
     type Output = Vec<Fut::Output>;
 
-    type IntoFuture = crate::future::merge::vec::Merge<Fut>;
+    type IntoFuture = crate::future::join::vec::Join<Fut>;
 
     fn into_future(self) -> Self::IntoFuture {
         let elems = self
@@ -24,7 +24,7 @@ impl<Fut: Future> IntoFuture for Vec<Fut> {
             .map(|fut| MaybeDone::new(core::future::IntoFuture::into_future(fut)))
             .collect::<Box<_>>()
             .into();
-        crate::future::merge::vec::Merge::new(elems)
+        crate::future::join::vec::Join::new(elems)
     }
 }
 
@@ -32,10 +32,10 @@ impl<Fut: Future> IntoFuture for Vec<Fut> {
 impl<Fut: Future, const N: usize> IntoFuture for [Fut; N] {
     type Output = [Fut::Output; N];
 
-    type IntoFuture = crate::future::merge::array::Merge<Fut, N>;
+    type IntoFuture = crate::future::join::array::Join<Fut, N>;
 
     fn into_future(self) -> Self::IntoFuture {
-        crate::future::merge::array::Merge {
+        crate::future::join::array::Join {
             elems: self.map(|fut| MaybeDone::new(core::future::IntoFuture::into_future(fut))),
         }
     }

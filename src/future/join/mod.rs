@@ -7,7 +7,7 @@ pub(crate) mod vec;
 /// Awaits multiple futures simultaneously, returning the output of the futures
 /// once both complete.
 #[async_trait::async_trait(?Send)]
-pub trait Merge {
+pub trait Join {
     /// The resulting output type.
     type Output;
 
@@ -18,5 +18,5 @@ pub trait Merge {
     ///
     /// This function returns a new future which polls both futures
     /// concurrently.
-    async fn merge(self) -> Self::Output;
+    async fn join(self) -> Self::Output;
 }

@@ -1,4 +1,4 @@
-use super::Merge as MergeTrait;
+use super::Join as JoinTrait;
 use crate::utils::iter_pin_mut;
 use crate::utils::MaybeDone;
 
@@ -11,18 +11,18 @@ use std::boxed::Box;
 use std::vec::Vec;
 
 #[async_trait::async_trait(?Send)]
-impl<Fut> MergeTrait for Vec<Fut>
+impl<Fut> JoinTrait for Vec<Fut>
 where
     Fut: IntoFuture,
 {
     type Output = Vec<Fut::Output>;
-    async fn merge(self) -> Self::Output {
+    async fn join(self) -> Self::Output {
         let elems = self
             .into_iter()
             .map(|fut| MaybeDone::new(fut.into_future()))
             .collect::<Box<_>>()
             .into();
-        Merge::new(elems).await
+        Join::new(elems).await
     }
 }
 
@@ -31,14 +31,14 @@ where
 /// Awaits multiple futures simultaneously, returning the output of the
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Merge<Fut>
+pub struct Join<Fut>
 where
     Fut: Future,
 {
     elems: Pin<Box<[MaybeDone<Fut>]>>,
 }
 
-impl<Fut> Merge<Fut>
+impl<Fut> Join<Fut>
 where
     Fut: Future,
 {
@@ -47,7 +47,7 @@ where
     }
 }
 
-impl<Fut> fmt::Debug for Merge<Fut>
+impl<Fut> fmt::Debug for Join<Fut>
 where
     Fut: Future + fmt::Debug,
     Fut::Output: fmt::Debug,
@@ -57,7 +57,7 @@ where
     }
 }
 
-impl<Fut> Future for Merge<Fut>
+impl<Fut> Future for Join<Fut>
 where
     Fut: Future,
 {
