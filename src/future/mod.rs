@@ -18,20 +18,20 @@
 //!         let a = future::ready(1);
 //!         let b = future::ready(2);
 //!         let c = future::ready(3);
-//!         assert_eq!([a, b, c].merge().await, [1, 2, 3]);
+//!         assert_eq!([a, b, c].join().await, [1, 2, 3]);
 //!    
 //!         // Await multiple differently-typed futures.
 //!         let a = future::ready(1u8);
 //!         let b = future::ready("hello");
 //!         let c = future::ready(3u16);
-//!         assert_eq!((a, b, c).merge().await, (1, "hello", 3));
+//!         assert_eq!((a, b, c).join().await, (1, "hello", 3));
 //!
 //!         // It even works with vectors of futures, providing an alternative
 //!         // to futures-rs' `join_all`.
 //!         let a = future::ready(1);
 //!         let b = future::ready(2);
 //!         let c = future::ready(3);
-//!         assert_eq!(vec![a, b, c].merge().await, vec![1, 2, 3]);
+//!         assert_eq!(vec![a, b, c].join().await, vec![1, 2, 3]);
 //!     })
 //! }
 //! ```
@@ -71,13 +71,13 @@
 //! complete, or return an `Err` if *no* futures complete successfully.
 //!
 pub use into_future::IntoFuture;
-pub use merge::Merge;
+pub use join::Join;
 pub use race::Race;
 pub use race_ok::RaceOk;
-pub use try_merge::TryMerge;
+pub use try_join::TryJoin;
 
-mod into_future;
-mod merge;
-mod race;
+pub(crate) mod into_future;
+pub(crate) mod join;
+pub(crate) mod race;
 pub(crate) mod race_ok;
-mod try_merge;
+pub(crate) mod try_join;

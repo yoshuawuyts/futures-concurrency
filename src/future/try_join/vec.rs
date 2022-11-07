@@ -1,4 +1,4 @@
-use super::TryMerge as TryMergeTrait;
+use super::TryJoin as TryJoinTrait;
 use crate::utils::iter_pin_mut;
 use crate::utils::MaybeDone;
 
@@ -10,15 +10,16 @@ use core::task::{Context, Poll};
 use std::boxed::Box;
 use std::vec::Vec;
 
-#[async_trait::async_trait(?Send)]
-impl<Fut, T, E> TryMergeTrait for Vec<Fut>
+impl<Fut, T, E> TryJoinTrait for Vec<Fut>
 where
     T: std::fmt::Debug,
     Fut: IntoFuture<Output = Result<T, E>>,
 {
     type Output = Vec<T>;
     type Error = E;
-    async fn try_merge(self) -> Result<Self::Output, Self::Error> {
+    type Future = TryJoin<Fut::IntoFuture, T, E>;
+
+    fn try_join(self) -> Self::Future {
         let elems: Box<[_]> = self
             .into_iter()
             .map(|fut| MaybeDone::new(fut.into_future()))
@@ -26,7 +27,6 @@ where
         TryJoin {
             elems: elems.into(),
         }
-        .await
     }
 }
 
@@ -35,7 +35,7 @@ where
 /// Awaits multiple futures simultaneously, returning the output of the
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub(super) struct TryJoin<Fut, T, E>
+pub struct TryJoin<Fut, T, E>
 where
     Fut: Future<Output = Result<T, E>>,
 {
@@ -94,7 +94,7 @@ mod test {
     fn all_ok() {
         futures_lite::future::block_on(async {
             let res: io::Result<_> = vec![future::ready(Ok("hello")), future::ready(Ok("world"))]
-                .try_merge()
+                .try_join()
                 .await;
             assert_eq!(res.unwrap(), vec!["hello", "world"]);
         })
@@ -105,7 +105,7 @@ mod test {
         futures_lite::future::block_on(async {
             let err = Error::new(ErrorKind::Other, "oh no");
             let res: io::Result<_> = vec![future::ready(Ok("hello")), future::ready(Err(err))]
-                .try_merge()
+                .try_join()
                 .await;
             assert_eq!(res.unwrap_err().to_string(), String::from("oh no"));
         });
