@@ -10,7 +10,6 @@ use core::task::{Context, Poll};
 use std::boxed::Box;
 use std::vec::Vec;
 
-#[async_trait::async_trait(?Send)]
 impl<Fut, T, E> TryJoinTrait for Vec<Fut>
 where
     T: std::fmt::Debug,
@@ -18,7 +17,9 @@ where
 {
     type Output = Vec<T>;
     type Error = E;
-    async fn try_join(self) -> Result<Self::Output, Self::Error> {
+    type Future = TryJoin<Fut::IntoFuture, T, E>;
+
+    fn try_join(self) -> Self::Future {
         let elems: Box<[_]> = self
             .into_iter()
             .map(|fut| MaybeDone::new(fut.into_future()))
@@ -26,7 +27,6 @@ where
         TryJoin {
             elems: elems.into(),
         }
-        .await
     }
 }
 
@@ -35,7 +35,7 @@ where
 /// Awaits multiple futures simultaneously, returning the output of the
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub(super) struct TryJoin<Fut, T, E>
+pub struct TryJoin<Fut, T, E>
 where
     Fut: Future<Output = Result<T, E>>,
 {

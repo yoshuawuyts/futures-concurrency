@@ -8,7 +8,6 @@ use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
-#[async_trait::async_trait(?Send)]
 impl<Fut, T, E, const N: usize> TryJoinTrait for [Fut; N]
 where
     T: std::fmt::Debug,
@@ -17,11 +16,12 @@ where
 {
     type Output = [T; N];
     type Error = E;
-    async fn try_join(self) -> Result<Self::Output, Self::Error> {
+    type Future = TryJoin<Fut::IntoFuture, T, E, N>;
+
+    fn try_join(self) -> Self::Future {
         TryJoin {
             elems: self.map(|fut| MaybeDone::new(fut.into_future())),
         }
-        .await
     }
 }
 
@@ -31,7 +31,7 @@ where
 /// futures once both complete.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub(super) struct TryJoin<Fut, T, E, const N: usize>
+pub struct TryJoin<Fut, T, E, const N: usize>
 where
     T: fmt::Debug,
     Fut: Future<Output = Result<T, E>>,

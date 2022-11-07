@@ -10,19 +10,20 @@ use core::task::{Context, Poll};
 use std::boxed::Box;
 use std::vec::Vec;
 
-#[async_trait::async_trait(?Send)]
 impl<Fut> JoinTrait for Vec<Fut>
 where
     Fut: IntoFuture,
 {
     type Output = Vec<Fut::Output>;
-    async fn join(self) -> Self::Output {
+    type Future = Join<Fut::IntoFuture>;
+
+    fn join(self) -> Self::Future {
         let elems = self
             .into_iter()
             .map(|fut| MaybeDone::new(fut.into_future()))
             .collect::<Box<_>>()
             .into();
-        Join::new(elems).await
+        Join::new(elems)
     }
 }
 

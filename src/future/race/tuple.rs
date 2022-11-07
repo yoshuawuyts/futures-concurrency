@@ -12,7 +12,7 @@ macro_rules! impl_race_tuple {
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
-        pub(super) struct Race<T, $($F),*>
+        pub struct Race<T, $($F),*>
         where $(
             $F: Future<Output = T>,
         )* {
@@ -32,18 +32,19 @@ macro_rules! impl_race_tuple {
             }
         }
 
-        #[async_trait::async_trait(?Send)]
         impl<T, $($F),*> RaceTrait for ($($F),*)
         where $(
             $F: IntoFuture<Output = T>,
         )* {
             type Output = T;
-            async fn race(self) -> Self::Output {
+            type Future = Race<T, $($F::IntoFuture),*>;
+
+            fn race(self) -> Self::Future {
                 let ($($F),*): ($($F),*) = self;
                 Race {
                     done: false,
                     $($F: $F.into_future()),*
-                }.await
+                }
             }
         }
 
