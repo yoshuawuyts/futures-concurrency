@@ -55,9 +55,9 @@ mod utils;
 
 /// The futures concurrency prelude.
 pub mod prelude {
+    pub use super::future::FirstOk as _;
     pub use super::future::Merge as _;
     pub use super::future::Race as _;
-    pub use super::future::RaceOk as _;
     pub use super::future::TryMerge as _;
     pub use super::stream::IntoStream as _;
     pub use super::stream::Merge as _;

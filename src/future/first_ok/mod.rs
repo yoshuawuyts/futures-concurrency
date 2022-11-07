@@ -7,7 +7,7 @@ pub(crate) mod vec;
 /// future which completes. If no future completes successfully, returns an
 /// aggregate error of all failed futures.
 #[async_trait::async_trait(?Send)]
-pub trait RaceOk {
+pub trait FirstOk {
     /// The resulting output type.
     type Output;
 
@@ -15,5 +15,5 @@ pub trait RaceOk {
     type Error;
 
     /// Waits for the first successful future to complete.
-    async fn race_ok(self) -> Result<Self::Output, Self::Error>;
+    async fn first_ok(self) -> Result<Self::Output, Self::Error>;
 }
