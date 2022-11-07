@@ -40,6 +40,19 @@ jobs:
         command: test
         args: --all
 
+  miri:
+    name: "Build and test (miri, nightly)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Miri
+        run: |
+          rustup toolchain install nightly --component miri
+          rustup override set nightly
+          cargo miri setup
+      - name: Test with Miri
+        run: cargo miri test
+
   check_fmt_and_docs:
     name: Checking fmt and docs
     runs-on: ubuntu-latest
@@ -56,16 +69,3 @@ jobs:
 
     - name: Docs
       run: cargo doc
-
-  miri:
-    name: "Miri"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install Miri
-        run: |
-          rustup toolchain install nightly --component miri
-          rustup override set nightly
-          cargo miri setup
-      - name: Test with Miri
-        run: cargo miri test
