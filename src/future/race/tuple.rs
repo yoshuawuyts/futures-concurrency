@@ -8,11 +8,11 @@ use core::task::{Context, Poll};
 use pin_project::pin_project;
 
 macro_rules! impl_race_tuple {
-    ($($F:ident)+) => (const _: () = {
+    ($StructName:ident $($F:ident)+) => {
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
-        pub struct Race<T, $($F),*>
+        pub struct $StructName<T, $($F),*>
         where $(
             $F: Future<Output = T>,
         )* {
@@ -20,7 +20,7 @@ macro_rules! impl_race_tuple {
             $(#[pin] $F: $F,)*
         }
 
-        impl<T, $($F),*> Debug for Race<T, $($F),*>
+        impl<T, $($F),*> Debug for $StructName<T, $($F),*>
         where $(
             $F: Future<Output = T> + Debug,
             T: Debug,
@@ -37,18 +37,18 @@ macro_rules! impl_race_tuple {
             $F: IntoFuture<Output = T>,
         )* {
             type Output = T;
-            type Future = Race<T, $($F::IntoFuture),*>;
+            type Future = $StructName<T, $($F::IntoFuture),*>;
 
             fn race(self) -> Self::Future {
                 let ($($F),*): ($($F),*) = self;
-                Race {
+                $StructName {
                     done: false,
                     $($F: $F.into_future()),*
                 }
             }
         }
 
-        impl<T, $($F: Future),*> Future for Race<T, $($F),*>
+        impl<T, $($F: Future),*> Future for $StructName<T, $($F),*>
         where
             $($F: Future<Output = T>),*
         {
@@ -68,20 +68,20 @@ macro_rules! impl_race_tuple {
                 Poll::Pending
             }
         }
-    }; )
+    };
 }
 
-impl_race_tuple! { A B }
-impl_race_tuple! { A B C }
-impl_race_tuple! { A B C D }
-impl_race_tuple! { A B C D E }
-impl_race_tuple! { A B C D E F }
-impl_race_tuple! { A B C D E F G }
-impl_race_tuple! { A B C D E F G H }
-impl_race_tuple! { A B C D E F G H I }
-impl_race_tuple! { A B C D E F G H I J }
-impl_race_tuple! { A B C D E F G H I J K }
-impl_race_tuple! { A B C D E F G H I J K L }
+impl_race_tuple! { Join2 A B }
+impl_race_tuple! { Join3 A B C }
+impl_race_tuple! { Join4 A B C D }
+impl_race_tuple! { Join5 A B C D E }
+impl_race_tuple! { Join6 A B C D E F }
+impl_race_tuple! { Join7 A B C D E F G }
+impl_race_tuple! { Join8 A B C D E F G H }
+impl_race_tuple! { Join9 A B C D E F G H I }
+impl_race_tuple! { Join10 A B C D E F G H I J }
+impl_race_tuple! { Join11 A B C D E F G H I J K }
+impl_race_tuple! { Join12 A B C D E F G H I J K L }
 
 #[cfg(test)]
 mod test {
