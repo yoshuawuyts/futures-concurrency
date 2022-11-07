@@ -130,16 +130,17 @@ macro_rules! impl_merge_tuple {
     };
 }
 
-impl_merge_tuple! { Merge2 A B }
-impl_merge_tuple! { Merge3 A B C }
-impl_merge_tuple! { Merge4 A B C D }
-impl_merge_tuple! { Merge5 A B C D E }
-impl_merge_tuple! { Merge6 A B C D F G }
-impl_merge_tuple! { Merge7 A B C D F G H }
-impl_merge_tuple! { Merge8 A B C D F G H I }
-impl_merge_tuple! { Merge9 A B C D F G H I J }
-impl_merge_tuple! { Merge10 A B C D F G H I J K }
-impl_merge_tuple! { Merge11 A B C D F G H I J K L }
+impl_merge_tuple! { Merge2  A B }
+impl_merge_tuple! { Merge3  A B C }
+impl_merge_tuple! { Merge4  A B C D }
+impl_merge_tuple! { Merge5  A B C D E }
+impl_merge_tuple! { Merge6  A B C D E F }
+impl_merge_tuple! { Merge7  A B C D E F G }
+impl_merge_tuple! { Merge8  A B C D E F G H }
+impl_merge_tuple! { Merge9  A B C D E F G H I }
+impl_merge_tuple! { Merge10 A B C D E F G H I J }
+impl_merge_tuple! { Merge11 A B C D E F G H I J K }
+impl_merge_tuple! { Merge12 A B C D E F G H I J K L }
 
 #[cfg(test)]
 mod tests {
