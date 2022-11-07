@@ -8,7 +8,7 @@ pub(crate) mod vec;
 /// Awaits multiple futures simultaneously, returning the output of the first
 /// future which completes. If no future completes successfully, returns an
 /// aggregate error of all failed futures.
-pub trait FirstOk {
+pub trait RaceOk {
     /// The resulting output type.
     type Output;
 
@@ -19,5 +19,5 @@ pub trait FirstOk {
     type Future: Future<Output = Result<Self::Output, Self::Error>>;
 
     /// Waits for the first successful future to complete.
-    fn first_ok(self) -> Self::Future;
+    fn race_ok(self) -> Self::Future;
 }
