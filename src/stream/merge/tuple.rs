@@ -72,22 +72,13 @@ macro_rules! gen_conditions {
 // TODO: handle none case
 macro_rules! impl_merge_tuple {
     ($StructName:ident $($F:ident)+) => {
-        impl<T, $($F),*> MergeTrait for ($($F),*)
-        where $(
-            $F: IntoStream<Item = T>,
-        )* {
-            type Item = T;
-            type Stream = $StructName<T, $($F::IntoStream),*>;
-
-            fn merge(self) -> Self::Stream {
-                let ($($F),*): ($($F),*) = self;
-                $StructName {
-                    done: false,
-                    $($F: $F.into_stream()),*
-                }
-            }
-        }
-
+        /// A stream that merges multiple streams into a single stream.
+        ///
+        /// This `struct` is created by the [`merge`] method on the [`Merge`] trait. See its
+        /// documentation for more.
+        ///
+        /// [`merge`]: trait.Merge.html#method.merge
+        /// [`Merge`]: trait.Merge.html
         #[derive(Debug)]
         #[pin_project::pin_project]
         pub struct $StructName<T, $($F),*>
@@ -124,6 +115,22 @@ macro_rules! impl_merge_tuple {
                 } else {
                     *this.done = true;
                     Poll::Ready(None)
+                }
+            }
+        }
+
+        impl<T, $($F),*> MergeTrait for ($($F),*)
+        where $(
+            $F: IntoStream<Item = T>,
+        )* {
+            type Item = T;
+            type Stream = $StructName<T, $($F::IntoStream),*>;
+
+            fn merge(self) -> Self::Stream {
+                let ($($F),*): ($($F),*) = self;
+                $StructName {
+                    done: false,
+                    $($F: $F.into_stream()),*
                 }
             }
         }

@@ -12,8 +12,11 @@ use pin_project::{pin_project, pinned_drop};
 
 /// Waits for two similarly-typed futures to complete.
 ///
-/// Awaits multiple futures simultaneously, returning the output of the
-/// futures once both complete.
+/// This `struct` is created by the [`join`] method on the [`Join`] trait. See
+/// its documentation for more.
+///
+/// [`join`]: crate::future::Join::join
+/// [`Join`]: crate::future::Join
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project(PinnedDrop)]
 pub struct Join<Fut>

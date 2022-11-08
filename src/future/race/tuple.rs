@@ -9,6 +9,13 @@ use pin_project::pin_project;
 
 macro_rules! impl_race_tuple {
     ($StructName:ident $($F:ident)+) => {
+        /// Wait for the first future to complete.
+        ///
+        /// This `struct` is created by the [`race`] method on the [`Race`] trait. See
+        /// its documentation for more.
+        ///
+        /// [`race`]: crate::future::Race::race
+        /// [`Race`]: crate::future::Race
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]

@@ -20,11 +20,11 @@ where
 
 /// A stream that merges multiple streams into a single stream.
 ///
-/// This `struct` is created by the [`merge`] method on [`Stream`]. See its
+/// This `struct` is created by the [`merge`] method on the [`Merge`] trait. See its
 /// documentation for more.
 ///
-/// [`merge`]: trait.Stream.html#method.merge
-/// [`Stream`]: trait.Stream.html
+/// [`merge`]: trait.Merge.html#method.merge
+/// [`Merge`]: trait.Merge.html
 #[derive(Debug)]
 #[pin_project::pin_project]
 pub struct Merge<S>

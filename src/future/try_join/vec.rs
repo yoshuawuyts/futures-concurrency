@@ -10,30 +10,13 @@ use core::task::{Context, Poll};
 use std::boxed::Box;
 use std::vec::Vec;
 
-impl<Fut, T, E> TryJoinTrait for Vec<Fut>
-where
-    T: std::fmt::Debug,
-    Fut: IntoFuture<Output = Result<T, E>>,
-{
-    type Output = Vec<T>;
-    type Error = E;
-    type Future = TryJoin<Fut::IntoFuture, T, E>;
-
-    fn try_join(self) -> Self::Future {
-        let elems: Box<[_]> = self
-            .into_iter()
-            .map(|fut| MaybeDone::new(fut.into_future()))
-            .collect();
-        TryJoin {
-            elems: elems.into(),
-        }
-    }
-}
-
-/// Waits for two similarly-typed futures to complete.
+/// Wait for all futures to complete successfully, or abort early on error.
 ///
-/// Awaits multiple futures simultaneously, returning the output of the
-/// futures once both complete.
+/// This `struct` is created by the [`try_join`] method on the [`TryJoin`] trait. See
+/// its documentation for more.
+///
+/// [`try_join`]: crate::future::TryJoin::try_race
+/// [`TryJoin`]: crate::future::TryRace
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct TryJoin<Fut, T, E>
 where
@@ -80,6 +63,26 @@ where
             Poll::Ready(result)
         } else {
             Poll::Pending
+        }
+    }
+}
+
+impl<Fut, T, E> TryJoinTrait for Vec<Fut>
+where
+    T: std::fmt::Debug,
+    Fut: IntoFuture<Output = Result<T, E>>,
+{
+    type Output = Vec<T>;
+    type Error = E;
+    type Future = TryJoin<Fut::IntoFuture, T, E>;
+
+    fn try_join(self) -> Self::Future {
+        let elems: Box<[_]> = self
+            .into_iter()
+            .map(|fut| MaybeDone::new(fut.into_future()))
+            .collect();
+        TryJoin {
+            elems: elems.into(),
         }
     }
 }

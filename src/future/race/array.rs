@@ -7,25 +7,13 @@ use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
-impl<Fut, const N: usize> RaceTrait for [Fut; N]
-where
-    Fut: IntoFuture,
-{
-    type Output = Fut::Output;
-    type Future = Race<Fut::IntoFuture, N>;
-
-    fn race(self) -> Self::Future {
-        Race {
-            futs: self.map(|fut| fut.into_future()),
-            done: false,
-        }
-    }
-}
-
-/// Waits for two similarly-typed futures to complete.
+/// Wait for the first future to complete.
 ///
-/// Awaits multiple futures simultaneously, returning the output of the
-/// futures once both complete.
+/// This `struct` is created by the [`race`] method on the [`Race`] trait. See
+/// its documentation for more.
+///
+/// [`race`]: crate::future::Race::race
+/// [`Race`]: crate::future::Race
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
 pub struct Race<Fut, const N: usize>
@@ -66,6 +54,21 @@ where
             }
         }
         Poll::Pending
+    }
+}
+
+impl<Fut, const N: usize> RaceTrait for [Fut; N]
+where
+    Fut: IntoFuture,
+{
+    type Output = Fut::Output;
+    type Future = Race<Fut::IntoFuture, N>;
+
+    fn race(self) -> Self::Future {
+        Race {
+            futs: self.map(|fut| fut.into_future()),
+            done: false,
+        }
     }
 }
 
