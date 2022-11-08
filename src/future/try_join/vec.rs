@@ -31,9 +31,7 @@ where
     Fut::Output: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TryJoin")
-            .field("elems", &self.elems)
-            .finish()
+        f.debug_list().entries(self.elems.iter()).finish()
     }
 }
 

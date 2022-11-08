@@ -2,6 +2,7 @@ use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
 use crate::utils;
 
+use core::fmt;
 use futures_core::Stream;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -79,7 +80,6 @@ macro_rules! impl_merge_tuple {
         ///
         /// [`merge`]: trait.Merge.html#method.merge
         /// [`Merge`]: trait.Merge.html
-        #[derive(Debug)]
         #[pin_project::pin_project]
         pub struct $StructName<T, $($F),*>
         where $(
@@ -87,6 +87,18 @@ macro_rules! impl_merge_tuple {
         )* {
             done: bool,
             $(#[pin] $F: $F,)*
+        }
+
+        impl<T, $($F),*> std::fmt::Debug for $StructName<T, $($F),*>
+        where $(
+            $F: Stream<Item = T> + fmt::Debug,
+            T: fmt::Debug,
+        )* {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.debug_tuple("Merge")
+                    $(.field(&self.$F))*
+                    .finish()
+            }
         }
 
         impl<T, $($F),*> Stream for $StructName<T, $($F),*>
