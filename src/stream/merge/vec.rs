@@ -2,21 +2,10 @@ use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
 use crate::utils::{self, Fuse};
 
+use core::fmt;
 use futures_core::Stream;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-
-impl<S> MergeTrait for Vec<S>
-where
-    S: IntoStream,
-{
-    type Item = <Merge<S::IntoStream> as Stream>::Item;
-    type Stream = Merge<S::IntoStream>;
-
-    fn merge(self) -> Self::Stream {
-        Merge::new(self.into_iter().map(|i| i.into_stream()).collect())
-    }
-}
 
 /// A stream that merges multiple streams into a single stream.
 ///
@@ -25,7 +14,6 @@ where
 ///
 /// [`merge`]: trait.Merge.html#method.merge
 /// [`Merge`]: trait.Merge.html
-#[derive(Debug)]
 #[pin_project::pin_project]
 pub struct Merge<S>
 where
@@ -43,6 +31,15 @@ where
         Self {
             streams: streams.into_iter().map(Fuse::new).collect(),
         }
+    }
+}
+
+impl<S> fmt::Debug for Merge<S>
+where
+    S: Stream + fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(self.streams.iter()).finish()
     }
 }
 
@@ -77,5 +74,17 @@ where
             }
         }
         res
+    }
+}
+
+impl<S> MergeTrait for Vec<S>
+where
+    S: IntoStream,
+{
+    type Item = <Merge<S::IntoStream> as Stream>::Item;
+    type Stream = Merge<S::IntoStream>;
+
+    fn merge(self) -> Self::Stream {
+        Merge::new(self.into_iter().map(|i| i.into_stream()).collect())
     }
 }

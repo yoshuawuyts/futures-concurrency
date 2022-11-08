@@ -30,7 +30,7 @@ where
     Fut::Output: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Race").field("futs", &self.futs).finish()
+        f.debug_list().entries(self.futs.iter()).finish()
     }
 }
 

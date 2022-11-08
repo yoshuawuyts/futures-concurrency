@@ -32,7 +32,7 @@ where
     T: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Join").field("elems", &self.elems).finish()
+        f.debug_list().entries(self.elems.iter()).finish()
     }
 }
 
