@@ -1,7 +1,7 @@
 use core::task::{ready, Context, Poll};
 use std::pin::Pin;
 
-use crate::stream::Stream;
+use futures_core::Stream;
 use pin_project::pin_project;
 
 /// A stream that yields `None` forever after the underlying stream yields `None` once.

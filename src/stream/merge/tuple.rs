@@ -2,7 +2,7 @@ use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
 use crate::utils;
 
-use crate::stream::Stream;
+use futures_core::Stream;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -152,12 +152,12 @@ impl_merge_tuple! { Merge12 A B C D E F G H I J K L }
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures_lite::future::block_on;
+    use futures_lite::prelude::*;
+    use futures_lite::stream;
 
     #[test]
     fn merge_tuple_2() {
-        use crate::stream;
-        use futures_lite::future::block_on;
-
         block_on(async {
             let a = stream::once(1);
             let b = stream::once(2);
@@ -173,9 +173,6 @@ mod tests {
 
     #[test]
     fn merge_tuple_3() {
-        use crate::stream;
-        use futures_lite::future::block_on;
-
         block_on(async {
             let a = stream::once(1);
             let b = stream::once(2);
@@ -192,9 +189,6 @@ mod tests {
 
     #[test]
     fn merge_tuple_4() {
-        use crate::stream;
-        use futures_lite::future::block_on;
-
         block_on(async {
             let a = stream::once(1);
             let b = stream::once(2);
