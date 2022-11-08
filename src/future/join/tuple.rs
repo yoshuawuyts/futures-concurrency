@@ -10,6 +10,13 @@ use pin_project::pin_project;
 
 macro_rules! impl_merge_tuple {
     ($StructName:ident $($F:ident)+) => {
+        /// Waits for two similarly-typed futures to complete.
+        ///
+        /// This `struct` is created by the [`join`] method on the [`Join`] trait. See
+        /// its documentation for more.
+        ///
+        /// [`join`]: crate::future::Join::join
+        /// [`Join`]: crate::future::Join
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
@@ -27,22 +34,6 @@ macro_rules! impl_merge_tuple {
                 f.debug_tuple("Join")
                     $(.field(&self.$F))*
                     .finish()
-            }
-        }
-
-        impl<$($F),*> JoinTrait for ($($F),*)
-        where $(
-            $F: IntoFuture,
-        )* {
-            type Output = ($($F::Output),*);
-            type Future = $StructName<$($F::IntoFuture),*>;
-
-            fn join(self) -> Self::Future {
-                let ($($F),*): ($($F),*) = self;
-                $StructName {
-                    done: false,
-                    $($F: MaybeDone::new($F.into_future())),*
-                }
             }
         }
 
@@ -66,6 +57,22 @@ macro_rules! impl_merge_tuple {
                 }
             }
         }
+
+        impl<$($F),*> JoinTrait for ($($F),*)
+        where $(
+            $F: IntoFuture,
+        )* {
+            type Output = ($($F::Output),*);
+            type Future = $StructName<$($F::IntoFuture),*>;
+
+            fn join(self) -> Self::Future {
+                let ($($F),*): ($($F),*) = self;
+                $StructName {
+                    done: false,
+                    $($F: MaybeDone::new($F.into_future())),*
+                }
+            }
+        }
     };
 }
 
@@ -80,3 +87,31 @@ impl_merge_tuple! { Join9 A B C D E F G H I }
 impl_merge_tuple! { Join10 A B C D E F G H I J }
 impl_merge_tuple! { Join11 A B C D E F G H I J K }
 impl_merge_tuple! { Join12 A B C D E F G H I J K L }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::future;
+
+    #[test]
+    fn join_2() {
+        futures_lite::future::block_on(async {
+            let res = (future::ready("hello"), future::ready(12)).join().await;
+            assert_eq!(res, ("hello", 12));
+        });
+    }
+
+    #[test]
+    fn join_3() {
+        futures_lite::future::block_on(async {
+            let res = (
+                future::ready("hello"),
+                future::ready("world"),
+                future::ready(12),
+            )
+                .join()
+                .await;
+            assert_eq!(res, ("hello", "world", 12));
+        });
+    }
+}

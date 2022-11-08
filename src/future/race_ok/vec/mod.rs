@@ -8,79 +8,19 @@ use core::mem;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 use std::boxed::Box;
-use std::ops::Deref;
-use std::ops::DerefMut;
 use std::vec::Vec;
 
-/// A collection of errors.
-#[repr(transparent)]
-pub struct AggregateError<E> {
-    inner: Vec<E>,
-}
+pub use error::AggregateError;
 
-impl<E> AggregateError<E> {
-    fn new(inner: Vec<E>) -> Self {
-        Self { inner }
-    }
-}
-
-impl<E: fmt::Debug> fmt::Debug for AggregateError<E> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut list = f.debug_list();
-        for err in &self.inner {
-            list.entry(err);
-        }
-        list.finish()
-    }
-}
-
-impl<E: fmt::Debug> fmt::Display for AggregateError<E> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self, f)
-    }
-}
-
-impl<E> Deref for AggregateError<E> {
-    type Target = Vec<E>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<E> DerefMut for AggregateError<E> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
-}
-
-impl<E: fmt::Debug> std::error::Error for AggregateError<E> {}
-
-impl<Fut, T, E> RaceOkTrait for Vec<Fut>
-where
-    T: fmt::Debug,
-    E: fmt::Debug,
-    Fut: IntoFuture<Output = Result<T, E>>,
-{
-    type Output = T;
-    type Error = AggregateError<E>;
-    type Future = RaceOk<Fut::IntoFuture, T, E>;
-
-    fn race_ok(self) -> Self::Future {
-        let elems: Box<[_]> = self
-            .into_iter()
-            .map(|fut| MaybeDone::new(fut.into_future()))
-            .collect();
-        RaceOk {
-            elems: elems.into(),
-        }
-    }
-}
+mod error;
 
 /// Waits for two similarly-typed futures to complete.
 ///
-/// Awaits multiple futures simultaneously, returning the output of the
-/// futures once both complete.
+/// This `struct` is created by the [`try_race`] method on the [`TryRace`] trait. See
+/// its documentation for more.
+///
+/// [`try_race`]: crate::future::TryRace::try_race
+/// [`TryRace`]: crate::future::TryRace
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct RaceOk<Fut, T, E>
 where
@@ -132,8 +72,30 @@ where
     }
 }
 
+impl<Fut, T, E> RaceOkTrait for Vec<Fut>
+where
+    T: fmt::Debug,
+    E: fmt::Debug,
+    Fut: IntoFuture<Output = Result<T, E>>,
+{
+    type Output = T;
+    type Error = AggregateError<E>;
+    type Future = RaceOk<Fut::IntoFuture, T, E>;
+
+    fn race_ok(self) -> Self::Future {
+        let elems: Box<[_]> = self
+            .into_iter()
+            .map(|fut| MaybeDone::new(fut.into_future()))
+            .collect();
+        RaceOk {
+            elems: elems.into(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
+    use super::error::AggregateError;
     use super::*;
     use std::future;
     use std::io::{Error, ErrorKind};

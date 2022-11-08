@@ -8,23 +8,13 @@ use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
-impl<Fut, const N: usize> JoinTrait for [Fut; N]
-where
-    Fut: IntoFuture,
-{
-    type Output = [Fut::Output; N];
-    type Future = Join<Fut::IntoFuture, N>;
-    fn join(self) -> Self::Future {
-        Join {
-            elems: self.map(|fut| MaybeDone::new(fut.into_future())),
-        }
-    }
-}
-
 /// Waits for two similarly-typed futures to complete.
 ///
-/// Awaits multiple futures simultaneously, returning the output of the
-/// futures once both complete.
+/// This `struct` is created by the [`join`] method on the [`Join`] trait. See
+/// its documentation for more.
+///
+/// [`join`]: crate::future::Join::join
+/// [`Join`]: crate::future::Join
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
 pub struct Join<Fut, const N: usize>
@@ -83,5 +73,34 @@ where
         } else {
             Poll::Pending
         }
+    }
+}
+
+impl<Fut, const N: usize> JoinTrait for [Fut; N]
+where
+    Fut: IntoFuture,
+{
+    type Output = [Fut::Output; N];
+    type Future = Join<Fut::IntoFuture, N>;
+    fn join(self) -> Self::Future {
+        Join {
+            elems: self.map(|fut| MaybeDone::new(fut.into_future())),
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::future;
+
+    #[test]
+    fn smoke() {
+        futures_lite::future::block_on(async {
+            let res = [future::ready("hello"), future::ready("world")]
+                .join()
+                .await;
+            assert_eq!(res, ["hello", "world"]);
+        });
     }
 }

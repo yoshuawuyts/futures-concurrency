@@ -5,75 +5,22 @@ use core::fmt;
 use core::future::{Future, IntoFuture};
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use std::ops::{Deref, DerefMut};
 
 use pin_project::pin_project;
 
-/// A collection of errors.
-#[repr(transparent)]
-pub struct AggregateError<E, const N: usize> {
-    inner: [E; N],
-}
+mod error;
 
-impl<E, const N: usize> AggregateError<E, N> {
-    fn new(inner: [E; N]) -> Self {
-        Self { inner }
-    }
-}
-
-impl<E: fmt::Debug, const N: usize> fmt::Debug for AggregateError<E, N> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut list = f.debug_list();
-        for err in self.inner.as_ref() {
-            list.entry(err);
-        }
-        list.finish()
-    }
-}
-
-impl<E: fmt::Debug, const N: usize> fmt::Display for AggregateError<E, N> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self, f)
-    }
-}
-
-impl<E, const N: usize> Deref for AggregateError<E, N> {
-    type Target = [E; N];
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<E, const N: usize> DerefMut for AggregateError<E, N> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
-}
-
-impl<E: fmt::Debug, const N: usize> std::error::Error for AggregateError<E, N> {}
-
-impl<Fut, T, E, const N: usize> RaceOkTrait for [Fut; N]
-where
-    T: fmt::Debug,
-    Fut: IntoFuture<Output = Result<T, E>>,
-    E: fmt::Debug,
-{
-    type Output = T;
-    type Error = AggregateError<E, N>;
-    type Future = RaceOk<Fut::IntoFuture, T, E, N>;
-
-    fn race_ok(self) -> Self::Future {
-        RaceOk {
-            elems: self.map(|fut| MaybeDone::new(fut.into_future())),
-        }
-    }
-}
+pub use error::AggregateError;
 
 /// Waits for two similarly-typed futures to complete.
 ///
-/// Awaits multiple futures simultaneously, returning the output of the
-/// futures once both complete.
+/// Wait for the first future to complete.
+///
+/// This `struct` is created by the [`try_race`] method on the [`TryRace`] trait. See
+/// its documentation for more.
+///
+/// [`try_race`]: crate::future::TryRace::try_race
+/// [`TryRace`]: crate::future::TryRace
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
 pub struct RaceOk<Fut, T, E, const N: usize>
@@ -142,6 +89,23 @@ where
             Poll::Ready(Err(AggregateError::new(result)))
         } else {
             Poll::Pending
+        }
+    }
+}
+
+impl<Fut, T, E, const N: usize> RaceOkTrait for [Fut; N]
+where
+    T: fmt::Debug,
+    Fut: IntoFuture<Output = Result<T, E>>,
+    E: fmt::Debug,
+{
+    type Output = T;
+    type Error = AggregateError<E, N>;
+    type Future = RaceOk<Fut::IntoFuture, T, E, N>;
+
+    fn race_ok(self) -> Self::Future {
+        RaceOk {
+            elems: self.map(|fut| MaybeDone::new(fut.into_future())),
         }
     }
 }

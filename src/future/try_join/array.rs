@@ -8,27 +8,13 @@ use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
-impl<Fut, T, E, const N: usize> TryJoinTrait for [Fut; N]
-where
-    T: std::fmt::Debug,
-    Fut: IntoFuture<Output = Result<T, E>>,
-    E: fmt::Debug,
-{
-    type Output = [T; N];
-    type Error = E;
-    type Future = TryJoin<Fut::IntoFuture, T, E, N>;
-
-    fn try_join(self) -> Self::Future {
-        TryJoin {
-            elems: self.map(|fut| MaybeDone::new(fut.into_future())),
-        }
-    }
-}
-
-/// Waits for two similarly-typed futures to complete.
+/// Wait for all futures to complete successfully, or abort early on error.
 ///
-/// Awaits multiple futures simultaneously, returning the output of the
-/// futures once both complete.
+/// This `struct` is created by the [`try_join`] method on the [`TryJoin`] trait. See
+/// its documentation for more.
+///
+/// [`try_join`]: crate::future::TryJoin::try_race
+/// [`TryJoin`]: crate::future::TryRace
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
 pub struct TryJoin<Fut, T, E, const N: usize>
@@ -94,6 +80,23 @@ where
             Poll::Ready(Ok(result))
         } else {
             Poll::Pending
+        }
+    }
+}
+
+impl<Fut, T, E, const N: usize> TryJoinTrait for [Fut; N]
+where
+    T: std::fmt::Debug,
+    Fut: IntoFuture<Output = Result<T, E>>,
+    E: fmt::Debug,
+{
+    type Output = [T; N];
+    type Error = E;
+    type Future = TryJoin<Fut::IntoFuture, T, E, N>;
+
+    fn try_join(self) -> Self::Future {
+        TryJoin {
+            elems: self.map(|fut| MaybeDone::new(fut.into_future())),
         }
     }
 }
