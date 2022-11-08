@@ -6,7 +6,8 @@
 //! ever dropping a single value:
 //!
 //! ```
-//! use futures_concurrency::stream::{self, Merge, Stream};
+//! use futures_concurrency::prelude::*;
+//! use futures_lite::stream::{self, StreamExt};
 //! use futures_lite::future::block_on;
 //!
 //! fn main() {
@@ -50,40 +51,6 @@
 //! more on futures concurrency.
 pub use into_stream::IntoStream;
 pub use merge::Merge;
-pub use stream::Stream;
 
 mod into_stream;
 pub(crate) mod merge;
-mod stream;
-
-/// Creates a stream that yields a single item.
-pub fn once<T>(t: T) -> Once<T> {
-    Once { value: Some(t) }
-}
-
-#[pin_project::pin_project]
-/// Stream for the [`once()`] function.
-#[derive(Clone, Debug)]
-#[must_use = "streams do nothing unless polled"]
-pub struct Once<T> {
-    value: Option<T>,
-}
-
-impl<T> Stream for Once<T> {
-    type Item = T;
-
-    fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<T>> {
-        std::task::Poll::Ready(self.project().value.take())
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.value.is_some() {
-            (1, Some(1))
-        } else {
-            (0, Some(0))
-        }
-    }
-}

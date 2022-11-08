@@ -1,4 +1,4 @@
-use crate::stream::Stream;
+use futures_core::Stream;
 
 pub(crate) mod array;
 pub(crate) mod tuple;
@@ -14,7 +14,7 @@ pub(crate) mod vec;
 ///
 /// ```
 /// use futures_concurrency::prelude::*;
-/// use futures_concurrency::stream;
+/// use futures_lite::stream::{self, StreamExt};
 /// use futures_lite::future::block_on;
 ///
 /// fn main() {

@@ -61,7 +61,6 @@ pub mod prelude {
     pub use super::future::TryJoin as _;
     pub use super::stream::IntoStream as _;
     pub use super::stream::Merge as _;
-    pub use super::stream::Stream as _;
 }
 
 pub mod future;
