@@ -88,3 +88,28 @@ where
         Merge::new(self.into_iter().map(|i| i.into_stream()).collect())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_lite::future::block_on;
+    use futures_lite::prelude::*;
+    use futures_lite::stream;
+
+    #[test]
+    fn merge_tuple_4() {
+        block_on(async {
+            let a = stream::once(1);
+            let b = stream::once(2);
+            let c = stream::once(3);
+            let d = stream::once(4);
+            let mut s = vec![a, b, c, d].merge();
+
+            let mut counter = 0;
+            while let Some(n) = s.next().await {
+                counter += n;
+            }
+            assert_eq!(counter, 10);
+        })
+    }
+}
