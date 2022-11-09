@@ -11,7 +11,8 @@ use std::task::{Context, Poll};
 
 fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("merge 10", |b| b.iter(|| merge_test(black_box(10))));
-    // c.bench_function("merge 100", |b| b.iter(|| merge_futures(black_box(100))));
+    c.bench_function("merge 100", |b| b.iter(|| merge_test(black_box(100))));
+    c.bench_function("merge 1000", |b| b.iter(|| merge_test(black_box(1000))));
 }
 
 criterion_group!(benches, criterion_benchmark);
