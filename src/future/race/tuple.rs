@@ -39,7 +39,7 @@ macro_rules! impl_race_tuple {
             }
         }
 
-        impl<T, $($F),*> RaceTrait for ($($F),*)
+        impl<T, $($F),*> RaceTrait for ($($F,)*)
         where $(
             $F: IntoFuture<Output = T>,
         )* {
@@ -47,7 +47,7 @@ macro_rules! impl_race_tuple {
             type Future = $StructName<T, $($F::IntoFuture),*>;
 
             fn race(self) -> Self::Future {
-                let ($($F),*): ($($F),*) = self;
+                let ($($F,)*): ($($F,)*) = self;
                 $StructName {
                     done: false,
                     $($F: $F.into_future()),*
@@ -78,45 +78,51 @@ macro_rules! impl_race_tuple {
     };
 }
 
-impl_race_tuple! { Join2 A B }
-impl_race_tuple! { Join3 A B C }
-impl_race_tuple! { Join4 A B C D }
-impl_race_tuple! { Join5 A B C D E }
-impl_race_tuple! { Join6 A B C D E F }
-impl_race_tuple! { Join7 A B C D E F G }
-impl_race_tuple! { Join8 A B C D E F G H }
-impl_race_tuple! { Join9 A B C D E F G H I }
-impl_race_tuple! { Join10 A B C D E F G H I J }
-impl_race_tuple! { Join11 A B C D E F G H I J K }
-impl_race_tuple! { Join12 A B C D E F G H I J K L }
+impl_race_tuple! { Race1 A }
+impl_race_tuple! { Race2 A B }
+impl_race_tuple! { Race3 A B C }
+impl_race_tuple! { Race4 A B C D }
+impl_race_tuple! { Race5 A B C D E }
+impl_race_tuple! { Race6 A B C D E F }
+impl_race_tuple! { Race7 A B C D E F G }
+impl_race_tuple! { Race8 A B C D E F G H }
+impl_race_tuple! { Race9 A B C D E F G H I }
+impl_race_tuple! { Race10 A B C D E F G H I J }
+impl_race_tuple! { Race11 A B C D E F G H I J K }
+impl_race_tuple! { Race12 A B C D E F G H I J K L }
 
 #[cfg(test)]
 mod test {
     use super::*;
     use std::future;
 
-    // NOTE: we should probably poll in random order.
     #[test]
-    fn no_fairness() {
+    fn race_1() {
         futures_lite::future::block_on(async {
-            let res = (future::ready("hello"), future::ready("world"))
-                .race()
-                .await;
-            assert_eq!(res, "hello");
+            let a = future::ready("world");
+            assert_eq!((a,).race().await, "world");
         });
     }
 
     #[test]
-    fn thruple() {
+    fn race_2() {
         futures_lite::future::block_on(async {
-            let res = (
-                future::pending(),
-                future::ready("world"),
-                future::ready("hello"),
-            )
-                .race()
-                .await;
-            assert_eq!(res, "world");
+            let a = future::pending();
+            let b = future::ready("world");
+            assert_eq!((a, b).race().await, "world");
+        });
+    }
+
+    // FIXME: this test will fail once fairness is implemented. "hello" will no
+    // longer be guaranteed.
+    // See: https://github.com/yoshuawuyts/futures-concurrency/issues/44
+    #[test]
+    fn race_3() {
+        futures_lite::future::block_on(async {
+            let a = future::pending();
+            let b = future::ready("hello");
+            let c = future::ready("world");
+            assert_eq!((a, b, c).race().await, "hello");
         });
     }
 }

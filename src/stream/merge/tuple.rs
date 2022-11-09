@@ -72,6 +72,44 @@ macro_rules! gen_conditions {
 
 // TODO: handle none case
 macro_rules! impl_merge_tuple {
+    ($StructName:ident) => {
+        /// A stream that merges multiple streams into a single stream.
+        ///
+        /// This `struct` is created by the [`merge`] method on the [`Merge`] trait. See its
+        /// documentation for more.
+        ///
+        /// [`merge`]: trait.Merge.html#method.merge
+        /// [`Merge`]: trait.Merge.html
+        #[pin_project::pin_project]
+        pub struct $StructName {
+            _sealed: (),
+        }
+
+        impl std::fmt::Debug for $StructName {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.debug_tuple("Merge").finish()
+            }
+        }
+
+        impl Stream for $StructName {
+            type Item = std::convert::Infallible; // TODO: convert to `never` type in the stdlib
+
+            fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+                return Poll::Ready(None)
+            }
+        }
+
+        impl MergeTrait for () {
+            type Item = std::convert::Infallible; // TODO: convert to `never` type in the stdlib
+            type Stream = $StructName;
+
+            fn merge(self) -> Self::Stream {
+                $StructName {
+                    _sealed: (),
+                }
+            }
+        }
+    };
     ($StructName:ident $($F:ident)+) => {
         /// A stream that merges multiple streams into a single stream.
         ///
@@ -131,7 +169,7 @@ macro_rules! impl_merge_tuple {
             }
         }
 
-        impl<T, $($F),*> MergeTrait for ($($F),*)
+        impl<T, $($F),*> MergeTrait for ($($F,)*)
         where $(
             $F: IntoStream<Item = T>,
         )* {
@@ -139,7 +177,7 @@ macro_rules! impl_merge_tuple {
             type Stream = $StructName<T, $($F::IntoStream),*>;
 
             fn merge(self) -> Self::Stream {
-                let ($($F),*): ($($F),*) = self;
+                let ($($F,)*): ($($F,)*) = self;
                 $StructName {
                     done: false,
                     $($F: $F.into_stream()),*
@@ -149,6 +187,8 @@ macro_rules! impl_merge_tuple {
     };
 }
 
+impl_merge_tuple! { Merge0  }
+impl_merge_tuple! { Merge1  A }
 impl_merge_tuple! { Merge2  A B }
 impl_merge_tuple! { Merge3  A B C }
 impl_merge_tuple! { Merge4  A B C D }
@@ -167,6 +207,33 @@ mod tests {
     use futures_lite::future::block_on;
     use futures_lite::prelude::*;
     use futures_lite::stream;
+
+    #[test]
+    fn merge_tuple_0() {
+        block_on(async {
+            let mut s = ().merge();
+
+            let mut called = false;
+            while let Some(_) = s.next().await {
+                called = true;
+            }
+            assert!(!called);
+        })
+    }
+
+    #[test]
+    fn merge_tuple_1() {
+        block_on(async {
+            let a = stream::once(1);
+            let mut s = (a,).merge();
+
+            let mut counter = 0;
+            while let Some(n) = s.next().await {
+                counter += n;
+            }
+            assert_eq!(counter, 1);
+        })
+    }
 
     #[test]
     fn merge_tuple_2() {
