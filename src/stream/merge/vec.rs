@@ -1,6 +1,6 @@
 use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, Fuse};
+use crate::utils::{self, Fuse, RandomGenerator};
 
 use core::fmt;
 use futures_core::Stream;
@@ -21,6 +21,7 @@ where
 {
     #[pin]
     streams: Vec<Fuse<S>>,
+    rng: RandomGenerator,
 }
 
 impl<S> Merge<S>
@@ -30,6 +31,7 @@ where
     pub(crate) fn new(streams: Vec<S>) -> Self {
         Self {
             streams: streams.into_iter().map(Fuse::new).collect(),
+            rng: RandomGenerator::new(),
         }
     }
 }
@@ -55,8 +57,10 @@ where
         // Iterate over our streams one-by-one. If a stream yields a value,
         // we exit early. By default we'll return `Poll::Ready(None)`, but
         // this changes if we encounter a `Poll::Pending`.
+        let random = this.rng.random(this.streams.len() as u32) as usize;
         let mut res = Poll::Ready(None);
         for index in 0..this.streams.len() {
+            let index = (random + index).wrapping_rem(this.streams.len());
             let stream = utils::get_pin_mut_from_vec(this.streams.as_mut(), index).unwrap();
             match stream.poll_next(cx) {
                 Poll::Ready(Some(item)) => return Poll::Ready(Some(item)),

@@ -36,7 +36,7 @@ pub(crate) fn random(n: u32) -> u32 {
 pub(crate) struct RandomGenerator(Wrapping<u32>);
 
 impl RandomGenerator {
-    pub(crate) fn new(n: u32) -> Self {
+    pub(crate) fn new() -> Self {
         // Take the address of a local value as seed.
         let mut x = 0i32;
         let r = &mut x;
