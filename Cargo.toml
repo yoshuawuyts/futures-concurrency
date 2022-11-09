@@ -23,4 +23,5 @@ pin-project = "1.0.8"
 
 [dev-dependencies]
 futures-lite = "1.12.0"
+futures = "0.3.25"
 criterion = "0.3"
