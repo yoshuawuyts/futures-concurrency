@@ -104,14 +104,6 @@ where
     }
 }
 
-// Plan:
-//
-// 1. Add per-future wakers
-// 2. Add a ready bitvec
-// 3. In poll_next, only poll the futures whose ready bit is set (remember to clear it)
-// 4. ???
-// 5. Profit
-
 impl<S> Stream for Merge<S>
 where
     S: Stream,
@@ -191,10 +183,8 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use futures::channel::mpsc;
     use futures::executor::LocalPool;
     use futures::task::LocalSpawnExt;
-    use futures::SinkExt;
     use futures_lite::future::block_on;
     use futures_lite::prelude::*;
     use futures_lite::stream;
