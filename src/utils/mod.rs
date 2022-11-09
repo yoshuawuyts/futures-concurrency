@@ -15,7 +15,7 @@ pub(crate) use fuse::Fuse;
 pub(crate) use maybe_done::MaybeDone;
 pub(crate) use pin::{get_pin_mut, get_pin_mut_from_vec, iter_pin_mut, iter_pin_mut_vec};
 pub(crate) use poll_state::PollState;
-pub(crate) use rng::random;
+pub(crate) use rng::{random, RandomGenerator};
 
 #[cfg(test)]
 mod dummy_waker;

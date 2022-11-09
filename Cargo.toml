@@ -13,9 +13,14 @@ authors = [
     "Yoshua Wuyts <yoshuawuyts@gmail.com>"
 ]
 
+[[bench]]
+name = "bench"
+harness = false
+
 [dependencies]
 futures-core = "0.3"
 pin-project = "1.0.8"
 
 [dev-dependencies]
 futures-lite = "1.12.0"
+criterion = "0.3"
