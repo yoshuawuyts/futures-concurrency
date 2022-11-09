@@ -58,8 +58,8 @@ where
         // Randomize the indexes into our streams array. This ensures that when
         // multiple streams are ready at the same time, we don't accidentally
         // exhaust one stream before another.
-        let mut indexes: Vec<_> = (0..this.streams.len()).into_iter().collect();
-        indexes.sort_by_cached_key(|_| utils::random(1000));
+        let indexes: Vec<_> = (0..this.streams.len()).collect();
+        // indexes.sort_by_cached_key(|_| utils::random(1000));
 
         // Iterate over our streams one-by-one. If a stream yields a value,
         // we exit early. By default we'll return `Poll::Ready(None)`, but
