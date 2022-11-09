@@ -52,20 +52,11 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
-        // Randomize the indexes into our streams array. This ensures that when
-        // multiple streams are ready at the same time, we don't accidentally
-        // exhaust one stream before another.
-        // Randomize the indexes into our streams array. This ensures that when
-        // multiple streams are ready at the same time, we don't accidentally
-        // exhaust one stream before another.
-        let indexes: Vec<_> = (0..this.streams.len()).collect();
-        // indexes.sort_by_cached_key(|_| utils::random(1000));
-
         // Iterate over our streams one-by-one. If a stream yields a value,
         // we exit early. By default we'll return `Poll::Ready(None)`, but
         // this changes if we encounter a `Poll::Pending`.
         let mut res = Poll::Ready(None);
-        for index in indexes {
+        for index in 0..this.streams.len() {
             let stream = utils::get_pin_mut_from_vec(this.streams.as_mut(), index).unwrap();
             match stream.poll_next(cx) {
                 Poll::Ready(Some(item)) => return Poll::Ready(Some(item)),
