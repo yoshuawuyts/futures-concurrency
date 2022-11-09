@@ -6,6 +6,7 @@ use futures_lite::prelude::*;
 use pin_project::pin_project;
 
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll, Waker};
@@ -21,7 +22,7 @@ criterion_main!(benches);
 
 pub(crate) fn merge_test(max: usize) {
     block_on(async {
-        let wakers = Rc::new(RefCell::new(vec![]));
+        let wakers = Rc::new(RefCell::new(VecDeque::new()));
         let completed = Rc::new(RefCell::new(0));
         let futures: Vec<_> = (0..max)
             .map(|n| Countdown::new(n, max, wakers.clone(), completed.clone()))
@@ -47,7 +48,7 @@ enum State {
 #[pin_project]
 struct Countdown {
     state: State,
-    wakers: Rc<RefCell<Vec<Waker>>>,
+    wakers: Rc<RefCell<VecDeque<Waker>>>,
     index: usize,
     max_count: usize,
     completed_count: Rc<RefCell<usize>>,
@@ -57,7 +58,7 @@ impl Countdown {
     fn new(
         index: usize,
         max_count: usize,
-        wakers: Rc<RefCell<Vec<Waker>>>,
+        wakers: Rc<RefCell<VecDeque<Waker>>>,
         completed_count: Rc<RefCell<usize>>,
     ) -> Self {
         Self {
@@ -83,13 +84,13 @@ impl Stream for Countdown {
         match this.state {
             State::Init => {
                 // Push our waker onto the stack so we get woken again someday.
-                this.wakers.borrow_mut().push(cx.waker().clone());
+                this.wakers.borrow_mut().push_back(cx.waker().clone());
                 *this.state = State::Polled;
                 Poll::Pending
             }
             State::Polled => {
                 // Wake up the next one
-                let _ = this.wakers.borrow_mut().pop().map(Waker::wake);
+                let _ = this.wakers.borrow_mut().pop_front().map(Waker::wake);
 
                 if *this.completed_count.borrow() == *this.index {
                     *this.state = State::Done;
@@ -97,7 +98,7 @@ impl Stream for Countdown {
                     Poll::Ready(Some(()))
                 } else {
                     // We're not done yet, so schedule another wakeup
-                    this.wakers.borrow_mut().push(cx.waker().clone());
+                    this.wakers.borrow_mut().push_back(cx.waker().clone());
                     Poll::Pending
                 }
             }
