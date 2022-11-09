@@ -9,7 +9,7 @@ use core::task::{Context, Poll};
 use pin_project::pin_project;
 
 macro_rules! impl_merge_tuple {
-    ($StructName:ident $($F:ident)+) => {
+    ($StructName:ident $($F:ident)*) => {
         /// Waits for two similarly-typed futures to complete.
         ///
         /// This `struct` is created by the [`join`] method on the [`Join`] trait. See
@@ -37,6 +37,9 @@ macro_rules! impl_merge_tuple {
             }
         }
 
+        #[allow(unused_mut)]
+        #[allow(unused_parens)]
+        #[allow(unused_variables)]
         impl<$($F: Future),*> Future for $StructName<$($F),*> {
             type Output = ($($F::Output),*);
 
@@ -58,7 +61,8 @@ macro_rules! impl_merge_tuple {
             }
         }
 
-        impl<$($F),*> JoinTrait for ($($F),*)
+        #[allow(unused_parens)]
+        impl<$($F),*> JoinTrait for ($($F,)*)
         where $(
             $F: IntoFuture,
         )* {
@@ -66,7 +70,7 @@ macro_rules! impl_merge_tuple {
             type Future = $StructName<$($F::IntoFuture),*>;
 
             fn join(self) -> Self::Future {
-                let ($($F),*): ($($F),*) = self;
+                let ($($F,)*): ($($F,)*) = self;
                 $StructName {
                     done: false,
                     $($F: MaybeDone::new($F.into_future())),*
@@ -76,6 +80,8 @@ macro_rules! impl_merge_tuple {
     };
 }
 
+impl_merge_tuple! { Join0 }
+impl_merge_tuple! { Join1 A }
 impl_merge_tuple! { Join2 A B }
 impl_merge_tuple! { Join3 A B C }
 impl_merge_tuple! { Join4 A B C D }
@@ -94,24 +100,36 @@ mod test {
     use std::future;
 
     #[test]
+    fn join_0() {
+        futures_lite::future::block_on(async {
+            assert_eq!(().join().await, ());
+        });
+    }
+
+    #[test]
+    fn join_1() {
+        futures_lite::future::block_on(async {
+            let a = future::ready("hello");
+            assert_eq!((a,).join().await, ("hello"));
+        });
+    }
+
+    #[test]
     fn join_2() {
         futures_lite::future::block_on(async {
-            let res = (future::ready("hello"), future::ready(12)).join().await;
-            assert_eq!(res, ("hello", 12));
+            let a = future::ready("hello");
+            let b = future::ready(12);
+            assert_eq!((a, b).join().await, ("hello", 12));
         });
     }
 
     #[test]
     fn join_3() {
         futures_lite::future::block_on(async {
-            let res = (
-                future::ready("hello"),
-                future::ready("world"),
-                future::ready(12),
-            )
-                .join()
-                .await;
-            assert_eq!(res, ("hello", "world", 12));
+            let a = future::ready("hello");
+            let b = future::ready("world");
+            let c = future::ready(12);
+            assert_eq!((a, b, c).join().await, ("hello", "world", 12));
         });
     }
 }
