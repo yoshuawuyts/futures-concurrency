@@ -6,9 +6,10 @@ use futures_lite::prelude::*;
 use pin_project::pin_project;
 
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::pin::Pin;
 use std::rc::Rc;
-use std::task::{Context, Poll};
+use std::task::{Context, Poll, Waker};
 
 fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("merge 10", |b| b.iter(|| merge_test(black_box(10))));
@@ -21,51 +22,87 @@ criterion_main!(benches);
 
 pub(crate) fn merge_test(max: usize) {
     block_on(async {
-        let counter = Rc::new(RefCell::new(max));
-        let futures: Vec<_> = (1..=max)
-            .rev()
-            .map(|n| Countdown::new(n, counter.clone()))
+        let wakers = Rc::new(RefCell::new(VecDeque::new()));
+        let completed = Rc::new(RefCell::new(0));
+        let futures: Vec<_> = (0..max)
+            .map(|n| Countdown::new(n, max, wakers.clone(), completed.clone()))
             .collect();
         let mut s = futures.merge();
 
         let mut counter = 0;
-        while let Some(_) = s.next().await {
+        while s.next().await.is_some() {
             counter += 1;
         }
         assert_eq!(counter, max);
     })
 }
 
+#[derive(Clone, Copy)]
+enum State {
+    Init,
+    Polled,
+    Done,
+}
+
 /// A future which will _eventually_ be ready, but needs to be polled N times before it is.
 #[pin_project]
 struct Countdown {
-    success_count: Rc<RefCell<usize>>,
-    target_count: usize,
-    done: bool,
+    state: State,
+    wakers: Rc<RefCell<VecDeque<Waker>>>,
+    index: usize,
+    max_count: usize,
+    completed_count: Rc<RefCell<usize>>,
 }
 
 impl Countdown {
-    fn new(count: usize, success_count: Rc<RefCell<usize>>) -> Self {
+    fn new(
+        index: usize,
+        max_count: usize,
+        wakers: Rc<RefCell<VecDeque<Waker>>>,
+        completed_count: Rc<RefCell<usize>>,
+    ) -> Self {
         Self {
-            success_count,
-            target_count: count,
-            done: false,
+            state: State::Init,
+            wakers,
+            max_count,
+            index,
+            completed_count,
         }
     }
 }
 impl Stream for Countdown {
     type Item = ();
 
-    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        if *this.done {
-            Poll::Ready(None)
-        } else if *this.success_count.borrow() == *this.target_count {
-            *this.success_count.borrow_mut() -= 1;
-            *this.done = true;
-            Poll::Ready(Some(()))
-        } else {
-            Poll::Pending
+
+        // If we are the last stream to be polled, skip strait to the Polled state.
+        if this.wakers.borrow().len() + 1 == *this.max_count {
+            *this.state = State::Polled;
+        }
+
+        match this.state {
+            State::Init => {
+                // Push our waker onto the stack so we get woken again someday.
+                this.wakers.borrow_mut().push_back(cx.waker().clone());
+                *this.state = State::Polled;
+                Poll::Pending
+            }
+            State::Polled => {
+                // Wake up the next one
+                let _ = this.wakers.borrow_mut().pop_front().map(Waker::wake);
+
+                if *this.completed_count.borrow() == *this.index {
+                    *this.state = State::Done;
+                    *this.completed_count.borrow_mut() += 1;
+                    Poll::Ready(Some(()))
+                } else {
+                    // We're not done yet, so schedule another wakeup
+                    this.wakers.borrow_mut().push_back(cx.waker().clone());
+                    Poll::Pending
+                }
+            }
+            State::Done => Poll::Ready(None),
         }
     }
 }
