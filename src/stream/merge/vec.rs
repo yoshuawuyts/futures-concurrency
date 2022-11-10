@@ -25,6 +25,7 @@ where
     rng: RandomGenerator,
     readiness: Arc<Mutex<Readiness>>,
     complete: usize,
+    wakers: Vec<StreamWaker>,
 }
 
 impl<S> Merge<S>
@@ -32,8 +33,14 @@ where
     S: Stream,
 {
     pub(crate) fn new(streams: Vec<S>) -> Self {
+        let readiness = Arc::new(Mutex::new(Readiness::new(streams.len())));
+        let wakers = (0..streams.len())
+            .map(|i| StreamWaker::new(i, readiness.clone()))
+            .collect();
+
         Self {
-            readiness: Arc::new(Mutex::new(Readiness::new(streams.len()))),
+            wakers,
+            readiness,
             streams: streams.into_iter().map(Fuse::new).collect(),
             rng: RandomGenerator::new(),
             complete: 0,
@@ -81,7 +88,8 @@ where
             drop(readiness);
 
             // Construct an intermediate waker.
-            let waker = StreamWaker::new(index, this.readiness.clone(), cx.waker().clone());
+            let mut waker = this.wakers[index].clone();
+            waker.set_parent_waker(cx.waker().clone());
             let waker = Arc::new(waker).into();
             let mut cx = Context::from_waker(&waker);
 
