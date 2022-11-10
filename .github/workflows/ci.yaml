@@ -61,7 +61,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: nightly
-        components: rustfmt, clippy
+        components: rustfmt
         override: true
 
     - name: fmt
@@ -69,3 +69,17 @@ jobs:
 
     - name: Docs
       run: cargo doc
+
+  clippy:
+    name: Ensuring Clippy is happy
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        components: clippy
+        override: true
+
+    - name: Clippy
+      run: cargo clippy -- -Dwarnings
