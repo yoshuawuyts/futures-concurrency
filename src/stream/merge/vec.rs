@@ -1,12 +1,12 @@
 use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, Fuse, RandomGenerator};
+use crate::utils::{self, Fuse, RandomGenerator, Readiness, StreamWaker};
 
 use core::fmt;
 use futures_core::Stream;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll, Wake, Waker};
+use std::task::{Context, Poll};
 
 /// A stream that merges multiple streams into a single stream.
 ///
@@ -27,69 +27,15 @@ where
     complete: usize,
 }
 
-struct Readiness {
-    count: usize,
-    ready: Vec<bool>, // TODO: Use a bitvector
-}
-
-impl Readiness {
-    /// Returns the old ready state for this id
-    fn set_ready(&mut self, id: usize) -> bool {
-        if !self.ready[id] {
-            self.count += 1;
-            self.ready[id] = true;
-
-            false
-        } else {
-            true
-        }
-    }
-
-    /// Returns whether the task id was previously ready
-    fn clear_ready(&mut self, id: usize) -> bool {
-        if self.ready[id] {
-            self.count -= 1;
-            self.ready[id] = false;
-
-            true
-        } else {
-            false
-        }
-    }
-
-    fn any_ready(&self) -> bool {
-        self.count > 0
-    }
-}
-
-struct StreamWaker {
-    id: usize,
-    readiness: Arc<Mutex<Readiness>>,
-    parent: Waker,
-}
-
-impl Wake for StreamWaker {
-    fn wake(self: std::sync::Arc<Self>) {
-        if !self.readiness.lock().unwrap().set_ready(self.id) {
-            self.parent.wake_by_ref()
-        }
-    }
-}
-
 impl<S> Merge<S>
 where
     S: Stream,
 {
     pub(crate) fn new(streams: Vec<S>) -> Self {
-        let streams: Vec<_> = streams.into_iter().map(Fuse::new).collect();
-        let count = streams.len();
         Self {
-            streams,
+            readiness: Arc::new(Mutex::new(Readiness::new(streams.len()))),
+            streams: streams.into_iter().map(Fuse::new).collect(),
             rng: RandomGenerator::new(),
-            readiness: Arc::new(Mutex::new(Readiness {
-                count,
-                ready: vec![true; count],
-            })),
             complete: 0,
         }
     }
@@ -134,15 +80,12 @@ where
             // unlock readiness so we don't deadlock when polling
             drop(readiness);
 
-            let stream = utils::get_pin_mut_from_vec(this.streams.as_mut(), index).unwrap();
-            let waker = Arc::new(StreamWaker {
-                id: index,
-                readiness: this.readiness.clone(),
-                parent: cx.waker().clone(),
-            })
-            .into();
+            // Construct an intermediate waker.
+            let waker = StreamWaker::new(index, this.readiness.clone(), cx.waker().clone());
+            let waker = Arc::new(waker).into();
             let mut cx = Context::from_waker(&waker);
 
+            let stream = utils::get_pin_mut_from_vec(this.streams.as_mut(), index).unwrap();
             match stream.poll_next(&mut cx) {
                 Poll::Ready(Some(item)) => {
                     // Mark ourselves as ready again because we need to poll for the next item.
@@ -155,7 +98,7 @@ where
                         return Poll::Ready(None);
                     }
                 }
-                Poll::Pending => (),
+                Poll::Pending => {}
             }
 
             // Lock readiness so we can use it again
@@ -181,6 +124,7 @@ mod tests {
     use std::cell::RefCell;
     use std::collections::VecDeque;
     use std::rc::Rc;
+    use std::task::Waker;
 
     use super::*;
     use futures::executor::LocalPool;
@@ -188,6 +132,8 @@ mod tests {
     use futures_lite::future::block_on;
     use futures_lite::prelude::*;
     use futures_lite::stream;
+
+    use crate::future::join::Join;
 
     #[test]
     fn merge_vec_4() {
@@ -226,8 +172,6 @@ mod tests {
     /// The purpose of this test is to make sure we have the waking logic working.
     #[test]
     fn merge_channels() {
-        use crate::future::join::Join;
-
         struct LocalChannel<T> {
             queue: VecDeque<T>,
             waker: Option<Waker>,

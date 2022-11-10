@@ -10,12 +10,14 @@ mod maybe_done;
 mod pin;
 mod poll_state;
 mod rng;
+mod waker;
 
 pub(crate) use fuse::Fuse;
 pub(crate) use maybe_done::MaybeDone;
 pub(crate) use pin::{get_pin_mut, get_pin_mut_from_vec, iter_pin_mut, iter_pin_mut_vec};
 pub(crate) use poll_state::PollState;
 pub(crate) use rng::{random, RandomGenerator};
+pub(crate) use waker::{Readiness, StreamWaker};
 
 #[cfg(test)]
 mod dummy_waker;
