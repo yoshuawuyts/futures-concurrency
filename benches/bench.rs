@@ -1,6 +1,7 @@
 criterion::criterion_main!(merge::merge_benches, join::join_benches, race::race_benches);
 
 mod merge {
+    use criterion::async_executor::FuturesExecutor;
     use criterion::{black_box, criterion_group, Criterion};
     use futures_concurrency::prelude::*;
     use futures_lite::future::block_on;
@@ -16,34 +17,49 @@ mod merge {
     );
 
     fn vec_merge_bench(c: &mut Criterion) {
-        c.bench_function("vec::merge 10", |b| b.iter(|| vec_merge(black_box(10))));
-        c.bench_function("vec::merge 100", |b| b.iter(|| vec_merge(black_box(100))));
-        c.bench_function("vec::merge 1000", |b| b.iter(|| vec_merge(black_box(1000))));
+        c.bench_function("vec::merge 10", |b| {
+            b.to_async(FuturesExecutor)
+                .iter(|| vec_merge(black_box(10)))
+        });
+        c.bench_function("vec::merge 100", |b| {
+            b.to_async(FuturesExecutor)
+                .iter(|| vec_merge(black_box(100)))
+        });
+        c.bench_function("vec::merge 1000", |b| {
+            b.to_async(FuturesExecutor)
+                .iter(|| vec_merge(black_box(1000)))
+        });
     }
 
     fn array_merge_bench(c: &mut Criterion) {
-        c.bench_function("array::merge 10", |b| b.iter(|| array_merge::<10>()));
-        c.bench_function("array::merge 100", |b| b.iter(|| array_merge::<100>()));
-        c.bench_function("array::merge 1000", |b| b.iter(|| array_merge::<1000>()));
+        c.bench_function("array::merge 10", |b| {
+            b.to_async(FuturesExecutor).iter(|| array_merge::<10>())
+        });
+        c.bench_function("array::merge 100", |b| {
+            b.to_async(FuturesExecutor).iter(|| array_merge::<100>())
+        });
+        c.bench_function("array::merge 1000", |b| {
+            b.to_async(FuturesExecutor).iter(|| array_merge::<1000>())
+        });
     }
 
     fn tuple_merge_bench(c: &mut Criterion) {
-        c.bench_function("tuple::merge 10", |b| b.iter(|| tuple_merge()));
+        c.bench_function("tuple::merge 10", |b| {
+            b.to_async(FuturesExecutor).iter(|| tuple_merge())
+        });
     }
 
-    pub(crate) fn vec_merge(max: usize) {
-        block_on(async {
-            let mut counter = 0;
-            let streams = streams_vec(max);
-            let mut s = streams.merge();
-            while s.next().await.is_some() {
-                counter += 1;
-            }
-            assert_eq!(counter, max);
-        })
+    async fn vec_merge(max: usize) {
+        let mut counter = 0;
+        let streams = streams_vec(max);
+        let mut s = streams.merge();
+        while s.next().await.is_some() {
+            counter += 1;
+        }
+        assert_eq!(counter, max);
     }
 
-    pub(crate) fn array_merge<const N: usize>() {
+    async fn array_merge<const N: usize>() {
         block_on(async move {
             let mut counter = 0;
             let streams = streams_array::<N>();
@@ -55,7 +71,7 @@ mod merge {
         })
     }
 
-    pub(crate) fn tuple_merge() {
+    async fn tuple_merge() {
         block_on(async move {
             let mut counter = 0;
             let streams = streams_tuple();
@@ -69,8 +85,8 @@ mod merge {
 }
 
 mod join {
+    use criterion::async_executor::FuturesExecutor;
     use criterion::{black_box, criterion_group, Criterion};
-    use futures_lite::future::block_on;
 
     use super::utils::{futures_array, futures_tuple, futures_vec};
 
@@ -82,49 +98,59 @@ mod join {
     );
 
     fn vec_join_bench(c: &mut Criterion) {
-        c.bench_function("vec::join 10", |b| b.iter(|| vec_join(black_box(10))));
-        c.bench_function("vec::join 100", |b| b.iter(|| vec_join(black_box(100))));
-        c.bench_function("vec::join 1000", |b| b.iter(|| vec_join(black_box(1000))));
+        c.bench_function("vec::join 10", move |b| {
+            b.to_async(FuturesExecutor).iter(|| vec_join(black_box(10)))
+        });
+        c.bench_function("vec::join 100", |b| {
+            b.to_async(FuturesExecutor)
+                .iter(|| vec_join(black_box(100)))
+        });
+        c.bench_function("vec::join 1000", |b| {
+            b.to_async(FuturesExecutor)
+                .iter(|| vec_join(black_box(1000)))
+        });
     }
 
     fn array_join_bench(c: &mut Criterion) {
-        c.bench_function("array::join 10", |b| b.iter(|| array_join::<10>()));
-        c.bench_function("array::join 100", |b| b.iter(|| array_join::<100>()));
-        c.bench_function("array::join 1000", |b| b.iter(|| array_join::<1000>()));
+        c.bench_function("array::join 10", |b| {
+            b.to_async(FuturesExecutor).iter(|| array_join::<10>())
+        });
+        c.bench_function("array::join 100", |b| {
+            b.to_async(FuturesExecutor).iter(|| array_join::<100>())
+        });
+        c.bench_function("array::join 1000", |b| {
+            b.to_async(FuturesExecutor).iter(|| array_join::<1000>())
+        });
     }
 
     fn tuple_join_bench(c: &mut Criterion) {
-        c.bench_function("tuple::join 10", |b| b.iter(|| tuple_join()));
+        c.bench_function("tuple::join 10", |b| {
+            b.to_async(FuturesExecutor).iter(|| tuple_join())
+        });
     }
 
-    fn vec_join(max: usize) {
-        block_on(async {
-            let futures = futures_vec(max);
-            let outputs = futures_concurrency::future::Join::join(futures).await;
-            assert_eq!(outputs.len(), max);
-        })
+    async fn vec_join(max: usize) {
+        let futures = futures_vec(max);
+        let outputs = futures_concurrency::future::Join::join(futures).await;
+        assert_eq!(outputs.len(), max);
     }
 
-    fn array_join<const N: usize>() {
-        block_on(async {
-            let futures = futures_array::<N>();
-            let outputs = futures_concurrency::future::Join::join(futures).await;
-            assert_eq!(outputs.len(), N);
-        })
+    async fn array_join<const N: usize>() {
+        let futures = futures_array::<N>();
+        let outputs = futures_concurrency::future::Join::join(futures).await;
+        assert_eq!(outputs.len(), N);
     }
 
-    pub(crate) fn tuple_join() {
-        block_on(async move {
-            let futures = futures_tuple();
-            let outputs = futures_concurrency::future::Join::join(futures).await;
-            assert_eq!(outputs.0, ());
-        })
+    async fn tuple_join() {
+        let futures = futures_tuple();
+        let outputs = futures_concurrency::future::Join::join(futures).await;
+        assert_eq!(outputs.0, ());
     }
 }
 
 mod race {
+    use criterion::async_executor::FuturesExecutor;
     use criterion::{black_box, criterion_group, Criterion};
-    use futures_lite::future::block_on;
 
     use crate::utils::futures_tuple;
 
@@ -138,42 +164,53 @@ mod race {
     );
 
     fn vec_race_bench(c: &mut Criterion) {
-        c.bench_function("vec::race 10", |b| b.iter(|| vec_race(black_box(10))));
-        c.bench_function("vec::race 100", |b| b.iter(|| vec_race(black_box(100))));
-        c.bench_function("vec::race 1000", |b| b.iter(|| vec_race(black_box(1000))));
+        c.bench_function("vec::race 10", |b| {
+            b.to_async(FuturesExecutor).iter(|| vec_race(black_box(10)))
+        });
+        c.bench_function("vec::race 100", |b| {
+            b.to_async(FuturesExecutor)
+                .iter(|| vec_race(black_box(100)))
+        });
+        c.bench_function("vec::race 1000", |b| {
+            b.to_async(FuturesExecutor)
+                .iter(|| vec_race(black_box(1000)))
+        });
     }
 
     fn array_race_bench(c: &mut Criterion) {
-        c.bench_function("array::race 10", |b| b.iter(|| array_race::<10>()));
-        c.bench_function("array::race 100", |b| b.iter(|| array_race::<100>()));
-        c.bench_function("array::race 1000", |b| b.iter(|| array_race::<1000>()));
+        c.bench_function("array::race 10", |b| {
+            b.to_async(FuturesExecutor).iter(|| array_race::<10>())
+        });
+        c.bench_function("array::race 100", |b| {
+            b.to_async(FuturesExecutor).iter(|| array_race::<100>())
+        });
+        c.bench_function("array::race 1000", |b| {
+            b.to_async(FuturesExecutor).iter(|| array_race::<1000>())
+        });
     }
 
     fn tuple_race_bench(c: &mut Criterion) {
-        c.bench_function("tuple::race 10", |b| b.iter(|| tuple_race()));
+        c.bench_function("tuple::race 10", |b| {
+            b.to_async(FuturesExecutor).iter(|| tuple_race())
+        });
     }
 
-    fn vec_race(max: usize) {
-        block_on(async {
-            let futures = futures_vec(max);
-            let output = futures_concurrency::future::Race::race(futures).await;
-            assert_eq!(output, ());
-        })
+    async fn vec_race(max: usize) {
+        let futures = futures_vec(max);
+        let output = futures_concurrency::future::Race::race(futures).await;
+        assert_eq!(output, ());
     }
 
-    fn array_race<const N: usize>() {
-        block_on(async {
-            let futures = futures_array::<N>();
-            let output = futures_concurrency::future::Race::race(futures).await;
-            assert_eq!(output, ());
-        })
+    async fn array_race<const N: usize>() {
+        let futures = futures_array::<N>();
+        let output = futures_concurrency::future::Race::race(futures).await;
+        assert_eq!(output, ());
     }
-    fn tuple_race() {
-        block_on(async {
-            let futures = futures_tuple();
-            let output = futures_concurrency::future::Race::race(futures).await;
-            assert_eq!(output, ());
-        })
+
+    async fn tuple_race() {
+        let futures = futures_tuple();
+        let output = futures_concurrency::future::Race::race(futures).await;
+        assert_eq!(output, ());
     }
 }
 
