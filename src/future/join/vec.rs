@@ -39,7 +39,7 @@ where
         Join {
             consumed: false,
             pending: futures.len(),
-            items: std::iter::repeat_with(|| MaybeUninit::uninit())
+            items: std::iter::repeat_with(MaybeUninit::uninit)
                 .take(futures.len())
                 .collect(),
             state: vec![PollState::default(); futures.len()],

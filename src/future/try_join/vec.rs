@@ -46,7 +46,7 @@ where
         let mut all_done = true;
 
         for mut elem in iter_pin_mut(self.elems.as_mut()) {
-            if let Poll::Pending = elem.as_mut().poll(cx) {
+            if elem.as_mut().poll(cx).is_pending() {
                 all_done = false
             } else if let Some(Err(_)) = elem.as_ref().output() {
                 return Poll::Ready(Err(elem.take().unwrap().unwrap_err()));

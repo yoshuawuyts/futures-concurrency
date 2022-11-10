@@ -17,19 +17,17 @@ pub(crate) mod vec;
 /// use futures_lite::stream::{self, StreamExt};
 /// use futures_lite::future::block_on;
 ///
-/// fn main() {
-///     block_on(async {
-///         let a = stream::once(1);
-///         let b = stream::once(2);
-///         let c = stream::once(3);
-///         let mut s = [a, b, c].merge();
+/// block_on(async {
+///     let a = stream::once(1);
+///     let b = stream::once(2);
+///     let c = stream::once(3);
+///     let mut s = [a, b, c].merge();
 ///
-///         let mut buf = vec![];
-///         s.for_each(|n| buf.push(n)).await;
-///         buf.sort_unstable();
-///         assert_eq!(&buf, &[1, 2, 3]);
-///     })
-/// }
+///     let mut buf = vec![];
+///     s.for_each(|n| buf.push(n)).await;
+///     buf.sort_unstable();
+///     assert_eq!(&buf, &[1, 2, 3]);
+/// })
 /// ```
 pub trait Merge {
     /// The resulting output type.
