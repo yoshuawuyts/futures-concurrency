@@ -1,11 +1,10 @@
 use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, Fuse, RandomGenerator, Readiness, StreamWaker};
+use crate::utils::{self, Fuse, RandomGenerator, WakerList};
 
 use core::fmt;
 use futures_core::Stream;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
 /// A stream that merges multiple streams into a single stream.
@@ -23,9 +22,8 @@ where
     #[pin]
     streams: Vec<Fuse<S>>,
     rng: RandomGenerator,
-    readiness: Arc<Mutex<Readiness>>,
     complete: usize,
-    wakers: Vec<StreamWaker>,
+    wakers: WakerList,
 }
 
 impl<S> Merge<S>
@@ -33,14 +31,8 @@ where
     S: Stream,
 {
     pub(crate) fn new(streams: Vec<S>) -> Self {
-        let readiness = Arc::new(Mutex::new(Readiness::new(streams.len())));
-        let wakers = (0..streams.len())
-            .map(|i| StreamWaker::new(i, readiness.clone()))
-            .collect();
-
         Self {
-            wakers,
-            readiness,
+            wakers: WakerList::new(streams.len()),
             streams: streams.into_iter().map(Fuse::new).collect(),
             rng: RandomGenerator::new(),
             complete: 0,
@@ -66,12 +58,16 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
+        if !this.wakers.has_parent() {
+            this.wakers.set_parent(cx.waker());
+        }
+
         // Iterate over our streams one-by-one. If a stream yields a value,
         // we exit early. By default we'll return `Poll::Ready(None)`, but
         // this changes if we encounter a `Poll::Pending`.
         let mut index = this.rng.generate(this.streams.len() as u32) as usize;
 
-        let mut readiness = this.readiness.lock().unwrap();
+        let mut readiness = this.wakers.readiness().lock().unwrap();
         loop {
             if !readiness.any_ready() {
                 // Nothing is ready yet
@@ -87,17 +83,14 @@ where
             // unlock readiness so we don't deadlock when polling
             drop(readiness);
 
-            // Construct an intermediate waker.
-            let mut waker = this.wakers[index].clone();
-            waker.set_parent_waker(cx.waker().clone());
-            let waker = Arc::new(waker).into();
-            let mut cx = Context::from_waker(&waker);
+            // Obtain the intermediate waker.
+            let mut cx = Context::from_waker(this.wakers.get(index).unwrap());
 
             let stream = utils::get_pin_mut_from_vec(this.streams.as_mut(), index).unwrap();
             match stream.poll_next(&mut cx) {
                 Poll::Ready(Some(item)) => {
                     // Mark ourselves as ready again because we need to poll for the next item.
-                    this.readiness.lock().unwrap().set_ready(index);
+                    this.wakers.readiness().lock().unwrap().set_ready(index);
                     return Poll::Ready(Some(item));
                 }
                 Poll::Ready(None) => {
@@ -110,7 +103,7 @@ where
             }
 
             // Lock readiness so we can use it again
-            readiness = this.readiness.lock().unwrap();
+            readiness = this.wakers.readiness().lock().unwrap();
         }
     }
 }

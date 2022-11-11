@@ -19,7 +19,7 @@ pub(crate) use pin::{get_pin_mut, get_pin_mut_from_vec, iter_pin_mut, iter_pin_m
 pub(crate) use poll_state::PollState;
 pub(crate) use rng::RandomGenerator;
 pub(crate) use tuple::{gen_conditions, permutations, tuple_len};
-pub(crate) use waker::{Readiness, StreamWaker};
+pub(crate) use waker::{InlineWaker, Readiness, WakerList};
 
 #[cfg(test)]
 mod dummy_waker;

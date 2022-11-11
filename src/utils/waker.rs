@@ -53,32 +53,71 @@ impl Readiness {
     }
 }
 
+/// An efficient waker which delegates wake events.
 #[derive(Debug, Clone)]
-pub(crate) struct StreamWaker {
+pub(crate) struct InlineWaker {
     id: usize,
     readiness: Arc<Mutex<Readiness>>,
-    parent_waker: Option<Waker>,
+    parent_waker: Waker,
 }
 
-impl StreamWaker {
-    pub(crate) fn new(id: usize, readiness: Arc<Mutex<Readiness>>) -> Self {
+impl InlineWaker {
+    pub(crate) fn new(id: usize, readiness: Arc<Mutex<Readiness>>, parent_waker: Waker) -> Self {
         Self {
             id,
             readiness,
-            parent_waker: None,
+            parent_waker,
         }
-    }
-
-    pub(crate) fn set_parent_waker(&mut self, parent: Waker) {
-        self.parent_waker = Some(parent);
     }
 }
 
-impl Wake for StreamWaker {
+impl Wake for InlineWaker {
     fn wake(self: std::sync::Arc<Self>) {
         if !self.readiness.lock().unwrap().set_ready(self.id) {
-            let parent = self.parent_waker.as_ref().expect("No parent waker was set");
-            parent.wake_by_ref()
+            self.parent_waker.wake_by_ref()
         }
+    }
+}
+
+/// A collection of wakers.
+pub(crate) struct WakerList {
+    wakers: Vec<Waker>,
+    has_parent: bool,
+    readiness: Arc<Mutex<Readiness>>,
+    len: usize,
+}
+
+impl WakerList {
+    pub(crate) fn new(len: usize) -> Self {
+        Self {
+            has_parent: false,
+            wakers: vec![],
+            readiness: Arc::new(Mutex::new(Readiness::new(len))),
+            len,
+        }
+    }
+
+    pub(crate) fn has_parent(&self) -> bool {
+        self.has_parent
+    }
+
+    pub(crate) fn set_parent(&mut self, parent: &Waker) {
+        self.wakers = (0..self.len)
+            .map(|i| Arc::new(InlineWaker::new(i, self.readiness.clone(), parent.clone())).into())
+            .collect();
+
+        self.has_parent = true;
+    }
+
+    pub(crate) fn get(&self, index: usize) -> Option<&Waker> {
+        debug_assert!(
+            self.has_parent,
+            "no parent waker set. Did you forget to call `WakerList::set_parent?"
+        );
+        self.wakers.get(index)
+    }
+
+    pub(crate) fn readiness(&self) -> &Mutex<Readiness> {
+        self.readiness.as_ref()
     }
 }
