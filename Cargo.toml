@@ -13,6 +13,9 @@ authors = [
     "Yoshua Wuyts <yoshuawuyts@gmail.com>"
 ]
 
+[lib]
+bench = false
+
 [[bench]]
 name = "bench"
 harness = false
