@@ -63,7 +63,7 @@ where
             };
 
             // NOTE: this clippy attribute can be removed once we can `collect` into `[usize; K]`.
-            #[allow(clippy::clippy::needless_range_loop)]
+            #[allow(clippy::needless_range_loop)]
             for (i, el) in this.elems.iter_mut().enumerate() {
                 let el = unsafe { Pin::new_unchecked(el) }.take().unwrap();
                 out[i] = MaybeUninit::new(el);
