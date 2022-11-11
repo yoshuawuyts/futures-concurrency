@@ -1,5 +1,5 @@
 use super::Join as JoinTrait;
-use crate::utils::{iter_pin_mut_vec, PollState};
+use crate::utils::{iter_pin_mut_vec, PollState, PollStates};
 
 use core::fmt;
 use core::future::{Future, IntoFuture};
@@ -26,7 +26,7 @@ where
     consumed: bool,
     pending: usize,
     items: Vec<MaybeUninit<<Fut as Future>::Output>>,
-    state: Vec<PollState>,
+    state: PollStates,
     #[pin]
     futures: Vec<Fut>,
 }
@@ -42,7 +42,7 @@ where
             items: std::iter::repeat_with(|| MaybeUninit::uninit())
                 .take(futures.len())
                 .collect(),
-            state: vec![PollState::default(); futures.len()],
+            state: PollStates::new(futures.len()),
             futures,
         }
     }
@@ -66,7 +66,7 @@ where
     Fut::Output: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_list().entries(self.state.iter()).finish()
+        f.debug_list().entries(self.state.to_vec()).finish()
     }
 }
 
@@ -87,10 +87,10 @@ where
         // Poll all futures
         let futures = this.futures.as_mut();
         for (i, fut) in iter_pin_mut_vec(futures).enumerate() {
-            if this.state[i].is_pending() {
+            if this.state.get(i).is_pending() {
                 if let Poll::Ready(value) = fut.poll(cx) {
                     this.items[i] = MaybeUninit::new(value);
-                    this.state[i] = PollState::Done;
+                    this.state.set(i, PollState::Done);
                     *this.pending -= 1;
                 }
             }
@@ -100,10 +100,17 @@ where
         if *this.pending == 0 {
             // Mark all data as "consumed" before we take it
             *this.consumed = true;
-            this.state.iter_mut().for_each(|state| {
-                debug_assert!(state.is_done(), "Future should have reached a `Done` state");
-                *state = PollState::Consumed;
-            });
+
+            if cfg!(debug_assertions) {
+                this.state.for_each(|_, poll_state| {
+                    debug_assert!(
+                        poll_state.is_done(),
+                        "Future should have reached a `Done` state"
+                    )
+                });
+            }
+
+            this.state.set_all(PollState::Consumed);
 
             // SAFETY: we've checked with the state that all of our outputs have been
             // filled, which means we're ready to take the data and assume it's initialized.
@@ -127,20 +134,16 @@ where
     fn drop(self: Pin<&mut Self>) {
         let this = self.project();
 
-        // Get the indexes of the initialized values.
-        let indexes = this
-            .state
-            .iter_mut()
-            .enumerate()
-            .filter(|(_, state)| state.is_done())
-            .map(|(i, _)| i);
+        // We need to help the borrow checker here.
+        let items = this.items;
 
-        // Drop each value at the index.
-        for i in indexes {
-            // SAFETY: we've just filtered down to *only* the initialized values.
-            // We can assume they're initialized, and this is where we drop them.
-            unsafe { this.items[i].assume_init_drop() };
-        }
+        this.state.for_each(|index, poll_state| {
+            if poll_state.is_done() {
+                // SAFETY: we've just filtered down to *only* the initialized values.
+                // We can assume they're initialized, and this is where we drop them.
+                unsafe { items[index].assume_init_drop() };
+            }
+        });
     }
 }
 
