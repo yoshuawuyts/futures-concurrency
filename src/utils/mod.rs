@@ -16,7 +16,7 @@ mod wakers;
 pub(crate) use fuse::Fuse;
 pub(crate) use maybe_done::MaybeDone;
 pub(crate) use pin::{get_pin_mut, get_pin_mut_from_vec, iter_pin_mut, iter_pin_mut_vec};
-pub(crate) use poll_state::PollState;
+pub(crate) use poll_state::{PollState, PollStates};
 pub(crate) use rng::RandomGenerator;
 pub(crate) use tuple::{gen_conditions, permutations, tuple_len};
 pub(crate) use wakers::{InlineWaker, Readiness, WakerList};
