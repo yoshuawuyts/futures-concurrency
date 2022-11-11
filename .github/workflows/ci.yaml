@@ -53,8 +53,8 @@ jobs:
       - name: Test with Miri
         run: cargo miri test
 
-  check_fmt_and_docs:
-    name: Checking fmt and docs
+  check_clippy_fmt_and_docs:
+    name: Checking clippy, fmt and docs
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
@@ -63,6 +63,9 @@ jobs:
         toolchain: nightly
         components: rustfmt, clippy
         override: true
+
+    - name: clippy
+      run: cargo clippy -- -Dwarnings
 
     - name: fmt
       run: cargo fmt --all -- --check
