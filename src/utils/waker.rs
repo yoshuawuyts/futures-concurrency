@@ -1,6 +1,8 @@
 use crate::stream::IntoStream;
 use crate::utils::{self, Fuse, RandomGenerator};
 
+use bitvec::bitvec;
+use bitvec::vec::BitVec;
 use core::fmt;
 use futures_core::Stream;
 use std::pin::Pin;
@@ -10,15 +12,15 @@ use std::task::{Context, Poll, Wake, Waker};
 #[derive(Debug)]
 pub(crate) struct Readiness {
     count: usize,
-    ready: Vec<bool>, // TODO: Use a bitvector
+    ready: BitVec,
 }
 
 impl Readiness {
-    /// Create a new instance of reaciness.
+    /// Create a new instance of readiness.
     pub(crate) fn new(count: usize) -> Self {
         Self {
             count,
-            ready: vec![true; count],
+            ready: bitvec![true as usize; count],
         }
     }
 
@@ -26,7 +28,7 @@ impl Readiness {
     pub(crate) fn set_ready(&mut self, id: usize) -> bool {
         if !self.ready[id] {
             self.count += 1;
-            self.ready[id] = true;
+            self.ready.set(id, true);
 
             false
         } else {
@@ -38,7 +40,7 @@ impl Readiness {
     pub(crate) fn clear_ready(&mut self, id: usize) -> bool {
         if self.ready[id] {
             self.count -= 1;
-            self.ready[id] = false;
+            self.ready.set(id, false);
 
             true
         } else {
