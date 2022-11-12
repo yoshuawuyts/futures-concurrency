@@ -8,48 +8,6 @@ use core::task::{Context, Poll};
 
 use pin_project::pin_project;
 
-/// Generate the `match` conditions inside the main `poll` body. This macro
-/// chooses a random starting future on each `poll`, making it "fair".
-//
-/// The way this algorithm works is: we generate a random number between 0 and
-/// the number of tuples we have. This number determines which stream we start
-/// with. All other futures are mapped as `r + index`, and after we have the
-/// first future, we'll sequentially iterate over all other futures. The
-/// starting point of the future is random, but the iteration order of all other
-/// futures is not.
-///
-// NOTE(yosh): this macro monstrocity is needed so we can increment each `else if` branch with
-// + 1. When RFC 3086 becomes available to us, we can replace this with `${index($F)}` to get
-// the current iteration.
-//
-// # References
-// - https://twitter.com/maybewaffle/status/1588426440835727360
-// - https://twitter.com/Veykril/status/1588231414998335490
-// - https://rust-lang.github.io/rfcs/3086-macro-metavar-expr.html
-macro_rules! gen_conditions {
-    // Generate an `if`-block, and keep iterating.
-    (@inner $LEN:expr, $i:expr, $r:expr, $this:expr, $cx:expr, $counter:expr, $F:ident, $($rest:ident,)*) => {
-        if $i == ($r + $counter).wrapping_rem($LEN) {
-            match unsafe { Pin::new_unchecked(&mut $this.$F) }.poll($cx) {
-                Poll::Ready(output) => {
-                    *$this.done = true;
-                    return Poll::Ready(output);
-                }
-                _ => continue,
-            }
-        }
-        gen_conditions!(@inner $LEN, $i, $r, $this, $cx, $counter + 1, $($rest,)*)
-    };
-
-    // End of recursion, nothing to do.
-    (@inner $LEN:expr, $i:expr, $r:expr, $this:expr, $cx:expr, $counter:expr,) => {};
-
-    // Base condition, setup the depth counter.
-    ($LEN:expr, $i:expr, $r:expr, $this:expr, $cx:expr, $($F:ident,)*) => {
-        gen_conditions!(@inner $LEN, $i, $r, $this, $cx, 0, $($F,)*)
-    }
-}
-
 macro_rules! impl_race_tuple {
     ($StructName:ident $($F:ident)+) => {
         /// Wait for the first future to complete.
@@ -115,7 +73,13 @@ macro_rules! impl_race_tuple {
                 let r = utils::random(PERMUTATIONS);
 
                 for i in 0..LEN {
-                    gen_conditions!(LEN, i, r, this, cx, $($F,)*);
+                    utils::gen_conditions!(LEN, i, r, this, cx, poll, {
+                        Poll::Ready(output) => {
+                            *this.done = true;
+                            return Poll::Ready(output);
+                        },
+                        _ => continue,
+                    }, $($F,)*);
                 }
 
                 Poll::Pending
