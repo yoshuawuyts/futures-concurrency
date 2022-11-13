@@ -25,6 +25,7 @@ macro_rules! impl_race_tuple {
             $F: Future<Output = T>,
         )* {
             done: bool,
+            rng: utils::RandomGenerator,
             $(#[pin] $F: $F,)*
         }
 
@@ -51,6 +52,7 @@ macro_rules! impl_race_tuple {
                 let ($($F,)*): ($($F,)*) = self;
                 $StructName {
                     done: false,
+                    rng: utils::RandomGenerator::new(),
                     $($F: $F.into_future()),*
                 }
             }
@@ -70,7 +72,7 @@ macro_rules! impl_race_tuple {
 
                 const LEN: u32 = utils::tuple_len!($($F,)*);
                 const PERMUTATIONS: u32 = utils::permutations(LEN);
-                let r = utils::random(PERMUTATIONS);
+                let r = this.rng.generate(PERMUTATIONS);
 
                 for i in 0..LEN {
                     utils::gen_conditions!(LEN, i, r, this, cx, poll, {

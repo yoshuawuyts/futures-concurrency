@@ -69,7 +69,7 @@ where
         // Iterate over our streams one-by-one. If a stream yields a value,
         // we exit early. By default we'll return `Poll::Ready(None)`, but
         // this changes if we encounter a `Poll::Pending`.
-        let mut index = this.rng.random(this.streams.len() as u32) as usize;
+        let mut index = this.rng.generate(this.streams.len() as u32) as usize;
 
         let mut readiness = this.readiness.lock().unwrap();
         loop {
