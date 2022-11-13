@@ -87,6 +87,7 @@ mod merge {
 mod join {
     use criterion::async_executor::FuturesExecutor;
     use criterion::{black_box, criterion_group, Criterion};
+    use futures_concurrency::prelude::*;
 
     use super::utils::{futures_array, futures_tuple, futures_vec};
 
@@ -131,26 +132,27 @@ mod join {
 
     async fn vec_join(max: usize) {
         let futures = futures_vec(max);
-        let outputs = futures_concurrency::future::Join::join(futures).await;
-        assert_eq!(outputs.len(), max);
+        let output = futures.join().await;
+        assert_eq!(output.len(), max);
     }
 
     async fn array_join<const N: usize>() {
         let futures = futures_array::<N>();
-        let outputs = futures_concurrency::future::Join::join(futures).await;
-        assert_eq!(outputs.len(), N);
+        let output = futures.join().await;
+        assert_eq!(output.len(), N);
     }
 
     async fn tuple_join() {
         let futures = futures_tuple();
-        let outputs = futures_concurrency::future::Join::join(futures).await;
-        assert_eq!(outputs.0, ());
+        let output = futures.join().await;
+        assert_eq!(output.0, ());
     }
 }
 
 mod race {
     use criterion::async_executor::FuturesExecutor;
     use criterion::{black_box, criterion_group, Criterion};
+    use futures_concurrency::prelude::*;
 
     use crate::utils::futures_tuple;
 
@@ -197,19 +199,19 @@ mod race {
 
     async fn vec_race(max: usize) {
         let futures = futures_vec(max);
-        let output = futures_concurrency::future::Race::race(futures).await;
+        let output = futures.race().await;
         assert_eq!(output, ());
     }
 
     async fn array_race<const N: usize>() {
         let futures = futures_array::<N>();
-        let output = futures_concurrency::future::Race::race(futures).await;
+        let output = futures.race().await;
         assert_eq!(output, ());
     }
 
     async fn tuple_race() {
         let futures = futures_tuple();
-        let output = futures_concurrency::future::Race::race(futures).await;
+        let output = futures.race().await;
         assert_eq!(output, ());
     }
 }
