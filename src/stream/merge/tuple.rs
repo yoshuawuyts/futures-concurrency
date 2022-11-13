@@ -19,7 +19,7 @@ macro_rules! impl_merge_tuple {
         /// [`Merge`]: trait.Merge.html
         #[pin_project::pin_project]
         pub struct $StructName {
-            _sealed: (),
+            rng: utils::RandomGenerator,
         }
 
         impl fmt::Debug for $StructName {
@@ -42,7 +42,7 @@ macro_rules! impl_merge_tuple {
 
             fn merge(self) -> Self::Stream {
                 $StructName {
-                    _sealed: (),
+                    rng: utils::RandomGenerator::new(),
                 }
             }
         }
@@ -62,6 +62,7 @@ macro_rules! impl_merge_tuple {
         )* {
             done: bool,
             $(#[pin] $F: $F,)*
+            rng: utils::RandomGenerator,
         }
 
         impl<T, $($F),*> fmt::Debug for $StructName<T, $($F),*>
@@ -92,7 +93,7 @@ macro_rules! impl_merge_tuple {
 
                 const LEN: u32 = utils::tuple_len!($($F,)*);
                 const PERMUTATIONS: u32 = utils::permutations(LEN);
-                let r = utils::random(PERMUTATIONS);
+                let r = this.rng.generate(PERMUTATIONS);
                 let mut pending = false;
                 for i in 0..LEN {
                     utils::gen_conditions!(LEN, i, r, this, cx, poll_next, {
@@ -124,6 +125,7 @@ macro_rules! impl_merge_tuple {
                 let ($($F,)*): ($($F,)*) = self;
                 $StructName {
                     done: false,
+                    rng: utils::RandomGenerator::new(),
                     $($F: $F.into_stream()),*
                 }
             }

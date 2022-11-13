@@ -21,6 +21,7 @@ where
 {
     #[pin]
     streams: [Fuse<S>; N],
+    rng: utils::RandomGenerator,
 }
 
 impl<S, const N: usize> Merge<S, N>
@@ -30,6 +31,7 @@ where
     pub(crate) fn new(streams: [S; N]) -> Self {
         Self {
             streams: streams.map(Fuse::new),
+            rng: utils::RandomGenerator::new(),
         }
     }
 }
@@ -66,7 +68,7 @@ where
                 res
             })
         };
-        arr.sort_by_cached_key(|_| utils::random(1000));
+        arr.sort_by_cached_key(|_| this.rng.generate(1000));
 
         // Iterate over our streams one-by-one. If a stream yields a value,
         // we exit early. By default we'll return `Poll::Ready(None)`, but
