@@ -7,26 +7,6 @@ use futures_core::Stream;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-/// Compute the number of permutations for a number
-/// during compilation.
-const fn permutations(mut num: u32) -> u32 {
-    let mut total = 1;
-    loop {
-        total *= num;
-        num -= 1;
-        if num == 0 {
-            break;
-        }
-    }
-    total
-}
-
-/// Calculate the number of tuples currently being operated on.
-macro_rules! tuple_len {
-    (@count_one $F:ident) => (1);
-    ($($F:ident,)*) => (0 $(+ tuple_len!(@count_one $F))*);
-}
-
 /// Generate the `match` conditions inside the main `poll_next` body. This macro
 /// chooses a random starting stream on each `poll`, making it "fair".
 //
@@ -85,7 +65,7 @@ macro_rules! impl_merge_tuple {
             _sealed: (),
         }
 
-        impl std::fmt::Debug for $StructName {
+        impl fmt::Debug for $StructName {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 f.debug_tuple("Merge").finish()
             }
@@ -95,7 +75,7 @@ macro_rules! impl_merge_tuple {
             type Item = std::convert::Infallible; // TODO: convert to `never` type in the stdlib
 
             fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-                return Poll::Ready(None)
+                Poll::Ready(None)
             }
         }
 
@@ -127,7 +107,7 @@ macro_rules! impl_merge_tuple {
             $(#[pin] $F: $F,)*
         }
 
-        impl<T, $($F),*> std::fmt::Debug for $StructName<T, $($F),*>
+        impl<T, $($F),*> fmt::Debug for $StructName<T, $($F),*>
         where $(
             $F: Stream<Item = T> + fmt::Debug,
             T: fmt::Debug,
@@ -153,8 +133,8 @@ macro_rules! impl_merge_tuple {
                     return Poll::Ready(None);
                 }
 
-                const LEN: u32 = tuple_len!($($F,)*);
-                const PERMUTATIONS: u32 = permutations(LEN);
+                const LEN: u32 = utils::tuple_len!($($F,)*);
+                const PERMUTATIONS: u32 = utils::permutations(LEN);
                 let r = utils::random(PERMUTATIONS);
                 let mut pending = false;
                 for i in 0..LEN {
