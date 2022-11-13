@@ -60,14 +60,12 @@ where
         }
 
         if all_done {
+            use core::array;
             use core::mem::MaybeUninit;
 
             // Create the result array based on the indices
-            let mut out: [MaybeUninit<T>; N] = {
-                // inlined version of unstable `MaybeUninit::uninit_array()`
-                // TODO: replace with `MaybeUninit::uninit_array()` when it becomes stable
-                unsafe { MaybeUninit::<[MaybeUninit<_>; N]>::uninit().assume_init() }
-            };
+            // TODO: replace with `MaybeUninit::uninit_array()` when it becomes stable
+            let mut out: [_; N] = array::from_fn(|_| MaybeUninit::uninit());
 
             // NOTE: this clippy attribute can be removed once we can `collect` into `[usize; K]`.
             #[allow(clippy::needless_range_loop)]
