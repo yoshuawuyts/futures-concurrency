@@ -1,3 +1,4 @@
+use core::fmt;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
@@ -8,15 +9,14 @@ use crate::utils;
 
 use super::Chain as ChainTrait;
 
-/// A stream that chains two streams one after another.
+/// A stream that chains multiple streams one after another.
 ///
-/// This `struct` is created by the [`chain`] method on [`Stream`]. See its
+/// This `struct` is created by the [`chain`] method on the [`Chain`] trait. See its
 /// documentation for more.
 ///
-/// [`chain`]: trait.Stream.html#method.chain
-/// [`Stream`]: trait.Stream.html
+/// [`chain`]: trait.Chain.html#method.merge
+/// [`Chain`]: trait.Chain.html
 #[pin_project]
-#[derive(Debug)]
 pub struct Chain<S> {
     #[pin]
     streams: Vec<S>,
@@ -50,6 +50,15 @@ impl<S: Stream> Stream for Chain<S> {
                 Poll::Pending => return Poll::Pending,
             }
         }
+    }
+}
+
+impl<S> fmt::Debug for Chain<S>
+where
+    S: Stream + fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(self.streams.iter()).finish()
     }
 }
 
