@@ -58,16 +58,13 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
-        if !this.wakers.has_parent() {
-            this.wakers.set_parent(cx.waker());
-        }
-
         // Iterate over our streams one-by-one. If a stream yields a value,
         // we exit early. By default we'll return `Poll::Ready(None)`, but
         // this changes if we encounter a `Poll::Pending`.
         let mut index = this.rng.generate(this.streams.len() as u32) as usize;
 
         let mut readiness = this.wakers.readiness().lock().unwrap();
+        readiness.set_waker(cx.waker());
         loop {
             if !readiness.any_ready() {
                 // Nothing is ready yet
