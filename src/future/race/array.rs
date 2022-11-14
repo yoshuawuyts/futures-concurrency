@@ -92,7 +92,7 @@ mod test {
             let res = [future::ready("hello"), future::ready("world")]
                 .race()
                 .await;
-            assert_eq!(res, "hello");
+            assert!(matches!(res, "hello" | "world"));
         });
     }
 }
