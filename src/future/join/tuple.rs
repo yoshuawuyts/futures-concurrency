@@ -1,28 +1,37 @@
 use super::Join as JoinTrait;
-use crate::utils::MaybeDone;
+use crate::utils::PollState;
 
 use core::fmt::{self, Debug};
 use core::future::{Future, IntoFuture};
+use core::mem::MaybeUninit;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-use pin_project::pin_project;
+use pin_project::{pin_project, pinned_drop};
 
-macro_rules! impl_merge_tuple {
+use paste::paste;
+
+macro_rules! impl_join_tuple {
     ($StructName:ident $($F:ident)*) => {
-        /// Waits for two similarly-typed futures to complete.
-        ///
-        /// This `struct` is created by the [`join`] method on the [`Join`] trait. See
-        /// its documentation for more.
-        ///
-        /// [`join`]: crate::future::Join::join
-        /// [`Join`]: crate::future::Join
-        #[pin_project]
-        #[must_use = "futures do nothing unless you `.await` or poll them"]
-        #[allow(non_snake_case)]
-        pub struct $StructName<$($F: Future),*> {
-            done: bool,
-            $(#[pin] $F: MaybeDone<$F>,)*
+        paste!{
+            /// Waits for two similarly-typed futures to complete.
+            ///
+            /// This `struct` is created by the [`join`] method on the [`Join`] trait. See
+            /// its documentation for more.
+            ///
+            /// [`join`]: crate::future::Join::join
+            /// [`Join`]: crate::future::Join
+            #[pin_project(PinnedDrop)]
+            #[must_use = "futures do nothing unless you `.await` or poll them"]
+            #[allow(non_snake_case)]
+            pub struct $StructName<$($F: Future),*> {
+                done: bool,
+                $(
+                    #[pin] $F: $F,
+                    [<$F _out>]: MaybeUninit<$F::Output>,
+                    [<$F _state>]: PollState,
+                )*
+            }
         }
 
         impl<$($F),*> Debug for $StructName<$($F),*>
@@ -31,9 +40,11 @@ macro_rules! impl_merge_tuple {
             $F::Output: Debug,
         )* {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.debug_tuple("Join")
-                    $(.field(&self.$F))*
-                    .finish()
+                paste!{
+                    f.debug_tuple("Join")
+                        $(.field(&self.$F).field(&self.[<$F _state >]))*
+                        .finish()
+                }
             }
         }
 
@@ -50,11 +61,24 @@ macro_rules! impl_merge_tuple {
                 let mut this = self.project();
                 assert!(!*this.done, "Futures must not be polled after completing");
 
-                $(all_done &= this.$F.as_mut().poll(cx).is_ready();)*
+                // Poll futures
+                paste! {
+                    $(
+                        if this.[<$F _state>].is_pending() {
+                            if let Poll::Ready(out) = this.$F.poll(cx) {
+                                *this.[<$F _out>] = MaybeUninit::new(out);
+                                *this.[<$F _state>] = PollState::Done;
+                            }
+                        }
+                        all_done &= this.[<$F _state>].is_done();
+                    )*
+                }
 
                 if all_done {
                     *this.done = true;
-                    Poll::Ready(($(this.$F.take().unwrap()),*))
+                    paste! {
+                        Poll::Ready(($( unsafe { this.[<$F _out>].assume_init_read() }),*))
+                    }
                 } else {
                     Poll::Pending
                 }
@@ -71,28 +95,53 @@ macro_rules! impl_merge_tuple {
 
             fn join(self) -> Self::Future {
                 let ($($F,)*): ($($F,)*) = self;
-                $StructName {
-                    done: false,
-                    $($F: MaybeDone::new($F.into_future())),*
+                paste! {
+                    $StructName {
+                        done: false,
+                        $(
+                            $F: $F.into_future(),
+                            [<$F _out>]: MaybeUninit::uninit(),
+                            [<$F _state>]: PollState::default(),
+                        )*
+                    }
+                }
+            }
+        }
+
+        #[pinned_drop]
+        impl<$($F,)*> PinnedDrop for $StructName<$($F,)*>
+        where $(
+            $F: Future,
+        )* {
+            fn drop(self: Pin<&mut Self>) {
+                let _this = self.project();
+
+                paste! {
+                    $(
+                        if _this.[<$F _state>].is_done() {
+                            // SAFETY: if the future is marked as done, we can safelly drop its out
+                            unsafe { _this.[<$F _out>].assume_init_drop() };
+                        }
+                    )*
                 }
             }
         }
     };
 }
 
-impl_merge_tuple! { Join0 }
-impl_merge_tuple! { Join1 A }
-impl_merge_tuple! { Join2 A B }
-impl_merge_tuple! { Join3 A B C }
-impl_merge_tuple! { Join4 A B C D }
-impl_merge_tuple! { Join5 A B C D E }
-impl_merge_tuple! { Join6 A B C D E F }
-impl_merge_tuple! { Join7 A B C D E F G }
-impl_merge_tuple! { Join8 A B C D E F G H }
-impl_merge_tuple! { Join9 A B C D E F G H I }
-impl_merge_tuple! { Join10 A B C D E F G H I J }
-impl_merge_tuple! { Join11 A B C D E F G H I J K }
-impl_merge_tuple! { Join12 A B C D E F G H I J K L }
+impl_join_tuple! { Join0 }
+impl_join_tuple! { Join1 A }
+impl_join_tuple! { Join2 A B }
+impl_join_tuple! { Join3 A B C }
+impl_join_tuple! { Join4 A B C D }
+impl_join_tuple! { Join5 A B C D E }
+impl_join_tuple! { Join6 A B C D E F }
+impl_join_tuple! { Join7 A B C D E F G }
+impl_join_tuple! { Join8 A B C D E F G H }
+impl_join_tuple! { Join9 A B C D E F G H I }
+impl_join_tuple! { Join10 A B C D E F G H I J }
+impl_join_tuple! { Join11 A B C D E F G H I J K }
+impl_join_tuple! { Join12 A B C D E F G H I J K L }
 
 #[cfg(test)]
 mod test {
