@@ -73,11 +73,9 @@ where
             if !readiness.any_ready() {
                 // Nothing is ready yet
                 return Poll::Pending;
-            } else if this.state[index].is_done() {
-                // We already have data stored for this stream
-                continue;
-            } else if !readiness.clear_ready(index) {
-                // This waker isn't ready yet
+            } else if this.state[index].is_done() || !readiness.clear_ready(index) {
+                // We already have data stored for this stream,
+                // Or this waker isn't ready yet
                 continue;
             }
 
