@@ -12,7 +12,7 @@ use std::mem;
 use futures_core::Stream;
 use pin_project::{pin_project, pinned_drop};
 
-/// ‘Zips up’ two streams into a single stream of pairs.
+/// ‘Zips up’ multiple streams into a single stream of pairs.
 ///
 /// This `struct` is created by the [`merge`] method on the [`Zip`] trait. See its
 /// documentation for more.
