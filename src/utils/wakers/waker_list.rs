@@ -15,12 +15,10 @@ impl WakerList {
     /// Create a new instance of `WakerList`.
     pub(crate) fn new(len: usize) -> Self {
         let readiness = Arc::new(Mutex::new(Readiness::new(len)));
-        Self {
-            wakers: (0..len)
-                .map(|i| Arc::new(InlineWaker::new(i, readiness.clone())).into())
-                .collect(),
-            readiness,
-        }
+        let wakers = (0..len)
+            .map(|i| Arc::new(InlineWaker::new(i, readiness.clone())).into())
+            .collect();
+        Self { wakers, readiness }
     }
 
     pub(crate) fn get(&self, index: usize) -> Option<&Waker> {
