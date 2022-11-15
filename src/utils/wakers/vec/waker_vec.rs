@@ -2,19 +2,19 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::task::Waker;
 
-use super::{InlineWaker, Readiness};
+use super::{InlineWaker, ReadinessVec};
 use crate::utils;
 
 /// A collection of wakers which delegate to an in-line waker.
-pub(crate) struct WakerList {
+pub(crate) struct WakerVec {
     wakers: Vec<Waker>,
-    readiness: Arc<Mutex<Readiness>>,
+    readiness: Arc<Mutex<ReadinessVec>>,
 }
 
-impl WakerList {
-    /// Create a new instance of `WakerList`.
+impl WakerVec {
+    /// Create a new instance of `WakerVec`.
     pub(crate) fn new(len: usize) -> Self {
-        let readiness = Arc::new(Mutex::new(Readiness::new(len)));
+        let readiness = Arc::new(Mutex::new(ReadinessVec::new(len)));
         let wakers = (0..len)
             .map(|i| Arc::new(InlineWaker::new(i, readiness.clone())).into())
             .collect();
@@ -26,7 +26,7 @@ impl WakerList {
     }
 
     /// Access the `Readiness`.
-    pub(crate) fn readiness(&self) -> &Mutex<Readiness> {
+    pub(crate) fn readiness(&self) -> &Mutex<ReadinessVec> {
         self.readiness.as_ref()
     }
 }

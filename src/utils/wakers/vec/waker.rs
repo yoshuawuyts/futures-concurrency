@@ -6,18 +6,18 @@ use std::task;
 use std::task::Wake;
 use std::task::Waker;
 
-use super::Readiness;
+use super::ReadinessVec;
 
 /// An efficient waker which delegates wake events.
 #[derive(Debug, Clone)]
 pub(crate) struct InlineWaker {
     pub(crate) id: usize,
-    pub(crate) readiness: Arc<Mutex<Readiness>>,
+    pub(crate) readiness: Arc<Mutex<ReadinessVec>>,
 }
 
 impl InlineWaker {
     /// Create a new instance of `InlineWaker`.
-    pub(crate) fn new(id: usize, readiness: Arc<Mutex<Readiness>>) -> Self {
+    pub(crate) fn new(id: usize, readiness: Arc<Mutex<ReadinessVec>>) -> Self {
         Self { id, readiness }
     }
 }
