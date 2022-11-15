@@ -69,6 +69,19 @@ pub(crate) enum PollStates {
     Boxed(Box<[PollState]>),
 }
 
+impl core::fmt::Debug for PollStates {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Inline(len, states) => f
+                // .debug_tuple("Inline")
+                .debug_list()
+                .entries(&states[..(*len as usize)])
+                .finish(),
+            Self::Boxed(states) => f.debug_list().entries(&**states).finish(),
+        }
+    }
+}
+
 impl PollStates {
     pub(crate) fn new(len: usize) -> Self {
         assert!(MAX_INLINE_ENTRIES <= u8::MAX as usize);

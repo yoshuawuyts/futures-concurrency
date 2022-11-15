@@ -1,6 +1,10 @@
 /// Compute the number of permutations for a number
 /// during compilation.
 pub(crate) const fn permutations(mut num: u32) -> u32 {
+    if num == 0 {
+        return 0;
+    }
+
     let mut total = 1;
     loop {
         total *= num;
