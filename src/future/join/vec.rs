@@ -91,7 +91,7 @@ where
             if states[i].is_pending() {
                 if let Poll::Ready(value) = fut.poll(cx) {
                     this.items[i] = MaybeUninit::new(value);
-                    states[i] = PollState::Done;
+                    states[i] = PollState::Ready;
                     *this.pending -= 1;
                 }
             }
@@ -102,7 +102,10 @@ where
             // Mark all data as "consumed" before we take it
             *this.consumed = true;
             this.state.iter_mut().for_each(|state| {
-                debug_assert!(state.is_done(), "Future should have reached a `Done` state");
+                debug_assert!(
+                    state.is_ready(),
+                    "Future should have reached a `Ready` state"
+                );
                 *state = PollState::Consumed;
             });
 
@@ -133,7 +136,7 @@ where
             .state
             .iter_mut()
             .enumerate()
-            .filter(|(_, state)| state.is_done())
+            .filter(|(_, state)| state.is_ready())
             .map(|(i, _)| i);
 
         // Drop each value at the index.
