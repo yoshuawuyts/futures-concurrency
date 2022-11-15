@@ -1,3 +1,5 @@
+#![allow(clippy::module_inception)]
+
 mod array;
 mod maybe_done;
 mod poll_state;
