@@ -1,5 +1,5 @@
 use super::Join as JoinTrait;
-use crate::utils::{iter_pin_mut_vec, PollState, PollStates};
+use crate::utils::{iter_pin_mut_vec, PollState, PollVec};
 
 use core::fmt;
 use core::future::{Future, IntoFuture};
@@ -26,7 +26,7 @@ where
     consumed: bool,
     pending: usize,
     items: Vec<MaybeUninit<<Fut as Future>::Output>>,
-    state: PollStates,
+    state: PollVec,
     #[pin]
     futures: Vec<Fut>,
 }
@@ -42,7 +42,7 @@ where
             items: std::iter::repeat_with(MaybeUninit::uninit)
                 .take(futures.len())
                 .collect(),
-            state: PollStates::new(futures.len()),
+            state: PollVec::new(futures.len()),
             futures,
         }
     }
