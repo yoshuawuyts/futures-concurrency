@@ -7,6 +7,7 @@ use crate::utils;
 #[derive(Debug)]
 pub(crate) struct Readiness {
     count: usize,
+    max_count: usize,
     ready: BitVec,
     parent_waker: Option<Waker>,
 }
@@ -16,6 +17,7 @@ impl Readiness {
     pub(crate) fn new(count: usize) -> Self {
         Self {
             count,
+            max_count: count,
             ready: bitvec![true as usize; count],
             parent_waker: None,
         }
@@ -31,6 +33,12 @@ impl Readiness {
         } else {
             true
         }
+    }
+
+    /// Set all markers to ready.
+    pub(crate) fn set_all_ready(&mut self) {
+        self.ready.fill(true);
+        self.count = self.max_count;
     }
 
     /// Returns whether the task id was previously ready
