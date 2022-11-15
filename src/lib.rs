@@ -72,7 +72,9 @@ pub mod array {
     pub use crate::future::race::array::Race;
     pub use crate::future::race_ok::array::{AggregateError, RaceOk};
     pub use crate::future::try_join::array::TryJoin;
+    pub use crate::stream::chain::array::Chain;
     pub use crate::stream::merge::array::Merge;
+    pub use crate::stream::zip::array::Zip;
 }
 /// A contiguous growable array type with heap-allocated contents, written `Vec<T>`.
 pub mod vec {
@@ -80,5 +82,7 @@ pub mod vec {
     pub use crate::future::race::vec::Race;
     pub use crate::future::race_ok::vec::{AggregateError, RaceOk};
     pub use crate::future::try_join::vec::TryJoin;
+    pub use crate::stream::chain::vec::Chain;
     pub use crate::stream::merge::vec::Merge;
+    pub use crate::stream::zip::vec::Zip;
 }

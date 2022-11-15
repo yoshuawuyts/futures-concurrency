@@ -11,9 +11,9 @@ use std::mem;
 use futures_core::Stream;
 use pin_project::{pin_project, pinned_drop};
 
-/// ‘Zips up’ multiple streams into a single stream of pairs.
+/// A stream that ‘zips up’ multiple streams into a single stream of pairs.
 ///
-/// This `struct` is created by the [`merge`] method on the [`Zip`] trait. See its
+/// This `struct` is created by the [`zip`] method on the [`Zip`] trait. See its
 /// documentation for more.
 ///
 /// [`zip`]: trait.Zip.html#method.zip

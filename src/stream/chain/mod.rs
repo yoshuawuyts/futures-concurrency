@@ -1,10 +1,10 @@
 use futures_core::Stream;
 
-mod array;
-mod tuple;
-mod vec;
+pub(crate) mod array;
+pub(crate) mod tuple;
+pub(crate) mod vec;
 
-/// Takes two streams and creates a new stream over both in sequence.
+/// Takes multiple streams and creates a new stream over all in sequence.
 pub trait Chain {
     /// What's the return type of our stream?
     type Item;

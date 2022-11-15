@@ -1,10 +1,10 @@
 use futures_core::Stream;
 
-mod array;
-mod tuple;
-mod vec;
+pub(crate) mod array;
+pub(crate) mod tuple;
+pub(crate) mod vec;
 
-/// ‘Zips up’ two streams into a single stream of pairs.
+/// ‘Zips up’ multiple streams into a single stream of pairs.
 pub trait Zip {
     /// What's the return type of our stream?
     type Item;
