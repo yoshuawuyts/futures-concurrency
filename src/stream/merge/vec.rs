@@ -26,7 +26,6 @@ where
     wakers: WakerList,
     state: PollStates,
     done: bool,
-    len: usize,
 }
 
 impl<S> Merge<S>
@@ -42,7 +41,6 @@ where
             rng: RandomGenerator::new(),
             complete: 0,
             done: false,
-            len,
         }
     }
 }
@@ -71,8 +69,8 @@ where
         // Iterate over our streams one-by-one. If a stream yields a value,
         // we exit early. By default we'll return `Poll::Ready(None)`, but
         // this changes if we encounter a `Poll::Pending`.
-        let len = *this.len;
-        let r = this.rng.generate(this.streams.len() as u32) as usize;
+        let len = this.streams.len();
+        let r = this.rng.generate(len as u32) as usize;
         for index in (0..len).map(|n| (r + n).wrapping_rem(len)) {
             if !readiness.any_ready() {
                 // Nothing is ready yet
