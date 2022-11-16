@@ -47,8 +47,12 @@
 //!
 //! See the [future concurrency][crate::future#concurrency] documentation for
 //! more on futures concurrency.
+pub use chain::Chain;
 pub use into_stream::IntoStream;
 pub use merge::Merge;
+pub use zip::Zip;
 
+pub(crate) mod chain;
 mod into_stream;
 pub(crate) mod merge;
+pub(crate) mod zip;
