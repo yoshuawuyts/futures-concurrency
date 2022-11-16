@@ -1,6 +1,5 @@
 use super::Join as JoinTrait;
-use crate::utils;
-use crate::utils::PollState;
+use crate::utils::{self, PollArray, PollState};
 
 use core::array;
 use core::fmt;
@@ -27,7 +26,7 @@ where
     consumed: bool,
     pending: usize,
     items: [MaybeUninit<<Fut as Future>::Output>; N],
-    state: [PollState; N],
+    state: PollArray<N>,
     #[pin]
     futures: [Fut; N],
 }
@@ -42,7 +41,7 @@ where
             consumed: false,
             pending: N,
             items: array::from_fn(|_| MaybeUninit::uninit()),
-            state: [PollState::default(); N],
+            state: PollArray::new(),
             futures,
         }
     }

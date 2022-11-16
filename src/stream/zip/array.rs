@@ -1,6 +1,6 @@
 use super::Zip as ZipTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, PollState, WakerArray};
+use crate::utils::{self, PollArray, PollState, WakerArray};
 
 use core::array;
 use core::fmt;
@@ -28,7 +28,7 @@ where
     streams: [S; N],
     output: [MaybeUninit<<S as Stream>::Item>; N],
     wakers: WakerArray<N>,
-    state: [PollState; N],
+    state: PollArray<N>,
     done: bool,
 }
 
@@ -40,7 +40,7 @@ where
         Self {
             streams,
             output: array::from_fn(|_| MaybeUninit::uninit()),
-            state: array::from_fn(|_| PollState::default()),
+            state: PollArray::new(),
             wakers: WakerArray::new(),
             done: false,
         }
