@@ -24,3 +24,6 @@ pub(crate) use wakers::{InlineWakerArray, WakerArray, WakerVec};
 
 #[cfg(test)]
 pub(crate) use wakers::DummyWaker;
+
+#[cfg(test)]
+pub(crate) mod channel;
