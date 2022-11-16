@@ -33,6 +33,12 @@ impl<const N: usize> ReadinessArray<N> {
         }
     }
 
+    /// Set all markers to ready.
+    pub(crate) fn set_all_ready(&mut self) {
+        self.ready.fill(true);
+        self.count = N;
+    }
+
     /// Returns whether the task id was previously ready
     pub(crate) fn clear_ready(&mut self, id: usize) -> bool {
         if self.ready[id] {

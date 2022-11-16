@@ -151,7 +151,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::utils::wakers::DummyWaker;
+    use crate::utils::DummyWaker;
 
     use std::future;
     use std::future::Future;

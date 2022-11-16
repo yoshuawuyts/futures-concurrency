@@ -1,6 +1,6 @@
 use super::Zip as ZipTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, PollState, WakerList};
+use crate::utils::{self, PollState, WakerVec};
 
 use core::fmt;
 use core::mem::MaybeUninit;
@@ -26,7 +26,7 @@ where
     #[pin]
     streams: Vec<S>,
     output: Vec<MaybeUninit<<S as Stream>::Item>>,
-    wakers: WakerList,
+    wakers: WakerVec,
     state: Vec<PollState>,
     done: bool,
     len: usize,
@@ -41,7 +41,7 @@ where
         Self {
             len,
             streams,
-            wakers: WakerList::new(len),
+            wakers: WakerVec::new(len),
             output: (0..len).map(|_| MaybeUninit::uninit()).collect(),
             state: (0..len).map(|_| PollState::default()).collect(),
             done: false,
@@ -75,7 +75,7 @@ where
             if !readiness.any_ready() {
                 // Nothing is ready yet
                 return Poll::Pending;
-            } else if this.state[index].is_done() || !readiness.clear_ready(index) {
+            } else if this.state[index].is_ready() || !readiness.clear_ready(index) {
                 // We already have data stored for this stream,
                 // Or this waker isn't ready yet
                 continue;
@@ -91,9 +91,9 @@ where
             match stream.poll_next(&mut cx) {
                 Poll::Ready(Some(item)) => {
                     this.output[index] = MaybeUninit::new(item);
-                    this.state[index] = PollState::Done;
+                    this.state[index] = PollState::Ready;
 
-                    let all_ready = this.state.iter().all(|state| state.is_done());
+                    let all_ready = this.state.iter().all(|state| state.is_ready());
                     if all_ready {
                         // Reset the future's state.
                         readiness = this.wakers.readiness().lock().unwrap();
@@ -136,7 +136,7 @@ where
         let this = self.project();
 
         for (state, output) in this.state.iter_mut().zip(this.output.iter_mut()) {
-            if state.is_done() {
+            if state.is_ready() {
                 // SAFETY: we've just filtered down to *only* the initialized values.
                 // We can assume they're initialized, and this is where we drop them.
                 unsafe { output.assume_init_drop() };

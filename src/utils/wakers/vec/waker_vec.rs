@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::task::Waker;
 
-use super::{InlineWaker, ReadinessVec};
+use super::{InlineWakerVec, ReadinessVec};
 use crate::utils;
 
 /// A collection of wakers which delegate to an in-line waker.
@@ -16,7 +16,7 @@ impl WakerVec {
     pub(crate) fn new(len: usize) -> Self {
         let readiness = Arc::new(Mutex::new(ReadinessVec::new(len)));
         let wakers = (0..len)
-            .map(|i| Arc::new(InlineWaker::new(i, readiness.clone())).into())
+            .map(|i| Arc::new(InlineWakerVec::new(i, readiness.clone())).into())
             .collect();
         Self { wakers, readiness }
     }

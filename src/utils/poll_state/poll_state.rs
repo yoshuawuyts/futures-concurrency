@@ -25,7 +25,7 @@ impl PollState {
 
     /// Returns `true` if the poll state is [`Ready`].
     ///
-    /// [`Done`]: PollState::Done
+    /// [`Done`]: PollState::Ready
     #[must_use]
     #[inline]
     pub(crate) fn is_ready(&self) -> bool {

@@ -1,6 +1,6 @@
 use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, PollState, PollStates, RandomGenerator, WakerList};
+use crate::utils::{self, PollArray, PollState, RandomGenerator, WakerArray};
 
 use core::fmt;
 use futures_core::Stream;
@@ -22,9 +22,9 @@ where
     #[pin]
     streams: [S; N],
     rng: RandomGenerator,
+    wakers: WakerArray<N>,
+    state: PollArray<N>,
     complete: usize,
-    wakers: WakerList,
-    state: PollStates,
     done: bool,
 }
 
@@ -33,12 +33,11 @@ where
     S: Stream,
 {
     pub(crate) fn new(streams: [S; N]) -> Self {
-        let len = streams.len();
         Self {
-            wakers: WakerList::new(len),
-            state: PollStates::new(len),
             streams,
             rng: RandomGenerator::new(),
+            wakers: WakerArray::new(),
+            state: PollArray::new(),
             complete: 0,
             done: false,
         }

@@ -10,19 +10,19 @@ use super::ReadinessArray;
 
 /// An efficient waker which delegates wake events.
 #[derive(Debug, Clone)]
-pub(crate) struct InlineWaker<const N: usize> {
+pub(crate) struct InlineWakerArray<const N: usize> {
     pub(crate) id: usize,
     pub(crate) readiness: Arc<Mutex<ReadinessArray<N>>>,
 }
 
-impl<const N: usize> InlineWaker<N> {
+impl<const N: usize> InlineWakerArray<N> {
     /// Create a new instance of `InlineWaker`.
     pub(crate) fn new(id: usize, readiness: Arc<Mutex<ReadinessArray<N>>>) -> Self {
         Self { id, readiness }
     }
 }
 
-impl<const N: usize> Wake for InlineWaker<N> {
+impl<const N: usize> Wake for InlineWakerArray<N> {
     fn wake(self: std::sync::Arc<Self>) {
         let mut readiness = self.readiness.lock().unwrap();
         if !readiness.set_ready(self.id) {

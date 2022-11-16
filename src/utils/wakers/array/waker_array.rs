@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::task::Waker;
 
-use super::{InlineWaker, ReadinessArray};
+use super::{InlineWakerArray, ReadinessArray};
 use crate::utils;
 
 /// A collection of wakers which delegate to an in-line waker.
@@ -17,7 +17,9 @@ impl<const N: usize> WakerArray<N> {
     pub(crate) fn new() -> Self {
         let readiness = Arc::new(Mutex::new(ReadinessArray::new()));
         Self {
-            wakers: array::from_fn(|i| Arc::new(InlineWaker::new(i, readiness.clone())).into()),
+            wakers: array::from_fn(|i| {
+                Arc::new(InlineWakerArray::new(i, readiness.clone())).into()
+            }),
             readiness,
         }
     }

@@ -7,7 +7,7 @@ pub(crate) struct PollArray<const N: usize> {
 }
 
 impl<const N: usize> PollArray<N> {
-    pub(crate) fn new(len: usize) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             state: [PollState::default(); N],
         }
