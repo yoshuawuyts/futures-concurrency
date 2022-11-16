@@ -41,7 +41,7 @@ macro_rules! impl_merge_tuple {
         #[allow(unused_parens)]
         #[allow(unused_variables)]
         impl<$($F: Future),*> Future for $StructName<$($F),*> {
-            type Output = ($($F::Output),*);
+            type Output = ($($F::Output,)*);
 
             fn poll(
                 self: Pin<&mut Self>, cx: &mut Context<'_>
@@ -54,7 +54,7 @@ macro_rules! impl_merge_tuple {
 
                 if all_done {
                     *this.done = true;
-                    Poll::Ready(($(this.$F.take().unwrap()),*))
+                    Poll::Ready(($(this.$F.take().unwrap(),)*))
                 } else {
                     Poll::Pending
                 }
@@ -66,7 +66,7 @@ macro_rules! impl_merge_tuple {
         where $(
             $F: IntoFuture,
         )* {
-            type Output = ($($F::Output),*);
+            type Output = ($($F::Output,)*);
             type Future = $StructName<$($F::IntoFuture),*>;
 
             fn join(self) -> Self::Future {
@@ -110,7 +110,7 @@ mod test {
     fn join_1() {
         futures_lite::future::block_on(async {
             let a = future::ready("hello");
-            assert_eq!((a,).join().await, ("hello"));
+            assert_eq!((a,).join().await, ("hello",));
         });
     }
 
