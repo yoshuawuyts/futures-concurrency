@@ -1,3 +1,5 @@
+use crate::utils::{self, RandomGenerator};
+
 use super::Race as RaceTrait;
 
 use core::fmt;
@@ -20,7 +22,9 @@ pub struct Race<Fut>
 where
     Fut: Future,
 {
-    futs: Vec<Fut>,
+    #[pin]
+    futures: Vec<Fut>,
+    rng: RandomGenerator,
     done: bool,
 }
 
@@ -30,7 +34,7 @@ where
     Fut::Output: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_list().entries(self.futs.iter()).finish()
+        f.debug_list().entries(self.futures.iter()).finish()
     }
 }
 
@@ -41,16 +45,20 @@ where
     type Output = Fut::Output;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
-        assert!(
-            !*this.done,
-            "Futures must not be polled after being completed"
-        );
-        for fut in this.futs {
-            let fut = unsafe { Pin::new_unchecked(fut) };
-            if let Poll::Ready(output) = Future::poll(fut, cx) {
-                *this.done = true;
-                return Poll::Ready(output);
+        let mut this = self.project();
+        assert!(!*this.done, "Futures must not be polled after completing");
+
+        let len = this.futures.len();
+        let index = this.rng.generate(len as u32) as usize;
+
+        for index in (0..len).map(|pos| (index + pos).wrapping_rem(len)) {
+            let fut = utils::get_pin_mut_from_vec(this.futures.as_mut(), index).unwrap();
+            match fut.poll(cx) {
+                Poll::Ready(item) => {
+                    *this.done = true;
+                    return Poll::Ready(item);
+                }
+                Poll::Pending => continue,
             }
         }
         Poll::Pending
@@ -66,7 +74,8 @@ where
 
     fn race(self) -> Self::Future {
         Race {
-            futs: self.into_iter().map(|fut| fut.into_future()).collect(),
+            futures: self.into_iter().map(|fut| fut.into_future()).collect(),
+            rng: RandomGenerator::new(),
             done: false,
         }
     }
@@ -84,7 +93,7 @@ mod test {
             let res = vec![future::ready("hello"), future::ready("world")]
                 .race()
                 .await;
-            assert_eq!(res, "hello");
+            assert!(matches!(res, "hello" | "world"));
         });
     }
 }
