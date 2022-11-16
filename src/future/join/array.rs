@@ -36,6 +36,7 @@ impl<Fut, const N: usize> Join<Fut, N>
 where
     Fut: Future,
 {
+    #[inline]
     pub(crate) fn new(futures: [Fut; N]) -> Self {
         Join {
             consumed: false,
@@ -54,6 +55,7 @@ where
     type Output = [Fut::Output; N];
     type Future = Join<Fut::IntoFuture, N>;
 
+    #[inline]
     fn join(self) -> Self::Future {
         Join::new(self.map(IntoFuture::into_future))
     }
@@ -75,6 +77,7 @@ where
 {
     type Output = [Fut::Output; N];
 
+    #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
 
