@@ -20,12 +20,16 @@ bench = false
 name = "bench"
 harness = false
 
+[[bench]]
+name = "compare"
+harness = false
+
 [dependencies]
 bitvec = { version = "1.0.1", default-features = false, features = ["alloc"] }
 futures-core = "0.3"
 pin-project = "1.0.8"
 
 [dev-dependencies]
-futures-lite = "1.12.0"
 futures = "0.3.25"
-criterion = { version = "0.3", features = ["async", "async_futures"] }
+futures-lite = "1.12.0"
+criterion = { version = "0.3", features = ["async", "async_futures", "html_reports"] }
