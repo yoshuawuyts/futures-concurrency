@@ -5,20 +5,18 @@ use crate::utils;
 
 /// Tracks which wakers are "ready" and should be polled.
 #[derive(Debug)]
-pub(crate) struct Readiness {
+pub(crate) struct ReadinessArray<const N: usize> {
     count: usize,
-    max_count: usize,
-    ready: BitVec,
+    ready: [bool; N],
     parent_waker: Option<Waker>,
 }
 
-impl Readiness {
+impl<const N: usize> ReadinessArray<N> {
     /// Create a new instance of readiness.
-    pub(crate) fn new(count: usize) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            count,
-            max_count: count,
-            ready: bitvec![true as usize; count],
+            count: N,
+            ready: [true; N], // TODO: use a bitarray instead
             parent_waker: None,
         }
     }
@@ -27,7 +25,7 @@ impl Readiness {
     pub(crate) fn set_ready(&mut self, id: usize) -> bool {
         if !self.ready[id] {
             self.count += 1;
-            self.ready.set(id, true);
+            self.ready[id] = true;
 
             false
         } else {
@@ -38,14 +36,14 @@ impl Readiness {
     /// Set all markers to ready.
     pub(crate) fn set_all_ready(&mut self) {
         self.ready.fill(true);
-        self.count = self.max_count;
+        self.count = N;
     }
 
     /// Returns whether the task id was previously ready
     pub(crate) fn clear_ready(&mut self, id: usize) -> bool {
         if self.ready[id] {
             self.count -= 1;
-            self.ready.set(id, false);
+            self.ready[id] = false;
 
             true
         } else {

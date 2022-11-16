@@ -1,6 +1,5 @@
 use super::Join as JoinTrait;
-use crate::utils;
-use crate::utils::PollState;
+use crate::utils::{self, PollArray, PollState};
 
 use core::array;
 use core::fmt;
@@ -27,7 +26,7 @@ where
     consumed: bool,
     pending: usize,
     items: [MaybeUninit<<Fut as Future>::Output>; N],
-    state: [PollState; N],
+    state: PollArray<N>,
     #[pin]
     futures: [Fut; N],
 }
@@ -42,7 +41,7 @@ where
             consumed: false,
             pending: N,
             items: array::from_fn(|_| MaybeUninit::uninit()),
-            state: [PollState::default(); N],
+            state: PollArray::new(),
             futures,
         }
     }
@@ -91,7 +90,7 @@ where
             if this.state[i].is_pending() {
                 if let Poll::Ready(value) = fut.poll(cx) {
                     this.items[i] = MaybeUninit::new(value);
-                    this.state[i] = PollState::Done;
+                    this.state[i] = PollState::Ready;
                     *this.pending -= 1;
                 }
             }
@@ -102,7 +101,10 @@ where
             // Mark all data as "consumed" before we take it
             *this.consumed = true;
             for state in this.state.iter_mut() {
-                debug_assert!(state.is_done(), "Future should have reached a `Done` state");
+                debug_assert!(
+                    state.is_ready(),
+                    "Future should have reached a `Ready` state"
+                );
                 *state = PollState::Consumed;
             }
 
@@ -133,7 +135,7 @@ where
             .state
             .iter_mut()
             .enumerate()
-            .filter(|(_, state)| state.is_done())
+            .filter(|(_, state)| state.is_ready())
             .map(|(i, _)| i);
 
         // Drop each value at the index.

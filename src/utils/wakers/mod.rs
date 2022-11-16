@@ -1,7 +1,10 @@
-mod inline_waker;
-mod readiness;
-mod waker_list;
+mod array;
+#[cfg(test)]
+mod dummy;
+mod vec;
 
-pub(crate) use inline_waker::InlineWaker;
-pub(crate) use readiness::Readiness;
-pub(crate) use waker_list::WakerList;
+#[cfg(test)]
+pub(crate) use dummy::DummyWaker;
+
+pub(crate) use array::*;
+pub(crate) use vec::*;

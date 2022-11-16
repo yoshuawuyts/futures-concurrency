@@ -1,45 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-/// Enumerate the current poll state.
-#[derive(Debug, Clone, Copy, Default)]
-#[repr(u8)]
-pub(crate) enum PollState {
-    /// Polling the underlying future.
-    #[default]
-    Pending,
-    /// Data has been written to the output structure
-    /// and the future should no longer be polled.
-    Done,
-    /// Data has been consumed from the output structure,
-    /// and we should no longer reason about it.
-    Consumed,
-}
-
-impl PollState {
-    /// Returns `true` if the metadata is [`Pending`].
-    ///
-    /// [`Pending`]: Metadata::Pending
-    #[must_use]
-    pub(crate) fn is_pending(&self) -> bool {
-        matches!(self, Self::Pending)
-    }
-
-    /// Returns `true` if the poll state is [`Done`].
-    ///
-    /// [`Done`]: PollState::Done
-    #[must_use]
-    pub(crate) fn is_done(&self) -> bool {
-        matches!(self, Self::Done)
-    }
-
-    /// Returns `true` if the poll state is [`Consumed`].
-    ///
-    /// [`Consumed`]: PollState::Consumed
-    #[must_use]
-    pub(crate) fn is_consumed(&self) -> bool {
-        matches!(self, Self::Consumed)
-    }
-}
+use super::PollState;
 
 /// The maximum number of entries that `PollStates` can store without
 /// dynamic memory allocation.
@@ -64,12 +25,12 @@ impl PollState {
 /// ```
 const MAX_INLINE_ENTRIES: usize = std::mem::size_of::<usize>() * 3 - 2;
 
-pub(crate) enum PollStates {
+pub(crate) enum PollVec {
     Inline(u8, [PollState; MAX_INLINE_ENTRIES]),
     Boxed(Box<[PollState]>),
 }
 
-impl PollStates {
+impl PollVec {
     pub(crate) fn new(len: usize) -> Self {
         assert!(MAX_INLINE_ENTRIES <= u8::MAX as usize);
 
@@ -89,21 +50,21 @@ impl PollStates {
     }
 }
 
-impl Deref for PollStates {
+impl Deref for PollVec {
     type Target = [PollState];
 
     fn deref(&self) -> &Self::Target {
         match self {
-            PollStates::Inline(len, states) => &states[..*len as usize],
+            PollVec::Inline(len, states) => &states[..*len as usize],
             Self::Boxed(states) => &states[..],
         }
     }
 }
 
-impl DerefMut for PollStates {
+impl DerefMut for PollVec {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
-            PollStates::Inline(len, states) => &mut states[..*len as usize],
+            PollVec::Inline(len, states) => &mut states[..*len as usize],
             Self::Boxed(states) => &mut states[..],
         }
     }
@@ -111,12 +72,12 @@ impl DerefMut for PollStates {
 
 #[cfg(test)]
 mod tests {
-    use super::{PollStates, MAX_INLINE_ENTRIES};
+    use super::{PollVec, MAX_INLINE_ENTRIES};
 
     #[test]
     fn type_size() {
         assert_eq!(
-            std::mem::size_of::<PollStates>(),
+            std::mem::size_of::<PollVec>(),
             std::mem::size_of::<usize>() * 3
         );
     }
@@ -124,6 +85,6 @@ mod tests {
     #[test]
     fn boxed_does_not_allocate_twice() {
         // Make sure the debug_assertions in PollStates::new() don't fail.
-        let _ = PollStates::new(MAX_INLINE_ENTRIES + 10);
+        let _ = PollVec::new(MAX_INLINE_ENTRIES + 10);
     }
 }
