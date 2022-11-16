@@ -1,5 +1,5 @@
 use super::Join as JoinTrait;
-use crate::utils::{iter_pin_mut_vec, PollState, PollVec};
+use crate::utils::{iter_pin_mut_vec, PollVec};
 
 use core::fmt;
 use core::future::{Future, IntoFuture};
@@ -91,7 +91,7 @@ where
             if states[i].is_pending() {
                 if let Poll::Ready(value) = fut.poll(cx) {
                     this.items[i] = MaybeUninit::new(value);
-                    states[i] = PollState::Ready;
+                    states[i].set_ready();
                     *this.pending -= 1;
                 }
             }
@@ -106,7 +106,7 @@ where
                     state.is_ready(),
                     "Future should have reached a `Ready` state"
                 );
-                *state = PollState::Consumed;
+                state.set_consumed();
             });
 
             // SAFETY: we've checked with the state that all of our outputs have been

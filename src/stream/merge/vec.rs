@@ -1,6 +1,6 @@
 use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, PollState, PollVec, RandomGenerator, WakerVec};
+use crate::utils::{self, PollVec, RandomGenerator, WakerVec};
 
 use core::fmt;
 use futures_core::Stream;
@@ -94,7 +94,7 @@ where
                 }
                 Poll::Ready(None) => {
                     *this.complete += 1;
-                    this.state[index] = PollState::Consumed;
+                    this.state[index].set_consumed();
                     if *this.complete == this.streams.len() {
                         return Poll::Ready(None);
                     }
