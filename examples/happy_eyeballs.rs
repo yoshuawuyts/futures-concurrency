@@ -1,4 +1,3 @@
-use async_std::io::prelude::*;
 use futures::channel::oneshot;
 use futures_concurrency::prelude::*;
 use futures_time::prelude::*;
@@ -9,10 +8,8 @@ use std::error::Error;
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
-    let mut socket = open_tcp_socket("https://debian.org", 80, 3).await?;
-    let mut buf = String::new();
-    socket.read_to_string(&mut buf).await?;
-    println!("{buf}");
+    let _socket = open_tcp_socket("debian.org", 80, 3).await?;
+    println!("Successfully opened socket!");
     Ok(())
 }
 
