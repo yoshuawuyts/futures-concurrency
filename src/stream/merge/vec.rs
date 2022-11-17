@@ -125,11 +125,10 @@ where
 #[cfg(test)]
 mod tests {
     use std::cell::RefCell;
-    use std::collections::VecDeque;
     use std::rc::Rc;
-    use std::task::Waker;
 
     use super::*;
+    use crate::utils::channel::local_channel;
     use futures::executor::LocalPool;
     use futures::task::LocalSpawnExt;
     use futures_lite::future::block_on;
@@ -175,73 +174,6 @@ mod tests {
     /// The purpose of this test is to make sure we have the waking logic working.
     #[test]
     fn merge_channels() {
-        struct LocalChannel<T> {
-            queue: VecDeque<T>,
-            waker: Option<Waker>,
-            closed: bool,
-        }
-
-        struct LocalReceiver<T> {
-            channel: Rc<RefCell<LocalChannel<T>>>,
-        }
-
-        impl<T> Stream for LocalReceiver<T> {
-            type Item = T;
-
-            fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-                let mut channel = self.channel.borrow_mut();
-
-                match channel.queue.pop_front() {
-                    Some(item) => Poll::Ready(Some(item)),
-                    None => {
-                        if channel.closed {
-                            Poll::Ready(None)
-                        } else {
-                            channel.waker = Some(cx.waker().clone());
-                            Poll::Pending
-                        }
-                    }
-                }
-            }
-        }
-
-        struct LocalSender<T> {
-            channel: Rc<RefCell<LocalChannel<T>>>,
-        }
-
-        impl<T> LocalSender<T> {
-            fn send(&self, item: T) {
-                let mut channel = self.channel.borrow_mut();
-
-                channel.queue.push_back(item);
-
-                let _ = channel.waker.take().map(Waker::wake);
-            }
-        }
-
-        impl<T> Drop for LocalSender<T> {
-            fn drop(&mut self) {
-                let mut channel = self.channel.borrow_mut();
-                channel.closed = true;
-                let _ = channel.waker.take().map(Waker::wake);
-            }
-        }
-
-        fn local_channel<T>() -> (LocalSender<T>, LocalReceiver<T>) {
-            let channel = Rc::new(RefCell::new(LocalChannel {
-                queue: VecDeque::new(),
-                waker: None,
-                closed: false,
-            }));
-
-            (
-                LocalSender {
-                    channel: channel.clone(),
-                },
-                LocalReceiver { channel },
-            )
-        }
-
         let mut pool = LocalPool::new();
 
         let done = Rc::new(RefCell::new(false));
