@@ -1,4 +1,5 @@
 use async_std::io::prelude::*;
+use futures::channel::oneshot;
 use futures_concurrency::prelude::*;
 use futures_time::prelude::*;
 
@@ -30,11 +31,29 @@ async fn open_tcp_socket(
     port: u16,
     attempts: u64,
 ) -> Result<TcpStream, Box<dyn Error + Send + Sync + 'static>> {
-    let socket = (0..attempts)
-        .map(|i| TcpStream::connect((addr, port)).delay(Duration::from_secs(i)))
-        .collect::<Vec<_>>()
+    let (init_send, init_recv) = oneshot::channel();
+    // Make the initial one start up right away
+    let _ = init_send.send(());
+    let mut futures = vec![];
+    let _last_receiver = (0..attempts).fold(init_recv, |event, attempt| {
+        let (send, recv) = oneshot::channel();
+        futures.push(async move {
+            // Wait for the previous one to complete
+            let _ = event.timeout(Duration::from_secs(attempt)).await?;
+
+            TcpStream::connect((addr, port)).await.map_err(|e| {
+                // If we have an error, tell the next one they can go ahead and start
+                let _ = send.send(());
+                e
+            })
+        });
+        recv
+    });
+
+    let socket = futures
         .race_ok()
         .timeout(Duration::from_secs(attempts + 1))
         .await??;
+
     Ok(socket)
 }
