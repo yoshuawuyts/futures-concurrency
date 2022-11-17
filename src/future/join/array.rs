@@ -1,5 +1,5 @@
 use super::Join as JoinTrait;
-use crate::utils::{self, PollArray, PollState};
+use crate::utils::{self, PollArray};
 
 use core::array;
 use core::fmt;
@@ -90,7 +90,7 @@ where
             if this.state[i].is_pending() {
                 if let Poll::Ready(value) = fut.poll(cx) {
                     this.items[i] = MaybeUninit::new(value);
-                    this.state[i] = PollState::Ready;
+                    this.state[i].set_ready();
                     *this.pending -= 1;
                 }
             }
@@ -105,7 +105,7 @@ where
                     state.is_ready(),
                     "Future should have reached a `Ready` state"
                 );
-                *state = PollState::Consumed;
+                state.set_consumed();
             }
 
             let mut items = array::from_fn(|_| MaybeUninit::uninit());

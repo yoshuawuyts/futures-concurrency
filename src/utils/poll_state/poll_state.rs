@@ -25,11 +25,19 @@ impl PollState {
 
     /// Returns `true` if the poll state is [`Ready`].
     ///
-    /// [`Done`]: PollState::Ready
+    /// [`Ready`]: PollState::Ready
     #[must_use]
     #[inline]
     pub(crate) fn is_ready(&self) -> bool {
         matches!(self, Self::Ready)
+    }
+
+    /// Sets the poll state to [`Ready`]
+    ///
+    /// [`Ready`]: PollState::Ready
+    #[inline]
+    pub(crate) fn set_ready(&mut self) {
+        *self = PollState::Ready;
     }
 
     /// Returns `true` if the poll state is [`Consumed`].
@@ -39,5 +47,13 @@ impl PollState {
     #[inline]
     pub(crate) fn is_consumed(&self) -> bool {
         matches!(self, Self::Consumed)
+    }
+
+    /// Sets the poll state to [`Consumed`]
+    ///
+    /// [`Consumed`]: PollState::Consumed
+    #[inline]
+    pub(crate) fn set_consumed(&mut self) {
+        *self = PollState::Consumed;
     }
 }

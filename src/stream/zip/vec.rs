@@ -91,14 +91,14 @@ where
             match stream.poll_next(&mut cx) {
                 Poll::Ready(Some(item)) => {
                     this.output[index] = MaybeUninit::new(item);
-                    this.state[index] = PollState::Ready;
+                    this.state[index].set_ready();
 
                     let all_ready = this.state.iter().all(|state| state.is_ready());
                     if all_ready {
                         // Reset the future's state.
                         readiness = this.wakers.readiness().lock().unwrap();
                         readiness.set_all_ready();
-                        this.state.fill(PollState::Pending);
+                        this.state.fill_with(PollState::default);
 
                         // Take the output
                         //
