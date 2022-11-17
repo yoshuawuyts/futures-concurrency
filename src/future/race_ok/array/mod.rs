@@ -12,15 +12,13 @@ mod error;
 
 pub use error::AggregateError;
 
-/// Waits for two similarly-typed futures to complete.
+/// Wait for the first successful future to complete.
 ///
-/// Wait for the first future to complete.
-///
-/// This `struct` is created by the [`try_race`] method on the [`TryRace`] trait. See
+/// This `struct` is created by the [`race_ok`] method on the [`RaceOk`] trait. See
 /// its documentation for more.
 ///
-/// [`try_race`]: crate::future::TryRace::try_race
-/// [`TryRace`]: crate::future::TryRace
+/// [`race_ok`]: crate::future::RaceOk::race_ok
+/// [`RaceOk`]: crate::future::RaceOk
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
 pub struct RaceOk<Fut, T, E, const N: usize>

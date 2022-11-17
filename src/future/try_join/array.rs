@@ -13,8 +13,8 @@ use pin_project::pin_project;
 /// This `struct` is created by the [`try_join`] method on the [`TryJoin`] trait. See
 /// its documentation for more.
 ///
-/// [`try_join`]: crate::future::TryJoin::try_race
-/// [`TryJoin`]: crate::future::TryRace
+/// [`try_join`]: crate::future::TryJoin::try_join
+/// [`TryJoin`]: crate::future::TryJoin
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
 pub struct TryJoin<Fut, T, E, const N: usize>
