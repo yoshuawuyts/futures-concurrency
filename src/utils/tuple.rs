@@ -56,7 +56,6 @@ macro_rules! gen_conditions {
 }
 pub(crate) use gen_conditions;
 
-
 /// Repeats a given macro for each element a tuple has, passing the iteration
 /// number (aka the element index) to the macro called macro.
 ///
