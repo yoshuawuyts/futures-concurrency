@@ -34,7 +34,7 @@ async fn open_tcp_socket(
     attempts: u64,
 ) -> Result<TcpStream, Box<dyn Error + Send + Sync + 'static>> {
     let (mut sender, mut receiver) = oneshot::channel();
-    let mut futures = vec![];
+    let mut futures = Vec::with_capacity(attempts as usize);
 
     for attempt in 0..attempts {
         let tcp = TcpStream::connect((addr, port));
