@@ -3,11 +3,12 @@ use futures::future::TryFutureExt;
 use futures_concurrency::prelude::*;
 use futures_time::prelude::*;
 
+use async_std::io;
 use async_std::net::TcpStream;
 use futures::channel::oneshot;
 use futures_concurrency::vec::AggregateError;
 use futures_time::time::Duration;
-use std::{error, io};
+use std::error;
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn error::Error + Send + Sync + 'static>> {
@@ -16,9 +17,7 @@ async fn main() -> Result<(), Box<dyn error::Error + Send + Sync + 'static>> {
 
     // Make an HTTP GET request.
     socket.write_all(b"GET / \r\n").await?;
-    let mut res = String::new();
-    socket.read_to_string(&mut res).await?;
-    println!("{res}");
+    io::copy(&mut socket, &mut io::stdout()).await?;
 
     Ok(())
 }
