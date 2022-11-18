@@ -1,4 +1,5 @@
 use core::fmt;
+use std::error::Error;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::vec::Vec;
@@ -15,19 +16,26 @@ impl<E> AggregateError<E> {
     }
 }
 
-impl<E: fmt::Debug> fmt::Debug for AggregateError<E> {
+impl<E: Error> fmt::Debug for AggregateError<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut list = f.debug_list();
-        for err in &self.inner {
-            list.entry(err);
+        writeln!(f, "{self}:")?;
+
+        for (i, err) in self.inner.iter().enumerate() {
+            writeln!(f, "- Error {}: {err}", i + 1)?;
+            let mut source = err.source();
+            while let Some(err) = source {
+                writeln!(f, "  ↳ Caused by: {err}")?;
+                source = err.source();
+            }
         }
-        list.finish()
+
+        Ok(())
     }
 }
 
-impl<E: fmt::Debug> fmt::Display for AggregateError<E> {
+impl<E: Error> fmt::Display for AggregateError<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self, f)
+        write!(f, "{} errors occured", self.inner.len())
     }
 }
 
@@ -45,4 +53,4 @@ impl<E> DerefMut for AggregateError<E> {
     }
 }
 
-impl<E: fmt::Debug> std::error::Error for AggregateError<E> {}
+impl<E: Error> Error for AggregateError<E> {}
