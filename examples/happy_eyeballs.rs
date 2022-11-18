@@ -1,15 +1,14 @@
-use futures::channel::oneshot;
+use futures::future::TryFutureExt;
 use futures_concurrency::prelude::*;
 use futures_time::prelude::*;
 
 use async_std::net::TcpStream;
+use futures::channel::oneshot;
 use futures_time::time::Duration;
 use std::error::Error;
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
-    let _socket = open_tcp_socket("debian.org", 80, 3).await?;
-    println!("Successfully opened socket!");
     Ok(())
 }
 
@@ -28,24 +27,18 @@ async fn open_tcp_socket(
     port: u16,
     attempts: u64,
 ) -> Result<TcpStream, Box<dyn Error + Send + Sync + 'static>> {
-    let (init_send, init_recv) = oneshot::channel();
-    // Make the initial one start up right away
-    let _ = init_send.send(());
+    let (mut sender, mut receiver) = oneshot::channel();
     let mut futures = vec![];
-    let _last_receiver = (0..attempts).fold(init_recv, |event, attempt| {
-        let (send, recv) = oneshot::channel();
-        futures.push(async move {
-            // Wait for the previous one to complete
-            let _ = event.timeout(Duration::from_secs(attempt)).await?;
 
-            TcpStream::connect((addr, port)).await.map_err(|e| {
-                // If we have an error, tell the next one they can go ahead and start
-                let _ = send.send(());
-                e
-            })
-        });
-        recv
-    });
+    for attempt in 0..attempts {
+        let tcp = TcpStream::connect((addr, port));
+        let start_event = receiver.timeout(Duration::from_secs(attempt));
+        futures.push(tcp.delay(start_event).map_err(|err| {
+            let _ = sender.send(());
+            err
+        }));
+        (sender, receiver) = oneshot::channel();
+    }
 
     let socket = futures
         .race_ok()
