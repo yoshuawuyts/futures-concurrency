@@ -15,8 +15,8 @@ use std::vec::Vec;
 /// This `struct` is created by the [`try_join`] method on the [`TryJoin`] trait. See
 /// its documentation for more.
 ///
-/// [`try_join`]: crate::future::TryJoin::try_race
-/// [`TryJoin`]: crate::future::TryRace
+/// [`try_join`]: crate::future::TryJoin::try_join
+/// [`TryJoin`]: crate::future::TryJoin
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct TryJoin<Fut, T, E>
 where
