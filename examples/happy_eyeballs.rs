@@ -1,3 +1,4 @@
+use async_std::io::prelude::*;
 use futures::future::TryFutureExt;
 use futures_concurrency::prelude::*;
 use futures_time::prelude::*;
@@ -9,6 +10,11 @@ use std::error::Error;
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+    let mut socket = open_tcp_socket("rust-lang.org", 80, 3).await?;
+    socket.write_all(b"GET / \r\n").await?;
+    let mut res = String::new();
+    socket.read_to_string(&mut res).await?;
+    println!("{res}");
     Ok(())
 }
 
