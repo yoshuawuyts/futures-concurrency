@@ -79,9 +79,7 @@ macro_rules! impl_merge_tuple {
                 $($F),+
             }
 
-            pub(super) const LEN: usize = match [$(Indexes::$F),+] {
-                [.., last] => last as usize + 1,
-            };
+            pub(super) const LEN: usize = [$(Indexes::$F),+].len();
         }
 
         /// A stream that merges multiple streams into a single stream.

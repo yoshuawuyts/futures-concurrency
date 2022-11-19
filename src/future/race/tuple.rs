@@ -75,9 +75,7 @@ macro_rules! impl_race_tuple {
                     $($F),*
                 }
 
-                const LEN: u32 = match [$(Indexes::$F),*] {
-                    [.., last] => last as u32 + 1,
-                };
+                const LEN: u32 = [$(Indexes::$F),*].len() as u32;
                 const PERMUTATIONS: u32 = utils::permutations(LEN);
                 let r = this.rng.generate(PERMUTATIONS);
 
