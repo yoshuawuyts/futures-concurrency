@@ -32,7 +32,7 @@ macro_rules! gen_conditions {
     // Base condition, setup the depth counter.
     ($LEN:expr, $i:expr, $r:expr, $this:expr, $cx:expr, $method:ident, $(($F_index: expr; $F:ident, { $($arms:pat => $foo:expr,)* }))*) => {
         $(
-            if $i == ($r + ($F_index)).wrapping_rem($LEN) {
+            if $i == ($r + $F_index).wrapping_rem($LEN) {
                 match unsafe { Pin::new_unchecked(&mut $this.$F) }.$method($cx) {
                     $($arms => $foo,)*
                 }

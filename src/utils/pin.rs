@@ -1,5 +1,5 @@
-use core::{array::IntoIter, pin::Pin};
-use std::{iter::Map, slice::SliceIndex};
+use core::pin::Pin;
+use core::slice::SliceIndex;
 
 // From: `futures_rs::join_all!` -- https://github.com/rust-lang/futures-rs/blob/b48eb2e9a9485ef7388edc2f177094a27e08e28b/futures-util/src/future/join_all.rs#L18-L23
 pub(crate) fn iter_pin_mut<T>(slice: Pin<&mut [T]>) -> impl Iterator<Item = Pin<&mut T>> {

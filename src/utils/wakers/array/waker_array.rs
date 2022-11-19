@@ -4,7 +4,6 @@ use std::sync::Mutex;
 use std::task::Waker;
 
 use super::{InlineWakerArray, ReadinessArray};
-use crate::utils;
 
 /// A collection of wakers which delegate to an in-line waker.
 pub(crate) struct WakerArray<const N: usize> {

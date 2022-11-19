@@ -1,10 +1,5 @@
-use crate::utils;
-use std::sync;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::task;
+use std::sync::{Arc, Mutex};
 use std::task::Wake;
-use std::task::Waker;
 
 use super::ReadinessArray;
 

@@ -3,7 +3,6 @@ use std::sync::Mutex;
 use std::task::Waker;
 
 use super::{InlineWakerVec, ReadinessVec};
-use crate::utils;
 
 /// A collection of wakers which delegate to an in-line waker.
 pub(crate) struct WakerVec {
