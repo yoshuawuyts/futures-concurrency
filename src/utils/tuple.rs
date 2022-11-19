@@ -11,13 +11,6 @@ pub(crate) const fn permutations(mut num: u32) -> u32 {
     }
 }
 
-/// Calculate the number of tuples currently being operated on.
-macro_rules! tuple_len {
-    (@count_one $F:ident) => (1);
-    ($($F:ident,)*) => (0 $(+ crate::utils::tuple_len!(@count_one $F))*);
-}
-pub(crate) use tuple_len;
-
 /// Generate the `match` conditions inside the main polling body. This macro
 /// chooses a random starting point on each call to the given method, making
 /// it "fair".
