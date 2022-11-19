@@ -50,7 +50,7 @@ pub fn futures_tuple() -> (
         CountdownFuture::new(6, len, wakers.clone(), completed.clone()),
         CountdownFuture::new(7, len, wakers.clone(), completed.clone()),
         CountdownFuture::new(8, len, wakers.clone(), completed.clone()),
-        CountdownFuture::new(9, len, wakers.clone(), completed.clone()),
+        CountdownFuture::new(9, len, wakers, completed),
     )
 }
 
@@ -94,7 +94,7 @@ pub fn streams_tuple() -> (
         CountdownStream::new(6, len, wakers.clone(), completed.clone()),
         CountdownStream::new(7, len, wakers.clone(), completed.clone()),
         CountdownStream::new(8, len, wakers.clone(), completed.clone()),
-        CountdownStream::new(9, len, wakers.clone(), completed.clone()),
+        CountdownStream::new(9, len, wakers, completed),
     )
 }
 

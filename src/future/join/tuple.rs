@@ -100,6 +100,7 @@ mod test {
     use std::future;
 
     #[test]
+    #[allow(clippy::unit_cmp)]
     fn join_0() {
         futures_lite::future::block_on(async {
             assert_eq!(().join().await, ());

@@ -8,9 +8,9 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 macro_rules! poll_stream {
-    ($stream_idx:tt, $iteration:ident, $this:ident, $streams:ident, $cx:ident, $len_streams:ident) => {
+    ($stream_idx:tt, $iteration:ident, $this:ident, $streams:ident . $stream_member:ident, $cx:ident, $len_streams:ident) => {
         if $stream_idx == $iteration {
-            match unsafe { Pin::new_unchecked(&mut $streams.$stream_idx) }.poll_next(&mut $cx) {
+            match unsafe { Pin::new_unchecked(&mut $streams.$stream_member) }.poll_next(&mut $cx) {
                 Poll::Ready(Some(item)) => {
                     // Mark ourselves as ready again because we need to poll for the next item.
                     $this
@@ -70,9 +70,13 @@ macro_rules! impl_merge_tuple {
     };
     ($mod_name:ident $StructName:ident $($F:ident)+) => {
         mod $mod_name {
-            #[derive(Debug)]
             #[pin_project::pin_project]
-            pub(super) struct Streams<$($F,)+>($(#[pin] pub(super) $F,)+);
+            pub(super) struct Streams<$($F,)+> { $(#[pin] pub(super) $F: $F),+ }
+
+            #[repr(usize)]
+            pub(super) enum Indexes { $($F),+ }
+
+            pub(super) const LEN: usize = [$(Indexes::$F),+].len();
         }
 
         /// A stream that merges multiple streams into a single stream.
@@ -89,10 +93,9 @@ macro_rules! impl_merge_tuple {
         )* {
             #[pin] streams: $mod_name::Streams<$($F,)+>,
             rng: utils::RandomGenerator,
-            wakers: WakerArray<{utils::tuple_len!($($F,)+)}>,
-            state: PollArray<{utils::tuple_len!($($F,)+)}>,
+            wakers: WakerArray<{$mod_name::LEN}>,
+            state: PollArray<{$mod_name::LEN}>,
             completed: u8,
-            done: bool,
         }
 
         impl<T, $($F),*> fmt::Debug for $StructName<T, $($F),*>
@@ -102,7 +105,7 @@ macro_rules! impl_merge_tuple {
         )* {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 f.debug_tuple("Merge")
-                    .field(&self.streams)
+                    $( .field(&self.streams.$F) )* // Hides implementation detail of Streams struct
                     .finish()
             }
         }
@@ -119,7 +122,7 @@ macro_rules! impl_merge_tuple {
                 let mut readiness = this.wakers.readiness().lock().unwrap();
                 readiness.set_waker(cx.waker());
 
-                const LEN: u8 = utils::tuple_len!($($F,)*);
+                const LEN: u8 = $mod_name::LEN as u8;
                 let r = this.rng.generate(LEN as u32) as u8;
 
                 let mut streams = this.streams.project();
@@ -141,8 +144,17 @@ macro_rules! impl_merge_tuple {
                     // Obtain the intermediate waker.
                     let mut cx = Context::from_waker(this.wakers.get(index).unwrap());
 
-                    // poll the `streams.{index}` stream
-                    utils::tuple_for_each!(poll_stream (index, this, streams, cx, LEN) $($F)*);
+                    $(
+                        let stream_index = $mod_name::Indexes::$F as usize;
+                        poll_stream!(
+                            stream_index,
+                            index,
+                            this,
+                            streams . $F,
+                            cx,
+                            LEN
+                        );
+                    )+
 
                     // Lock readiness so we can use it again
                     readiness = this.wakers.readiness().lock().unwrap();
@@ -162,12 +174,11 @@ macro_rules! impl_merge_tuple {
             fn merge(self) -> Self::Stream {
                 let ($($F,)*): ($($F,)*) = self;
                 $StructName {
-                    streams: $mod_name::Streams($($F.into_stream(),)+),
+                    streams: $mod_name::Streams { $($F: $F.into_stream()),+ },
                     rng: utils::RandomGenerator::new(),
                     wakers: WakerArray::new(),
                     state: PollArray::new(),
                     completed: 0,
-                    done: false,
                 }
             }
         }
@@ -202,7 +213,7 @@ mod tests {
             let mut s = ().merge();
 
             let mut called = false;
-            while let Some(_) = s.next().await {
+            while s.next().await.is_some() {
                 called = true;
             }
             assert!(!called);
