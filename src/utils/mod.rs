@@ -1,9 +1,6 @@
 #![allow(unused)]
 
-//! A type that wraps a future to keep track of its completion status.
-//!
-//! This implementation was taken from the original `macro_rules` `join/try_join`
-//! macros in the `futures-preview` crate.
+//! Utilities to implement the different futures of this crate.
 
 mod array;
 mod fuse;

@@ -1,13 +1,10 @@
 use futures_core::Stream;
 
-/// Conversion into a `Stream`.
+/// Conversion into a [`Stream`].
 ///
 /// By implementing `IntoStream` for a type, you define how it will be
 /// converted to an iterator. This is common for types which describe a
 /// collection of some kind.
-///
-/// [`from_stream`]: #tymethod.from_stream
-/// [`Stream`]: trait.Stream.html
 pub trait IntoStream {
     /// The type of the elements being iterated over.
     type Item;

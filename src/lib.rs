@@ -1,4 +1,5 @@
-//! Concurrency extensions for `Future` and `Stream`.
+//! Concurrency extensions for [`Future`][core::future::Future] and `Stream`
+//! (also known as [`AsyncIterator`][core::async_iter::AsyncIterator]).
 //!
 //! Companion library for the "Futures Concurrency" blog post
 //! series:
@@ -76,6 +77,7 @@ pub mod array {
     pub use crate::stream::merge::array::Merge;
     pub use crate::stream::zip::array::Zip;
 }
+
 /// A contiguous growable array type with heap-allocated contents, written `Vec<T>`.
 pub mod vec {
     pub use crate::future::join::vec::Join;
