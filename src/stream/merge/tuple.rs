@@ -70,14 +70,11 @@ macro_rules! impl_merge_tuple {
     };
     ($mod_name:ident $StructName:ident $($F:ident)+) => {
         mod $mod_name {
-            #[derive(Debug)]
             #[pin_project::pin_project]
             pub(super) struct Streams<$($F,)+> { $(#[pin] pub(super) $F: $F),+ }
 
             #[repr(usize)]
-            pub(super) enum Indexes {
-                $($F),+
-            }
+            pub(super) enum Indexes { $($F),+ }
 
             pub(super) const LEN: usize = [$(Indexes::$F),+].len();
         }
@@ -99,7 +96,6 @@ macro_rules! impl_merge_tuple {
             wakers: WakerArray<{$mod_name::LEN}>,
             state: PollArray<{$mod_name::LEN}>,
             completed: u8,
-            done: bool,
         }
 
         impl<T, $($F),*> fmt::Debug for $StructName<T, $($F),*>
@@ -109,7 +105,7 @@ macro_rules! impl_merge_tuple {
         )* {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 f.debug_tuple("Merge")
-                    .field(&self.streams)
+                    $( .field(&self.streams.$F) )* // Hides implementation detail of Streams struct
                     .finish()
             }
         }
@@ -160,9 +156,6 @@ macro_rules! impl_merge_tuple {
                         );
                     )+
 
-                    // // poll the `streams.{index}` stream
-                    // utils::tuple_for_each!(poll_stream (index, this, streams, cx, LEN) $($F)*);
-
                     // Lock readiness so we can use it again
                     readiness = this.wakers.readiness().lock().unwrap();
                 }
@@ -186,7 +179,6 @@ macro_rules! impl_merge_tuple {
                     wakers: WakerArray::new(),
                     state: PollArray::new(),
                     completed: 0,
-                    done: false,
                 }
             }
         }
