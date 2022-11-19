@@ -1,3 +1,5 @@
+#![allow(clippy::let_unit_value, clippy::unit_cmp)]
+
 mod utils;
 
 criterion::criterion_main!(merge::merge_benches, join::join_benches, race::race_benches);
@@ -35,19 +37,19 @@ mod merge {
 
     fn array_merge_bench(c: &mut Criterion) {
         c.bench_function("array::merge 10", |b| {
-            b.to_async(FuturesExecutor).iter(|| array_merge::<10>())
+            b.to_async(FuturesExecutor).iter(array_merge::<10>)
         });
         c.bench_function("array::merge 100", |b| {
-            b.to_async(FuturesExecutor).iter(|| array_merge::<100>())
+            b.to_async(FuturesExecutor).iter(array_merge::<100>)
         });
         c.bench_function("array::merge 1000", |b| {
-            b.to_async(FuturesExecutor).iter(|| array_merge::<1000>())
+            b.to_async(FuturesExecutor).iter(array_merge::<1000>)
         });
     }
 
     fn tuple_merge_bench(c: &mut Criterion) {
         c.bench_function("tuple::merge 10", |b| {
-            b.to_async(FuturesExecutor).iter(|| tuple_merge())
+            b.to_async(FuturesExecutor).iter(tuple_merge)
         });
     }
 
@@ -116,19 +118,19 @@ mod join {
 
     fn array_join_bench(c: &mut Criterion) {
         c.bench_function("array::join 10", |b| {
-            b.to_async(FuturesExecutor).iter(|| array_join::<10>())
+            b.to_async(FuturesExecutor).iter(array_join::<10>)
         });
         c.bench_function("array::join 100", |b| {
-            b.to_async(FuturesExecutor).iter(|| array_join::<100>())
+            b.to_async(FuturesExecutor).iter(array_join::<100>)
         });
         c.bench_function("array::join 1000", |b| {
-            b.to_async(FuturesExecutor).iter(|| array_join::<1000>())
+            b.to_async(FuturesExecutor).iter(array_join::<1000>)
         });
     }
 
     fn tuple_join_bench(c: &mut Criterion) {
         c.bench_function("tuple::join 10", |b| {
-            b.to_async(FuturesExecutor).iter(|| tuple_join())
+            b.to_async(FuturesExecutor).iter(tuple_join)
         });
     }
 
@@ -183,19 +185,19 @@ mod race {
 
     fn array_race_bench(c: &mut Criterion) {
         c.bench_function("array::race 10", |b| {
-            b.to_async(FuturesExecutor).iter(|| array_race::<10>())
+            b.to_async(FuturesExecutor).iter(array_race::<10>)
         });
         c.bench_function("array::race 100", |b| {
-            b.to_async(FuturesExecutor).iter(|| array_race::<100>())
+            b.to_async(FuturesExecutor).iter(array_race::<100>)
         });
         c.bench_function("array::race 1000", |b| {
-            b.to_async(FuturesExecutor).iter(|| array_race::<1000>())
+            b.to_async(FuturesExecutor).iter(array_race::<1000>)
         });
     }
 
     fn tuple_race_bench(c: &mut Criterion) {
         c.bench_function("tuple::race 10", |b| {
-            b.to_async(FuturesExecutor).iter(|| tuple_race())
+            b.to_async(FuturesExecutor).iter(tuple_race)
         });
     }
 
