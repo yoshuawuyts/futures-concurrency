@@ -29,22 +29,15 @@ pub(crate) const fn permutations(mut num: u32) -> u32 {
 // - https://twitter.com/Veykril/status/1588231414998335490
 // - https://rust-lang.github.io/rfcs/3086-macro-metavar-expr.html
 macro_rules! gen_conditions {
-    // Generate an if-block, and keep iterating.
-    (@inner $LEN:expr, $i:expr, $r:expr, $this:expr, $cx:expr, $counter:expr, $method:ident, {$($arms:pat => $foo:expr,)*}, $F:ident, $($rest:ident,)*) => {
-        if $i == ($r + $counter).wrapping_rem($LEN) {
-            match unsafe { Pin::new_unchecked(&mut $this.$F) }.$method($cx) {
-                $($arms => $foo,)*
-            }
-        }
-        crate::utils::gen_conditions!(@inner $LEN, $i, $r, $this, $cx, $counter + 1, $method, {$($arms => $foo,)*}, $($rest,)*)
-    };
-
-    // End of recursion, nothing to do.
-    (@inner $LEN:expr, $i:expr, $r:expr, $this:expr, $cx:expr, $counter:expr, $method:ident, {$($arms:pat => $foo:expr,)*},) => {};
-
     // Base condition, setup the depth counter.
-    ($LEN:expr, $i:expr, $r:expr, $this:expr, $cx:expr, $method:ident, {$($arms:pat => $foo:expr,)*}, $($F:ident,)*) => {
-        crate::utils::gen_conditions!(@inner $LEN, $i, $r, $this, $cx, 0, $method, {$($arms => $foo,)*}, $($F,)*)
+    ($LEN:expr, $i:expr, $r:expr, $this:expr, $cx:expr, $method:ident, $(($F_index: expr; $F:ident, { $($arms:pat => $foo:expr,)* }))*) => {
+        $(
+            if $i == ($r + ($F_index)).wrapping_rem($LEN) {
+                match unsafe { Pin::new_unchecked(&mut $this.$F) }.$method($cx) {
+                    $($arms => $foo,)*
+                }
+            }
+        )*
     }
 }
 pub(crate) use gen_conditions;

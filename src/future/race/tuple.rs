@@ -70,27 +70,25 @@ macro_rules! impl_race_tuple {
                 let mut this = self.project();
                 assert!(!*this.done, "Futures must not be polled after completing");
 
-                const LEN: u32 = {
-                    #[repr(u32)]
-                    enum Indexes {
-                        $($F),*
-                    }
+                #[repr(u32)]
+                enum Indexes {
+                    $($F),*
+                }
 
-                    match [$(Indexes::$F),*] {
-                        [.., last] => last as u32 + 1,
-                    }
+                const LEN: u32 = match [$(Indexes::$F),*] {
+                    [.., last] => last as u32 + 1,
                 };
                 const PERMUTATIONS: u32 = utils::permutations(LEN);
                 let r = this.rng.generate(PERMUTATIONS);
 
                 for i in 0..LEN {
-                    utils::gen_conditions!(LEN, i, r, this, cx, poll, {
+                    utils::gen_conditions!(LEN, i, r, this, cx, poll, $((Indexes::$F as u32; $F, {
                         Poll::Ready(output) => {
                             *this.done = true;
                             return Poll::Ready(output);
                         },
                         _ => continue,
-                    }, $($F,)*);
+                    }))*);
                 }
 
                 Poll::Pending
