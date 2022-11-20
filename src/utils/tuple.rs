@@ -16,11 +16,11 @@ pub(crate) const fn permutations(mut num: u32) -> u32 {
 /// it "fair".
 ///
 /// The way this algorithm works is: we generate a random number between 0 and
-/// the lenght of the tuple we have. This number determines which element we
+/// the length of the tuple we have. This number determines which element we
 /// start with. All other cases are mapped as `r + index`, and after we have the
 /// first one, we'll sequentially iterate over all others. The starting point of
 /// the stream is random, but the iteration order of all others is not.
-// NOTE(yosh): this macro monstrocity is needed so we can increment each `else
+// NOTE(yosh): this macro monstrosity is needed so we can increment each `else
 // if` branch with + 1. When RFC 3086 becomes available to us, we can replace
 // this with `${index($F)}` to get the current iteration.
 //

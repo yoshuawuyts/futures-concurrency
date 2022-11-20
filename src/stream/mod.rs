@@ -43,7 +43,7 @@
 //! `stream::once`, futures can be converted into async iterators and then used
 //! with any of the iterator concurrency methods. This enables operations such
 //! as `stream::Merge` to be used to execute sets of futures concurrently, but
-//! obtain the invididual future's outputs as soon as they're available.
+//! obtain the individual future's outputs as soon as they're available.
 //!
 //! See the [future concurrency][crate::future#concurrency] documentation for
 //! more on futures concurrency.
