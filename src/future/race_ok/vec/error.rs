@@ -35,7 +35,7 @@ impl<E: Error> fmt::Debug for AggregateError<E> {
 
 impl<E: Error> fmt::Display for AggregateError<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} errors occured", self.inner.len())
+        write!(f, "{} errors occurred", self.inner.len())
     }
 }
 
