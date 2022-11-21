@@ -1,7 +1,7 @@
 <h1 align="center">futures-concurrency</h1>
 <div align="center">
   <strong>
-    Concurrency extensions for Future
+    Structured concurrency operations for async Rust
   </strong>
 </div>
 
