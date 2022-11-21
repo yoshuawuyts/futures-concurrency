@@ -25,7 +25,7 @@ macro_rules! impl_race_tuple {
             $F: Future<Output = T>,
         )* {
             done: bool,
-            rng: utils::RandomGenerator,
+            indexer: utils::Indexer,
             $(#[pin] $F: $F,)*
         }
 
@@ -52,7 +52,7 @@ macro_rules! impl_race_tuple {
                 let ($($F,)*): ($($F,)*) = self;
                 $StructName {
                     done: false,
-                    rng: utils::RandomGenerator::new(),
+                    indexer: utils::Indexer::new(utils::tuple_len!($($F,)*)),
                     $($F: $F.into_future()),*
                 }
             }
@@ -70,17 +70,13 @@ macro_rules! impl_race_tuple {
                 let mut this = self.project();
                 assert!(!*this.done, "Futures must not be polled after completing");
 
-                #[repr(u32)]
+                #[repr(usize)]
                 enum Indexes {
                     $($F),*
                 }
 
-                const LEN: u32 = [$(Indexes::$F),*].len() as u32;
-                const PERMUTATIONS: u32 = utils::permutations(LEN);
-                let r = this.rng.generate(PERMUTATIONS);
-
-                for i in 0..LEN {
-                    utils::gen_conditions!(LEN, i, r, this, cx, poll, $((Indexes::$F as u32; $F, {
+                for i in this.indexer.iter() {
+                    utils::gen_conditions!(i, this, cx, poll, $((Indexes::$F as usize; $F, {
                         Poll::Ready(output) => {
                             *this.done = true;
                             return Poll::Ready(output);

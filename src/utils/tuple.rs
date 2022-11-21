@@ -1,16 +1,3 @@
-/// Compute the number of permutations for a number
-/// during compilation.
-pub(crate) const fn permutations(mut num: u32) -> u32 {
-    let mut total = 1;
-    loop {
-        total *= num;
-        num -= 1;
-        if num == 0 {
-            break total;
-        }
-    }
-}
-
 /// Generate the `match` conditions inside the main polling body. This macro
 /// chooses a random starting point on each call to the given method, making
 /// it "fair".
@@ -30,9 +17,9 @@ pub(crate) const fn permutations(mut num: u32) -> u32 {
 // - https://rust-lang.github.io/rfcs/3086-macro-metavar-expr.html
 macro_rules! gen_conditions {
     // Base condition, setup the depth counter.
-    ($LEN:expr, $i:expr, $r:expr, $this:expr, $cx:expr, $method:ident, $(($F_index: expr; $F:ident, { $($arms:pat => $foo:expr,)* }))*) => {
+    ($i:expr, $this:expr, $cx:expr, $method:ident, $(($F_index: expr; $F:ident, { $($arms:pat => $foo:expr,)* }))*) => {
         $(
-            if $i == ($r + $F_index).wrapping_rem($LEN) {
+            if $i == $F_index {
                 match unsafe { Pin::new_unchecked(&mut $this.$F) }.$method($cx) {
                     $($arms => $foo,)*
                 }
@@ -41,3 +28,10 @@ macro_rules! gen_conditions {
     }
 }
 pub(crate) use gen_conditions;
+
+/// Calculate the number of tuples currently being operated on.
+macro_rules! tuple_len {
+    (@count_one $F:ident) => (1);
+    ($($F:ident,)*) => (0 $(+ crate::utils::tuple_len!(@count_one $F))*);
+}
+pub(crate) use tuple_len;

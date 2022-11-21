@@ -1,4 +1,4 @@
-use crate::utils::{self, RandomGenerator};
+use crate::utils::{self, Indexer};
 
 use super::Race as RaceTrait;
 
@@ -24,7 +24,7 @@ where
 {
     #[pin]
     futures: Vec<Fut>,
-    rng: RandomGenerator,
+    indexer: Indexer,
     done: bool,
 }
 
@@ -48,10 +48,7 @@ where
         let mut this = self.project();
         assert!(!*this.done, "Futures must not be polled after completing");
 
-        let len = this.futures.len();
-        let index = this.rng.generate(len as u32) as usize;
-
-        for index in (0..len).map(|pos| (index + pos).wrapping_rem(len)) {
+        for index in this.indexer.iter() {
             let fut = utils::get_pin_mut_from_vec(this.futures.as_mut(), index).unwrap();
             match fut.poll(cx) {
                 Poll::Ready(item) => {
@@ -74,8 +71,8 @@ where
 
     fn race(self) -> Self::Future {
         Race {
+            indexer: Indexer::new(self.len()),
             futures: self.into_iter().map(|fut| fut.into_future()).collect(),
-            rng: RandomGenerator::new(),
             done: false,
         }
     }
