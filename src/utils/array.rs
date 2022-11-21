@@ -7,7 +7,7 @@ use std::mem::{self, MaybeUninit};
 /// It is up to the caller to guarantee that all elements of the array are
 /// in an initialized state.
 ///
-/// Inlined version of: https://doc.rust-lang.org/std/mem/union.MaybeUninit.html#method.array_assume_init
+/// Inlined version of: <https://doc.rust-lang.org/std/mem/union.MaybeUninit.html#method.array_assume_init>
 pub(crate) unsafe fn array_assume_init<T, const N: usize>(array: [MaybeUninit<T>; N]) -> [T; N] {
     // SAFETY:
     // * The caller guarantees that all elements of the array are initialized

@@ -12,11 +12,6 @@ impl<const N: usize> PollArray<N> {
             state: [PollState::default(); N],
         }
     }
-
-    /// Reset the `poll_state` back to its previous setting.
-    pub(crate) fn reset(&mut self) {
-        self.state.fill(PollState::default());
-    }
 }
 
 impl<const N: usize> Deref for PollArray<N> {

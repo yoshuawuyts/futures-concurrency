@@ -1,8 +1,6 @@
 use bitvec::{bitvec, vec::BitVec};
 use std::task::Waker;
 
-use crate::utils;
-
 /// Tracks which wakers are "ready" and should be polled.
 #[derive(Debug)]
 pub(crate) struct ReadinessVec {

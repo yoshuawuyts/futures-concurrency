@@ -6,8 +6,8 @@ pub(crate) mod vec;
 
 /// Wait for the first future to complete.
 ///
-/// Awaits multiple futures simultaneously, returning the output of the first
-/// future which completes.
+/// Awaits multiple future at once, returning as soon as one completes. The
+/// other futures are cancelled.
 pub trait Race {
     /// The resulting output type.
     type Output;
@@ -15,12 +15,11 @@ pub trait Race {
     /// Which kind of future are we turning this into?
     type Future: Future<Output = Self::Output>;
 
-    /// Waits for multiple futures to complete.
+    /// Wait for the first future to complete.
     ///
-    /// Awaits multiple futures simultaneously, returning the output of the
-    /// futures once both complete.
+    /// Awaits multiple futures at once, returning as soon as one completes. The
+    /// other futures are cancelled.
     ///
-    /// This function returns a new future which polls both futures
-    /// concurrently.
+    /// This function returns a new future which polls all futures concurrently.
     fn race(self) -> Self::Future;
 }

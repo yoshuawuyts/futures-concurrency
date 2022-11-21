@@ -7,7 +7,7 @@ pub(crate) mod vec;
 /// Wait for all futures to complete.
 ///
 /// Awaits multiple futures simultaneously, returning the output of the futures
-/// once both complete.
+/// once all complete.
 pub trait Join {
     /// The resulting output type.
     type Output;
@@ -18,9 +18,8 @@ pub trait Join {
     /// Waits for multiple futures to complete.
     ///
     /// Awaits multiple futures simultaneously, returning the output of the
-    /// futures once both complete.
+    /// futures once all complete.
     ///
-    /// This function returns a new future which polls both futures
-    /// concurrently.
+    /// This function returns a new future which polls all futures concurrently.
     fn join(self) -> Self::Future;
 }
