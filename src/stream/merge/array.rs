@@ -1,6 +1,6 @@
 use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, PollArray, RandomGenerator, WakerArray};
+use crate::utils::{self, Indexer, PollArray, WakerArray};
 
 use core::fmt;
 use futures_core::Stream;
@@ -21,7 +21,7 @@ where
 {
     #[pin]
     streams: [S; N],
-    rng: RandomGenerator,
+    indexer: Indexer,
     wakers: WakerArray<N>,
     state: PollArray<N>,
     complete: usize,
@@ -35,7 +35,7 @@ where
     pub(crate) fn new(streams: [S; N]) -> Self {
         Self {
             streams,
-            rng: RandomGenerator::new(),
+            indexer: Indexer::new(N),
             wakers: WakerArray::new(),
             state: PollArray::new(),
             complete: 0,
@@ -68,9 +68,7 @@ where
         // Iterate over our streams one-by-one. If a stream yields a value,
         // we exit early. By default we'll return `Poll::Ready(None)`, but
         // this changes if we encounter a `Poll::Pending`.
-        let len = this.streams.len();
-        let r = this.rng.generate(len as u32) as usize;
-        for index in (0..len).map(|n| (r + n).wrapping_rem(len)) {
+        for index in this.indexer.iter() {
             if !readiness.any_ready() {
                 // Nothing is ready yet
                 return Poll::Pending;

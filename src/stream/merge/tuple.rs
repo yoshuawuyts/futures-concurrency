@@ -92,7 +92,7 @@ macro_rules! impl_merge_tuple {
             $F: Stream<Item = T>,
         )* {
             #[pin] streams: $mod_name::Streams<$($F,)+>,
-            rng: utils::RandomGenerator,
+            indexer: utils::Indexer,
             wakers: WakerArray<{$mod_name::LEN}>,
             state: PollArray<{$mod_name::LEN}>,
             completed: u8,
@@ -123,14 +123,13 @@ macro_rules! impl_merge_tuple {
                 readiness.set_waker(cx.waker());
 
                 const LEN: u8 = $mod_name::LEN as u8;
-                let r = this.rng.generate(LEN as u32) as u8;
 
                 let mut streams = this.streams.project();
 
                 // Iterate over our streams one-by-one. If a stream yields a value,
                 // we exit early. By default we'll return `Poll::Ready(None)`, but
                 // this changes if we encounter a `Poll::Pending`.
-                for index in (0..LEN).map(|n| (r + n).wrapping_rem(LEN) as usize) {
+                for index in this.indexer.iter() {
                     if !readiness.any_ready() {
                         // Nothing is ready yet
                         return Poll::Pending;
@@ -175,7 +174,7 @@ macro_rules! impl_merge_tuple {
                 let ($($F,)*): ($($F,)*) = self;
                 $StructName {
                     streams: $mod_name::Streams { $($F: $F.into_stream()),+ },
-                    rng: utils::RandomGenerator::new(),
+                    indexer: utils::Indexer::new(utils::tuple_len!($($F,)*)),
                     wakers: WakerArray::new(),
                     state: PollArray::new(),
                     completed: 0,

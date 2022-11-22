@@ -1,6 +1,6 @@
 use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, PollVec, RandomGenerator, WakerVec};
+use crate::utils::{self, Indexer, PollVec, WakerVec};
 
 use core::fmt;
 use futures_core::Stream;
@@ -21,7 +21,7 @@ where
 {
     #[pin]
     streams: Vec<S>,
-    rng: RandomGenerator,
+    indexer: Indexer,
     complete: usize,
     wakers: WakerVec,
     state: PollVec,
@@ -37,8 +37,8 @@ where
         Self {
             wakers: WakerVec::new(len),
             state: PollVec::new(len),
+            indexer: Indexer::new(len),
             streams,
-            rng: RandomGenerator::new(),
             complete: 0,
             done: false,
         }
@@ -69,9 +69,7 @@ where
         // Iterate over our streams one-by-one. If a stream yields a value,
         // we exit early. By default we'll return `Poll::Ready(None)`, but
         // this changes if we encounter a `Poll::Pending`.
-        let len = this.streams.len();
-        let r = this.rng.generate(len as u32) as usize;
-        for index in (0..len).map(|n| (r + n).wrapping_rem(len)) {
+        for index in this.indexer.iter() {
             if !readiness.any_ready() {
                 // Nothing is ready yet
                 return Poll::Pending;
