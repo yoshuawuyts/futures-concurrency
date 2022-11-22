@@ -1,5 +1,5 @@
 use super::Join as JoinTrait;
-use crate::utils::PollArray;
+use crate::utils::{PollArray, WakerArray};
 
 use core::fmt::{self, Debug};
 use core::future::{Future, IntoFuture};
@@ -19,7 +19,7 @@ use pin_project::pin_project;
 macro_rules! poll {
     (@inner $iteration:ident, $this:ident, $futures:ident, $cx:ident, $fut_name:ident $($F:ident)* | $fut_idx:tt $($rest:tt)*) => {
         if $fut_idx == $iteration {
-            if let Poll::Ready(value) = $futures.$fut_name.as_mut().poll($cx) {
+            if let Poll::Ready(value) = $futures.$fut_name.as_mut().poll(&mut $cx) {
                 $this.outputs.$fut_idx.write(value);
                 *$this.completed += 1;
                 $this.state[$fut_idx].set_consumed();
@@ -99,6 +99,7 @@ macro_rules! impl_join_tuple {
             #[pin] futures: $mod_name::Futures<$($F,)+>,
             outputs: ($(MaybeUninit<$F::Output>,)+),
             state: PollArray<{$mod_name::LEN}>,
+            wakers: WakerArray<{$mod_name::LEN}>,
             completed: usize,
         }
 
@@ -123,16 +124,32 @@ macro_rules! impl_join_tuple {
             fn poll(
                 self: Pin<&mut Self>, cx: &mut Context<'_>
             ) -> Poll<Self::Output> {
-                let mut this = self.project();
-
                 const LEN: usize = $mod_name::LEN;
+
+                let mut this = self.project();
+                let all_completed = !(*this.completed == LEN);
+                assert!(all_completed, "Futures must not be polled after completing");
 
                 let mut futures = this.futures.project();
 
+                let mut readiness = this.wakers.readiness().lock().unwrap();
+                readiness.set_waker(cx.waker());
+
                 for index in 0..LEN {
-                    if this.state[index].is_consumed() {
+                    if !readiness.any_ready() {
+                        // nothing ready yet
+                        return Poll::Pending;
+                    }
+                    if !readiness.clear_ready(index) || this.state[index].is_consumed() {
+                        // future not ready yet or already polled to completion, skip
                         continue;
                     }
+
+                    // unlock readiness so we don't deadlock when polling
+                    drop(readiness);
+
+                    // obtain the intermediate waker
+                    let mut cx = Context::from_waker(this.wakers.get(index).unwrap());
 
                     // generate the needed code to poll `futures.{index}`
                     poll!(index, this, futures, cx, LEN, $($F,)+);
@@ -147,6 +164,7 @@ macro_rules! impl_join_tuple {
 
                         return Poll::Ready(out);
                     }
+                    readiness = this.wakers.readiness().lock().unwrap();
                 }
 
                 Poll::Pending
@@ -167,6 +185,7 @@ macro_rules! impl_join_tuple {
                     futures: $mod_name::Futures {$($F: $F.into_future(),)+},
                     state: PollArray::new(),
                     outputs: ($(MaybeUninit::<$F::Output>::uninit(),)+),
+                    wakers: WakerArray::new(),
                     completed: 0,
                 }
             }
