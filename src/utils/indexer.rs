@@ -17,11 +17,10 @@ impl Indexer {
     pub(crate) fn iter(&mut self) -> IndexIter {
         // Increment the starting point for next time.
         let offset = self.offset;
-        self.offset = self.offset.wrapping_rem(self.max);
+        self.offset = (self.offset + 1).wrapping_rem(self.max);
 
         IndexIter {
             iter: (0..self.max),
-            max: self.max,
             offset,
         }
     }
@@ -30,7 +29,6 @@ impl Indexer {
 pub(crate) struct IndexIter {
     iter: ops::Range<usize>,
     offset: usize,
-    max: usize,
 }
 
 impl Iterator for IndexIter {
@@ -39,6 +37,6 @@ impl Iterator for IndexIter {
     fn next(&mut self) -> Option<Self::Item> {
         self.iter
             .next()
-            .map(|pos| (pos + self.offset).wrapping_rem(self.max))
+            .map(|pos| (pos + self.offset).wrapping_rem(self.iter.end))
     }
 }
