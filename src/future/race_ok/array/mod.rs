@@ -1,8 +1,11 @@
 use super::RaceOk as RaceOkTrait;
-use crate::utils::MaybeDone;
+use crate::utils::array_assume_init;
+use crate::utils::iter_pin_mut;
 
+use core::array;
 use core::fmt;
 use core::future::{Future, IntoFuture};
+use core::mem::{self, MaybeUninit};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
@@ -26,7 +29,10 @@ where
     T: fmt::Debug,
     Fut: Future<Output = Result<T, E>>,
 {
-    elems: [MaybeDone<Fut>; N],
+    #[pin]
+    futures: [Fut; N],
+    errors: [MaybeUninit<E>; N],
+    completed: usize,
 }
 
 impl<Fut, T, E, const N: usize> fmt::Debug for RaceOk<Fut, T, E, N>
@@ -36,7 +42,7 @@ where
     T: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_list().entries(self.elems.iter()).finish()
+        f.debug_list().entries(self.futures.iter()).finish()
     }
 }
 
@@ -49,39 +55,30 @@ where
     type Output = Result<T, AggregateError<E, N>>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut all_done = true;
-
         let this = self.project();
 
-        for elem in this.elems.iter_mut() {
-            // SAFETY: we don't ever move the pinned container here; we only pin project
-            let mut elem = unsafe { Pin::new_unchecked(elem) };
-            if elem.as_mut().poll(cx).is_pending() {
-                all_done = false
-            } else if let Some(Ok(_)) = elem.as_ref().output() {
-                return Poll::Ready(Ok(elem.take().unwrap().unwrap()));
+        let futures = iter_pin_mut(this.futures);
+
+        for (fut, out) in futures.zip(this.errors.iter_mut()) {
+            if let Poll::Ready(output) = fut.poll(cx) {
+                match output {
+                    Ok(ok) => return Poll::Ready(Ok(ok)),
+                    Err(err) => {
+                        *out = MaybeUninit::new(err);
+                        *this.completed += 1;
+                    }
+                }
             }
         }
 
-        if all_done {
-            use core::array;
-            use core::mem::MaybeUninit;
+        let all_completed = *this.completed == N;
+        if all_completed {
+            let mut errors = array::from_fn(|_| MaybeUninit::uninit());
+            mem::swap(&mut errors, this.errors);
 
-            // Create the result array based on the indices
-            // TODO: replace with `MaybeUninit::uninit_array()` when it becomes stable
-            let mut out: [_; N] = array::from_fn(|_| MaybeUninit::uninit());
+            // SAFETY: we know that all futures are properly initialized because they're all completed
+            let result = unsafe { array_assume_init(errors) };
 
-            // NOTE: this clippy attribute can be removed once we can `collect` into `[usize; K]`.
-            #[allow(clippy::needless_range_loop)]
-            for (i, el) in this.elems.iter_mut().enumerate() {
-                // SAFETY: we don't ever move the pinned container here; we only pin project
-                let el = unsafe { Pin::new_unchecked(el) }
-                    .take()
-                    .unwrap()
-                    .unwrap_err();
-                out[i] = MaybeUninit::new(el);
-            }
-            let result = unsafe { out.as_ptr().cast::<[E; N]>().read() };
             Poll::Ready(Err(AggregateError::new(result)))
         } else {
             Poll::Pending
@@ -101,7 +98,9 @@ where
 
     fn race_ok(self) -> Self::Future {
         RaceOk {
-            elems: self.map(|fut| MaybeDone::new(fut.into_future())),
+            futures: self.map(|fut| fut.into_future()),
+            errors: array::from_fn(|_| MaybeUninit::uninit()),
+            completed: 0,
         }
     }
 }
