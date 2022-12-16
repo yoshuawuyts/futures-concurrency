@@ -1,5 +1,5 @@
 use super::Join as JoinTrait;
-use crate::utils::{self, PollArray};
+use crate::utils::{self, PollArray, WakerArray};
 
 use core::array;
 use core::fmt;
@@ -26,6 +26,7 @@ where
     consumed: bool,
     pending: usize,
     items: [MaybeUninit<<Fut as Future>::Output>; N],
+    wakers: WakerArray<N>,
     state: PollArray<N>,
     #[pin]
     futures: [Fut; N],
@@ -41,6 +42,7 @@ where
             consumed: false,
             pending: N,
             items: array::from_fn(|_| MaybeUninit::uninit()),
+            wakers: WakerArray::new(),
             state: PollArray::new(),
             futures,
         }
@@ -85,14 +87,30 @@ where
             "Futures must not be polled after completing"
         );
 
-        // Poll all futures
+        let mut readiness = this.wakers.readiness().lock().unwrap();
+        readiness.set_waker(cx.waker());
+        if !readiness.any_ready() {
+            // Nothing is ready yet
+            return Poll::Pending;
+        }
+
+        // Poll all ready futures
         for (i, fut) in utils::iter_pin_mut(this.futures.as_mut()).enumerate() {
-            if this.state[i].is_pending() {
-                if let Poll::Ready(value) = fut.poll(cx) {
+            if this.state[i].is_pending() && readiness.clear_ready(i) {
+                // unlock readiness so we don't deadlock when polling
+                drop(readiness);
+
+                // Obtain the intermediate waker.
+                let mut cx = Context::from_waker(this.wakers.get(i).unwrap());
+
+                if let Poll::Ready(value) = fut.poll(&mut cx) {
                     this.items[i] = MaybeUninit::new(value);
                     this.state[i].set_ready();
                     *this.pending -= 1;
                 }
+
+                // Lock readiness so we can use it again
+                readiness = this.wakers.readiness().lock().unwrap();
             }
         }
 
