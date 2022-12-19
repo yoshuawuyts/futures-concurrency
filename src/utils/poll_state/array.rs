@@ -12,6 +12,17 @@ impl<const N: usize> PollArray<N> {
             state: [PollState::default(); N],
         }
     }
+
+    #[inline]
+    pub(crate) fn set_all_completed(&mut self) {
+        self.iter_mut().for_each(|state| {
+            debug_assert!(
+                state.is_ready(),
+                "Future should have reached a `Ready` state"
+            );
+            state.set_consumed();
+        })
+    }
 }
 
 impl<const N: usize> Deref for PollArray<N> {
