@@ -167,9 +167,12 @@ where
 
 #[cfg(test)]
 mod test {
+    use futures_lite::future::yield_now;
+
     use super::*;
     use crate::utils::DummyWaker;
 
+    use std::cell::RefCell;
     use std::future;
     use std::future::Future;
     use std::sync::Arc;
@@ -193,5 +196,41 @@ mod test {
         let mut cx = Context::from_waker(&waker);
         let _ = fut.as_mut().poll(&mut cx);
         assert_eq!(format!("{:?}", fut), "[Consumed, Consumed]");
+    }
+
+    #[test]
+    fn poll_order() {
+        let polled = RefCell::new(Vec::new());
+        async fn record_poll(id: char, times: usize, target: &RefCell<Vec<char>>) {
+            for _ in 0..times {
+                target.borrow_mut().push(id);
+                yield_now().await;
+            }
+            target.borrow_mut().push(id);
+        }
+        futures_lite::future::block_on(
+            [
+                record_poll('a', 0, &polled),
+                record_poll('b', 1, &polled),
+                record_poll('c', 0, &polled),
+            ]
+            .join(),
+        );
+        assert_eq!(&**polled.borrow(), ['a', 'b', 'c', 'b']);
+
+        polled.borrow_mut().clear();
+        futures_lite::future::block_on(
+            [
+                record_poll('a', 2, &polled),
+                record_poll('b', 3, &polled),
+                record_poll('c', 1, &polled),
+                record_poll('d', 0, &polled),
+            ]
+            .join(),
+        );
+        assert_eq!(
+            &**polled.borrow(),
+            ['a', 'b', 'c', 'd', 'a', 'b', 'c', 'a', 'b', 'b']
+        );
     }
 }

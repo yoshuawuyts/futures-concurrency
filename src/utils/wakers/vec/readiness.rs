@@ -56,15 +56,19 @@ impl ReadinessVec {
         self.count > 0
     }
 
-    /// Access the parent waker.
-    #[inline]
-    pub(crate) fn parent_waker(&self) -> Option<&Waker> {
-        self.parent_waker.as_ref()
-    }
-
     /// Set the parent `Waker`. This needs to be called at the start of every
     /// `poll` function.
     pub(crate) fn set_waker(&mut self, parent_waker: &Waker) {
         self.parent_waker = Some(parent_waker.clone());
+    }
+
+    pub(crate) fn wake(&mut self, index: usize) {
+        if !self.set_ready(index) {
+            self
+                .parent_waker
+                .as_ref()
+                .expect("`parent_waker` not available from `Readiness`. Did you forget to call `Readiness::set_waker`?")
+                .wake_by_ref()
+        }
     }
 }

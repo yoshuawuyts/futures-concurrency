@@ -1,6 +1,7 @@
 mod array;
 #[cfg(test)]
 mod dummy;
+mod shared_slice_waker;
 mod vec;
 
 #[cfg(test)]

@@ -3,24 +3,71 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::task::Waker;
 
-use super::{InlineWakerArray, ReadinessArray};
+use super::super::shared_slice_waker::{waker_from_position, WakerArrayTrait};
+use super::ReadinessArray;
+
+// Each waker points to a slot in the `wake_data` part of `Inner`.
+// Every one of those slots contain a pointer to the Arc wrapping `Inner` itself.
+// Wakers figure out their indices by comparing the address they are pointing to to `wake_data`'s start address.
+//
+//      ┌───► Arc<Inner> ◄─────────┬──────────────┬──────────────┐
+//      │                          │              │              │
+//      │     ┌─────────────┬──────┼───────┬──────┼───────┬──────┼───────┬─────┐
+//      │     │             │      │       │      │       │      │       │     │
+//      │     │  Readiness  │ wake_data[0] │ wake_data[1] │ wake_data[2] │ ... │
+//      │     │             │              │              │              │     │
+//      │     └─────────────┴──────▲───────┴──────▲───────┴──────▲───────┴─────┘
+//      │                          │              │              │
+//      │         ┌────────────────┘              │              │
+//      │         │                               │              │
+//      │         │           ┌───────────────────┘              │
+//      │         │           │                                  │
+//      │         │           │           ┌──────────────────────┘
+//      │         │           │           │
+//      │         │           │           │
+// ┌────┼────┬────┼──────┬────┼──────┬────┼──────┬─────┐
+// │    │    │    │      │    │      │    │      │     │
+// │  Inner  │ wakers[1] │ wakers[2] │ wakers[3] │ ... │
+// │         │           │           │           │     │
+// └─────────┴───────────┴───────────┴───────────┴─────┘
+// WakerArray/WakerVec
+//
 
 /// A collection of wakers which delegate to an in-line waker.
 pub(crate) struct WakerArray<const N: usize> {
+    inner: Arc<WakerArrayInner<N>>,
     wakers: [Waker; N],
-    readiness: Arc<Mutex<ReadinessArray<N>>>,
+}
+struct WakerArrayInner<const N: usize> {
+    wake_data: [*const Self; N],
+    readiness: Mutex<ReadinessArray<N>>,
 }
 
 impl<const N: usize> WakerArray<N> {
     /// Create a new instance of `WakerArray`.
     pub(crate) fn new() -> Self {
-        let readiness = Arc::new(Mutex::new(ReadinessArray::new()));
-        Self {
-            wakers: array::from_fn(|i| {
-                Arc::new(InlineWakerArray::new(i, readiness.clone())).into()
-            }),
+        let readiness = Mutex::new(ReadinessArray::new());
+        let mut inner = Arc::new(WakerArrayInner {
             readiness,
-        }
+            wake_data: [std::ptr::null(); N], // We don't know the Arc's address yet so put null for now.
+        });
+        let raw = Arc::into_raw(Arc::clone(&inner)); // The Arc's address.
+
+        // At this point the strong count is 2. Decrement it to 1.
+        // Each time we create/clone a Waker the count will be incremented by 1.
+        // So N Wakers -> count = N+1.
+        unsafe { Arc::decrement_strong_count(raw) }
+
+        // Make wake_data all point to the Arc itself.
+        Arc::get_mut(&mut inner).unwrap().wake_data = [raw; N];
+
+        let wakers = array::from_fn(|i| {
+            let data = inner.wake_data.get(i).unwrap();
+            unsafe {
+                waker_from_position::<WakerArrayInner<N>>(data as *const *const WakerArrayInner<N>)
+            }
+        });
+        Self { inner, wakers }
     }
 
     pub(crate) fn get(&self, index: usize) -> Option<&Waker> {
@@ -29,6 +76,56 @@ impl<const N: usize> WakerArray<N> {
 
     /// Access the `Readiness`.
     pub(crate) fn readiness(&self) -> &Mutex<ReadinessArray<N>> {
-        self.readiness.as_ref()
+        &self.inner.readiness
+    }
+}
+
+impl<const N: usize> WakerArrayTrait for WakerArrayInner<N> {
+    fn get_wake_data_slice(&self) -> &[*const Self] {
+        &self.wake_data
+    }
+
+    fn wake_index(&self, index: usize) {
+        self.readiness.lock().unwrap().wake(index);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::utils::DummyWaker;
+
+    use super::*;
+    #[test]
+    fn check_refcount() {
+        let mut wa = WakerArray::<5>::new();
+        assert_eq!(Arc::strong_count(&wa.inner), 6);
+        wa.wakers[4] = Arc::new(DummyWaker()).into();
+        assert_eq!(Arc::strong_count(&wa.inner), 5);
+        let cloned = wa.wakers[3].clone();
+        assert_eq!(Arc::strong_count(&wa.inner), 6);
+        wa.wakers[3] = wa.wakers[4].clone();
+        assert_eq!(Arc::strong_count(&wa.inner), 5);
+        drop(cloned);
+        assert_eq!(Arc::strong_count(&wa.inner), 4);
+
+        wa.wakers[0].wake_by_ref();
+        wa.wakers[0].wake_by_ref();
+        wa.wakers[0].wake_by_ref();
+        assert_eq!(Arc::strong_count(&wa.inner), 4);
+
+        wa.wakers[0] = wa.wakers[1].clone();
+        assert_eq!(Arc::strong_count(&wa.inner), 4);
+
+        let taken = std::mem::replace(&mut wa.wakers[2], Arc::new(DummyWaker()).into());
+        assert_eq!(Arc::strong_count(&wa.inner), 4);
+        taken.wake_by_ref();
+        taken.wake_by_ref();
+        taken.wake_by_ref();
+        assert_eq!(Arc::strong_count(&wa.inner), 4);
+        taken.wake();
+        assert_eq!(Arc::strong_count(&wa.inner), 3);
+
+        wa.wakers = array::from_fn(|_| Arc::new(DummyWaker()).into());
+        assert_eq!(Arc::strong_count(&wa.inner), 1);
     }
 }
