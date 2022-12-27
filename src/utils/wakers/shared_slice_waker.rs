@@ -22,8 +22,7 @@ pub(super) unsafe fn waker_from_position<A: WakerArrayTrait>(pointer: *const *co
     // Convert a pointer to a wake_data slot to the Arc<Inner>.
     unsafe fn to_arc<A: WakerArrayTrait>(pointer: *const *const A) -> Arc<A> {
         let raw = *pointer;
-        let arc = Arc::from_raw(raw);
-        arc
+        Arc::from_raw(raw)
     }
     unsafe fn wake<A: WakerArrayTrait, const BY_REF: bool>(pointer: *const ()) {
         let pointer = pointer as *const *const A;
