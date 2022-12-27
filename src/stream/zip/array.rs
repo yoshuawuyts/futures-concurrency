@@ -1,6 +1,6 @@
 use super::Zip as ZipTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, PollArray, PollState, WakerArray};
+use crate::utils::{self, WakerArray};
 
 use core::array;
 use core::fmt;
@@ -26,10 +26,11 @@ where
 {
     #[pin]
     streams: [S; N],
-    output: [MaybeUninit<<S as Stream>::Item>; N],
+    items: [MaybeUninit<<S as Stream>::Item>; N],
     wakers: WakerArray<N>,
-    state: PollArray<N>,
-    done: bool,
+    filled: [bool; N],
+    awake_list_buffer: [usize; N],
+    pending: usize,
 }
 
 impl<S, const N: usize> Zip<S, N>
@@ -39,10 +40,11 @@ where
     pub(crate) fn new(streams: [S; N]) -> Self {
         Self {
             streams,
-            output: array::from_fn(|_| MaybeUninit::uninit()),
-            state: PollArray::new(),
+            items: array::from_fn(|_| MaybeUninit::uninit()),
+            filled: [false; N],
             wakers: WakerArray::new(),
-            done: false,
+            awake_list_buffer: [0; N],
+            pending: N,
         }
     }
 }
@@ -65,62 +67,60 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
-        assert!(!*this.done, "Stream should not be polled after completion");
+        let num_awake = {
+            let mut awakeness = this.wakers.awakeness();
+            awakeness.set_parent_waker(cx.waker());
+            let num_awake = if *this.pending == usize::MAX {
+                *this.pending = N;
+                *this.awake_list_buffer = array::from_fn(core::convert::identity);
+                N
+            } else {
+                let awake_list = awakeness.awake_list();
+                let num_awake = awake_list.len();
+                this.awake_list_buffer[..num_awake].copy_from_slice(awake_list);
+                num_awake
+            };
+            awakeness.clear();
+            num_awake
+        };
 
-        let mut readiness = this.wakers.readiness().lock().unwrap();
-        readiness.set_waker(cx.waker());
-        for index in 0..N {
-            if !readiness.any_ready() {
-                // Nothing is ready yet
-                return Poll::Pending;
-            } else if this.state[index].is_ready() || !readiness.clear_ready(index) {
-                // We already have data stored for this stream,
-                // Or this waker isn't ready yet
+        for &idx in this.awake_list_buffer.iter().take(num_awake) {
+            let filled = &mut this.filled[idx];
+            if *filled {
                 continue;
             }
-
-            // unlock readiness so we don't deadlock when polling
-            drop(readiness);
-
-            // Obtain the intermediate waker.
-            let mut cx = Context::from_waker(this.wakers.get(index).unwrap());
-
-            let stream = utils::get_pin_mut(this.streams.as_mut(), index).unwrap();
+            let stream = utils::get_pin_mut(this.streams.as_mut(), idx).unwrap();
+            let mut cx = Context::from_waker(this.wakers.get(idx).unwrap());
             match stream.poll_next(&mut cx) {
-                Poll::Ready(Some(item)) => {
-                    this.output[index] = MaybeUninit::new(item);
-                    this.state[index].set_ready();
-
-                    let all_ready = this.state.iter().all(|state| state.is_ready());
-                    if all_ready {
-                        // Reset the future's state.
-                        readiness = this.wakers.readiness().lock().unwrap();
-                        readiness.set_all_ready();
-                        this.state.fill_with(PollState::default);
-
-                        // Take the output
-                        //
-                        // SAFETY: we just validated all our data is populated, meaning
-                        // we can assume this is initialized.
-                        let mut output = array::from_fn(|_| MaybeUninit::uninit());
-                        mem::swap(this.output, &mut output);
-                        let output = unsafe { array_assume_init(output) };
-                        return Poll::Ready(Some(output));
-                    }
+                Poll::Ready(Some(value)) => {
+                    this.items[idx].write(value);
+                    *filled = true;
+                    *this.pending -= 1;
                 }
                 Poll::Ready(None) => {
-                    // If one stream returns `None`, we can no longer return
-                    // pairs - meaning the stream is over.
-                    *this.done = true;
                     return Poll::Ready(None);
                 }
                 Poll::Pending => {}
             }
-
-            // Lock readiness so we can use it again
-            readiness = this.wakers.readiness().lock().unwrap();
         }
-        Poll::Pending
+
+        if *this.pending == 0 {
+            for filled in this.filled.iter_mut() {
+                debug_assert!(*filled, "The items array should have been filled");
+                *filled = false;
+            }
+            *this.pending = usize::MAX;
+
+            let mut items = array::from_fn(|_| MaybeUninit::uninit());
+            mem::swap(this.items, &mut items);
+
+            // SAFETY: we've checked with the state that all of our outputs have been
+            // filled, which means we're ready to take the data and assume it's initialized.
+            let items = unsafe { utils::array_assume_init(items) };
+            Poll::Ready(Some(items))
+        } else {
+            Poll::Pending
+        }
     }
 }
 
@@ -133,8 +133,8 @@ where
     fn drop(self: Pin<&mut Self>) {
         let this = self.project();
 
-        for (state, output) in this.state.iter_mut().zip(this.output.iter_mut()) {
-            if state.is_ready() {
+        for (&filled, output) in this.filled.iter().zip(this.items.iter_mut()) {
+            if filled {
                 // SAFETY: we've just filtered down to *only* the initialized values.
                 // We can assume they're initialized, and this is where we drop them.
                 unsafe { output.assume_init_drop() };
@@ -175,17 +175,4 @@ mod tests {
             assert_eq!(s.next().await, None);
         })
     }
-}
-
-// Inlined version of the unstable `MaybeUninit::array_assume_init` feature.
-// FIXME: replace with `utils::array_assume_init`
-unsafe fn array_assume_init<T, const N: usize>(array: [MaybeUninit<T>; N]) -> [T; N] {
-    // SAFETY:
-    // * The caller guarantees that all elements of the array are initialized
-    // * `MaybeUninit<T>` and T are guaranteed to have the same layout
-    // * `MaybeUninit` does not drop, so there are no double-frees
-    // And thus the conversion is safe
-    let ret = unsafe { (&array as *const _ as *const [T; N]).read() };
-    mem::forget(array);
-    ret
 }

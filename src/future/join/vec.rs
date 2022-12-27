@@ -1,5 +1,5 @@
 use super::Join as JoinTrait;
-use crate::utils::{iter_pin_mut_vec, PollVec, WakerVec};
+use crate::utils::{self, PollVec, WakerVec};
 
 use core::fmt;
 use core::future::{Future, IntoFuture};
@@ -23,11 +23,11 @@ pub struct Join<Fut>
 where
     Fut: Future,
 {
-    consumed: bool,
     pending: usize,
     items: Vec<MaybeUninit<<Fut as Future>::Output>>,
     wakers: WakerVec,
     state: PollVec,
+    awake_list_buffer: Vec<usize>,
     #[pin]
     futures: Vec<Fut>,
 }
@@ -39,13 +39,13 @@ where
     pub(crate) fn new(futures: Vec<Fut>) -> Self {
         let len = futures.len();
         Join {
-            consumed: false,
             pending: len,
             items: std::iter::repeat_with(MaybeUninit::uninit)
                 .take(len)
                 .collect(),
             wakers: WakerVec::new(len),
             state: PollVec::new(len),
+            awake_list_buffer: Vec::new(),
             futures,
         }
     }
@@ -83,43 +83,34 @@ where
         let mut this = self.project();
 
         assert!(
-            !*this.consumed,
+            *this.pending > 0 || this.items.is_empty(),
             "Futures must not be polled after completing"
         );
 
-        let mut readiness = this.wakers.readiness().lock().unwrap();
-        readiness.set_waker(cx.waker());
-        if !readiness.any_ready() {
-            // Nothing is ready yet
-            return Poll::Pending;
+        {
+            let mut awakeness = this.wakers.awakeness();
+            awakeness.set_parent_waker(cx.waker());
+            this.awake_list_buffer.clone_from(awakeness.awake_list());
+            awakeness.clear();
         }
 
-        // Poll all ready futures
-        let futures = this.futures.as_mut();
-        let states = &mut this.state[..];
-        for (i, fut) in iter_pin_mut_vec(futures).enumerate() {
-            if states[i].is_pending() && readiness.clear_ready(i) {
-                // unlock readiness so we don't deadlock when polling
-                drop(readiness);
-
-                // Obtain the intermediate waker.
-                let mut cx = Context::from_waker(this.wakers.get(i).unwrap());
-
-                if let Poll::Ready(value) = fut.poll(&mut cx) {
-                    this.items[i] = MaybeUninit::new(value);
-                    states[i].set_ready();
-                    *this.pending -= 1;
-                }
-
-                // Lock readiness so we can use it again
-                readiness = this.wakers.readiness().lock().unwrap();
+        for idx in this.awake_list_buffer.drain(..) {
+            let state = &mut this.state[idx];
+            if !state.is_pending() {
+                // Woken future is already complete, don't poll it again.
+                continue;
+            }
+            let fut = utils::get_pin_mut_from_vec(this.futures.as_mut(), idx).unwrap();
+            let mut cx = Context::from_waker(this.wakers.get(idx).unwrap());
+            if let Poll::Ready(value) = fut.poll(&mut cx) {
+                this.items[idx].write(value);
+                state.set_ready();
+                *this.pending -= 1;
             }
         }
 
         // Check whether we're all done now or need to keep going.
         if *this.pending == 0 {
-            // Mark all data as "consumed" before we take it
-            *this.consumed = true;
             this.state.iter_mut().for_each(|state| {
                 debug_assert!(
                     state.is_ready(),
@@ -169,12 +160,12 @@ where
 
 #[cfg(test)]
 mod test {
+    use crate::utils::dummy_waker;
+
     use super::*;
-    use crate::utils::DummyWaker;
 
     use std::future;
     use std::future::Future;
-    use std::sync::Arc;
     use std::task::Context;
 
     #[test]
@@ -191,7 +182,7 @@ mod test {
         assert_eq!(format!("{:?}", fut), "[Pending, Pending]");
         let mut fut = Pin::new(&mut fut);
 
-        let waker = Arc::new(DummyWaker()).into();
+        let waker = dummy_waker();
         let mut cx = Context::from_waker(&waker);
         let _ = fut.as_mut().poll(&mut cx);
         assert_eq!(format!("{:?}", fut), "[Consumed, Consumed]");

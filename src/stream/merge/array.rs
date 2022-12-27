@@ -1,6 +1,6 @@
 use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, Indexer, PollArray, WakerArray};
+use crate::utils::{self, ArrayDequeue, PollState, WakerArray};
 
 use core::fmt;
 use futures_core::Stream;
@@ -21,11 +21,10 @@ where
 {
     #[pin]
     streams: [S; N],
-    indexer: Indexer,
     wakers: WakerArray<N>,
-    state: PollArray<N>,
-    complete: usize,
-    done: bool,
+    pending: usize,
+    state: [PollState; N],
+    awake_list: ArrayDequeue<usize, N>,
 }
 
 impl<S, const N: usize> Merge<S, N>
@@ -35,11 +34,10 @@ where
     pub(crate) fn new(streams: [S; N]) -> Self {
         Self {
             streams,
-            indexer: Indexer::new(N),
             wakers: WakerArray::new(),
-            state: PollArray::new(),
-            complete: 0,
-            done: false,
+            pending: N,
+            state: [PollState::Ready; N],
+            awake_list: ArrayDequeue::new(core::array::from_fn(core::convert::identity), N),
         }
     }
 }
@@ -62,48 +60,53 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
-        let mut readiness = this.wakers.readiness().lock().unwrap();
-        readiness.set_waker(cx.waker());
+        {
+            let mut awakeness = this.wakers.awakeness();
+            awakeness.set_parent_waker(cx.waker());
+            let awake_list = awakeness.awake_list();
+            let states = &mut *this.state;
+            this.awake_list.extend(awake_list.iter().filter_map(|&idx| {
+                let state = &mut states[idx];
+                match state {
+                    PollState::Pending => {
+                        *state = PollState::Ready;
+                        Some(idx)
+                    }
+                    _ => None,
+                }
+            }));
+            awakeness.clear();
+        }
 
-        // Iterate over our streams one-by-one. If a stream yields a value,
-        // we exit early. By default we'll return `Poll::Ready(None)`, but
-        // this changes if we encounter a `Poll::Pending`.
-        for index in this.indexer.iter() {
-            if !readiness.any_ready() {
-                // Nothing is ready yet
-                return Poll::Pending;
-            } else if !readiness.clear_ready(index) || this.state[index].is_consumed() {
+        for idx in this.awake_list.drain() {
+            let state = &mut this.state[idx];
+            if state.is_consumed() {
                 continue;
             }
-
-            // unlock readiness so we don't deadlock when polling
-            drop(readiness);
-
-            // Obtain the intermediate waker.
-            let mut cx = Context::from_waker(this.wakers.get(index).unwrap());
-
-            let stream = utils::get_pin_mut(this.streams.as_mut(), index).unwrap();
+            let waker = this.wakers.get(idx).unwrap();
+            let mut cx = Context::from_waker(waker);
+            let stream = utils::get_pin_mut(this.streams.as_mut(), idx).unwrap();
             match stream.poll_next(&mut cx) {
                 Poll::Ready(Some(item)) => {
-                    // Mark ourselves as ready again because we need to poll for the next item.
-                    this.wakers.readiness().lock().unwrap().set_ready(index);
+                    waker.wake_by_ref();
+                    *state = PollState::Pending;
                     return Poll::Ready(Some(item));
                 }
                 Poll::Ready(None) => {
-                    *this.complete += 1;
-                    this.state[index].set_consumed();
-                    if *this.complete == this.streams.len() {
-                        return Poll::Ready(None);
-                    }
+                    *this.pending -= 1;
+                    *state = PollState::Consumed;
                 }
-                Poll::Pending => {}
+                Poll::Pending => {
+                    *state = PollState::Pending;
+                }
             }
-
-            // Lock readiness so we can use it again
-            readiness = this.wakers.readiness().lock().unwrap();
         }
 
-        Poll::Pending
+        if *this.pending == 0 {
+            Poll::Ready(None)
+        } else {
+            Poll::Pending
+        }
     }
 }
 

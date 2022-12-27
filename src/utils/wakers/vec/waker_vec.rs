@@ -1,11 +1,10 @@
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::MutexGuard;
 use std::task::Waker;
 
-use crate::utils::wakers::shared_slice_waker::waker_from_position;
-use crate::utils::wakers::shared_slice_waker::WakerArrayTrait;
-
-use super::ReadinessVec;
+use super::super::shared_slice_waker::{waker_from_position, WakerArrayTrait};
+use super::awakeness::AwakenessVec;
 
 /// A collection of wakers which delegate to an in-line waker.
 pub(crate) struct WakerVec {
@@ -15,15 +14,14 @@ pub(crate) struct WakerVec {
 
 struct WakerVecInner {
     wake_data: Vec<*const Self>,
-    readiness: Mutex<ReadinessVec>,
+    awakeness: Mutex<AwakenessVec>,
 }
 
 impl WakerVec {
     /// Create a new instance of `WakerVec`.
     pub(crate) fn new(len: usize) -> Self {
-        let readiness = Mutex::new(ReadinessVec::new(len));
         let mut inner = Arc::new(WakerVecInner {
-            readiness,
+            awakeness: Mutex::new(AwakenessVec::new(len)),
             wake_data: vec![std::ptr::null(); len],
         });
         let raw = Arc::into_raw(Arc::clone(&inner));
@@ -47,9 +45,8 @@ impl WakerVec {
         self.wakers.get(index)
     }
 
-    /// Access the `Readiness`.
-    pub(crate) fn readiness(&self) -> &Mutex<ReadinessVec> {
-        &self.inner.readiness
+    pub(crate) fn awakeness(&mut self) -> MutexGuard<'_, AwakenessVec> {
+        self.inner.awakeness.lock().unwrap()
     }
 }
 
@@ -59,6 +56,6 @@ impl WakerArrayTrait for WakerVecInner {
     }
 
     fn wake_index(&self, index: usize) {
-        self.readiness.lock().unwrap().wake(index)
+        self.awakeness.lock().unwrap().wake(index)
     }
 }

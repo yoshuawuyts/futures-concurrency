@@ -1,38 +1,11 @@
 use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, PollArray, WakerArray};
+use crate::utils::{ArrayDequeue, PollState, WakerArray};
 
 use core::fmt;
 use futures_core::Stream;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-
-macro_rules! poll_stream {
-    ($stream_idx:tt, $iteration:ident, $this:ident, $streams:ident . $stream_member:ident, $cx:ident, $len_streams:ident) => {
-        if $stream_idx == $iteration {
-            match unsafe { Pin::new_unchecked(&mut $streams.$stream_member) }.poll_next(&mut $cx) {
-                Poll::Ready(Some(item)) => {
-                    // Mark ourselves as ready again because we need to poll for the next item.
-                    $this
-                        .wakers
-                        .readiness()
-                        .lock()
-                        .unwrap()
-                        .set_ready($stream_idx);
-                    return Poll::Ready(Some(item));
-                }
-                Poll::Ready(None) => {
-                    *$this.completed += 1;
-                    $this.state[$stream_idx].set_consumed();
-                    if *$this.completed == $len_streams {
-                        return Poll::Ready(None);
-                    }
-                }
-                Poll::Pending => {}
-            }
-        }
-    };
-}
 
 macro_rules! impl_merge_tuple {
     ($ignore:ident $StructName:ident) => {
@@ -68,15 +41,12 @@ macro_rules! impl_merge_tuple {
             }
         }
     };
-    ($mod_name:ident $StructName:ident $($F:ident)+) => {
+    ($mod_name:ident $StructName:ident $($F:ident=$fut_idx:tt)+) => {
         mod $mod_name {
             #[pin_project::pin_project]
             pub(super) struct Streams<$($F,)+> { $(#[pin] pub(super) $F: $F),+ }
 
-            #[repr(usize)]
-            pub(super) enum Indexes { $($F),+ }
-
-            pub(super) const LEN: usize = [$(Indexes::$F),+].len();
+            pub(super) const LEN: usize = [$($fut_idx),+].len();
         }
 
         /// A stream that merges multiple streams into a single stream.
@@ -92,10 +62,10 @@ macro_rules! impl_merge_tuple {
             $F: Stream<Item = T>,
         )* {
             #[pin] streams: $mod_name::Streams<$($F,)+>,
-            indexer: utils::Indexer,
             wakers: WakerArray<{$mod_name::LEN}>,
-            state: PollArray<{$mod_name::LEN}>,
-            completed: u8,
+            pending: usize,
+            state: [PollState; $mod_name::LEN],
+            awake_list: ArrayDequeue<usize, {$mod_name::LEN}>
         }
 
         impl<T, $($F),*> fmt::Debug for $StructName<T, $($F),*>
@@ -119,47 +89,63 @@ macro_rules! impl_merge_tuple {
             fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
                 let this = self.project();
 
-                let mut readiness = this.wakers.readiness().lock().unwrap();
-                readiness.set_waker(cx.waker());
-
-                const LEN: u8 = $mod_name::LEN as u8;
+                {
+                    let mut awakeness = this.wakers.awakeness();
+                    awakeness.set_parent_waker(cx.waker());
+                    let awake_list = awakeness.awake_list();
+                    let states = &mut *this.state;
+                    this.awake_list.extend(awake_list.iter().filter_map(|&idx| {
+                        let state = &mut states[idx];
+                        match state {
+                            PollState::Pending => {
+                                *state = PollState::Ready;
+                                Some(idx)
+                            },
+                            _ => None
+                        }
+                    }));
+                    awakeness.clear();
+                }
 
                 let mut streams = this.streams.project();
 
-                // Iterate over our streams one-by-one. If a stream yields a value,
-                // we exit early. By default we'll return `Poll::Ready(None)`, but
-                // this changes if we encounter a `Poll::Pending`.
-                for index in this.indexer.iter() {
-                    if !readiness.any_ready() {
-                        // Nothing is ready yet
-                        return Poll::Pending;
-                    } else if !readiness.clear_ready(index) || this.state[index].is_consumed() {
+                for idx in this.awake_list.drain() {
+                    let state = &mut this.state[idx];
+                    if state.is_consumed() {
                         continue;
                     }
+                    let waker = this.wakers.get(idx).unwrap();
+                    let mut cx = Context::from_waker(waker);
 
-                    // unlock readiness so we don't deadlock when polling
-                    drop(readiness);
-
-                    // Obtain the intermediate waker.
-                    let mut cx = Context::from_waker(this.wakers.get(index).unwrap());
-
-                    $(
-                        let stream_index = $mod_name::Indexes::$F as usize;
-                        poll_stream!(
-                            stream_index,
-                            index,
-                            this,
-                            streams . $F,
-                            cx,
-                            LEN
-                        );
-                    )+
-
-                    // Lock readiness so we can use it again
-                    readiness = this.wakers.readiness().lock().unwrap();
+                    let poll_res = match idx {
+                        $(
+                            $fut_idx => {
+                                unsafe { Pin::new_unchecked(&mut streams.$F) }.poll_next(&mut cx)
+                            }
+                        ),+
+                        _ => unreachable!()
+                    };
+                    match poll_res {
+                        Poll::Ready(Some(item)) => {
+                            waker.wake_by_ref();
+                            *state = PollState::Pending;
+                            return Poll::Ready(Some(item));
+                        }
+                        Poll::Ready(None) => {
+                            *this.pending -= 1;
+                            *state = PollState::Consumed;
+                        }
+                        Poll::Pending => {
+                            *state = PollState::Pending;
+                        }
+                    }
                 }
-
-                Poll::Pending
+                if *this.pending == 0 {
+                    Poll::Ready(None)
+                }
+                else {
+                    Poll::Pending
+                }
             }
         }
 
@@ -174,29 +160,28 @@ macro_rules! impl_merge_tuple {
                 let ($($F,)*): ($($F,)*) = self;
                 $StructName {
                     streams: $mod_name::Streams { $($F: $F.into_stream()),+ },
-                    indexer: utils::Indexer::new(utils::tuple_len!($($F,)*)),
                     wakers: WakerArray::new(),
-                    state: PollArray::new(),
-                    completed: 0,
+                    pending: $mod_name::LEN,
+                    state: [PollState::Ready; $mod_name::LEN],
+                    awake_list: ArrayDequeue::new(core::array::from_fn(core::convert::identity), $mod_name::LEN)
                 }
             }
         }
     };
 }
-
-impl_merge_tuple! { merge0 Merge0  }
-impl_merge_tuple! { merge1 Merge1  A }
-impl_merge_tuple! { merge2 Merge2  A B }
-impl_merge_tuple! { merge3 Merge3  A B C }
-impl_merge_tuple! { merge4 Merge4  A B C D }
-impl_merge_tuple! { merge5 Merge5  A B C D E }
-impl_merge_tuple! { merge6 Merge6  A B C D E F }
-impl_merge_tuple! { merge7 Merge7  A B C D E F G }
-impl_merge_tuple! { merge8 Merge8  A B C D E F G H }
-impl_merge_tuple! { merge9 Merge9  A B C D E F G H I }
-impl_merge_tuple! { merge10 Merge10 A B C D E F G H I J }
-impl_merge_tuple! { merge11 Merge11 A B C D E F G H I J K }
-impl_merge_tuple! { merge12 Merge12 A B C D E F G H I J K L }
+impl_merge_tuple! { merge0 Merge0 }
+impl_merge_tuple! { merge1 Merge1 A=0 }
+impl_merge_tuple! { merge2 Merge2 A=0 B=1 }
+impl_merge_tuple! { merge3 Merge3 A=0 B=1 C=2 }
+impl_merge_tuple! { merge4 Merge4 A=0 B=1 C=2 D=3 }
+impl_merge_tuple! { merge5 Merge5 A=0 B=1 C=2 D=3 E=4 }
+impl_merge_tuple! { merge6 Merge6 A=0 B=1 C=2 D=3 E=4 F=5 }
+impl_merge_tuple! { merge7 Merge7 A=0 B=1 C=2 D=3 E=4 F=5 G=6 }
+impl_merge_tuple! { merge8 Merge8 A=0 B=1 C=2 D=3 E=4 F=5 G=6 H=7 }
+impl_merge_tuple! { merge9 Merge9 A=0 B=1 C=2 D=3 E=4 F=5 G=6 H=7 I=8 }
+impl_merge_tuple! { merge10 Merge10 A=0 B=1 C=2 D=3 E=4 F=5 G=6 H=7 I=8 J=9 }
+impl_merge_tuple! { merge11 Merge11 A=0 B=1 C=2 D=3 E=4 F=5 G=6 H=7 I=8 J=9 K=10 }
+impl_merge_tuple! { merge12 Merge12 A=0 B=1 C=2 D=3 E=4 F=5 G=6 H=7 I=8 J=9 K=10 L=11 }
 
 #[cfg(test)]
 mod tests {
