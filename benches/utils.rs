@@ -4,25 +4,36 @@ use futures_core::Stream;
 use futures_lite::prelude::*;
 use pin_project::pin_project;
 
-use std::cell::RefCell;
-use std::collections::VecDeque;
+use std::cell::{Cell, RefCell};
+use std::collections::{BinaryHeap, VecDeque};
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll, Waker};
 
+fn shuffle<T>(slice: &mut [T]) {
+    use rand::seq::SliceRandom;
+    use rand::SeedableRng;
+    let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+    slice.shuffle(&mut rng);
+}
+
 pub fn futures_vec(len: usize) -> Vec<CountdownFuture> {
-    let wakers = Rc::new(RefCell::new(VecDeque::new()));
-    let completed = Rc::new(RefCell::new(0));
-    let futures: Vec<_> = (0..len)
+    let wakers = Rc::new(RefCell::new(BinaryHeap::new()));
+    let completed = Rc::new(Cell::new(0));
+    let mut futures: Vec<_> = (0..len)
         .map(|n| CountdownFuture::new(n, len, wakers.clone(), completed.clone()))
         .collect();
+    shuffle(&mut futures);
     futures
 }
 
 pub fn futures_array<const N: usize>() -> [CountdownFuture; N] {
-    let wakers = Rc::new(RefCell::new(VecDeque::new()));
-    let completed = Rc::new(RefCell::new(0));
-    std::array::from_fn(|n| CountdownFuture::new(n, N, wakers.clone(), completed.clone()))
+    let wakers = Rc::new(RefCell::new(BinaryHeap::new()));
+    let completed = Rc::new(Cell::new(0));
+    let mut futures =
+        std::array::from_fn(|n| CountdownFuture::new(n, N, wakers.clone(), completed.clone()));
+    shuffle(&mut futures);
+    futures
 }
 
 pub fn futures_tuple() -> (
@@ -37,36 +48,27 @@ pub fn futures_tuple() -> (
     CountdownFuture,
     CountdownFuture,
 ) {
-    let len = 10;
-    let wakers = Rc::new(RefCell::new(VecDeque::new()));
-    let completed = Rc::new(RefCell::new(0));
-    (
-        CountdownFuture::new(0, len, wakers.clone(), completed.clone()),
-        CountdownFuture::new(1, len, wakers.clone(), completed.clone()),
-        CountdownFuture::new(2, len, wakers.clone(), completed.clone()),
-        CountdownFuture::new(3, len, wakers.clone(), completed.clone()),
-        CountdownFuture::new(4, len, wakers.clone(), completed.clone()),
-        CountdownFuture::new(5, len, wakers.clone(), completed.clone()),
-        CountdownFuture::new(6, len, wakers.clone(), completed.clone()),
-        CountdownFuture::new(7, len, wakers.clone(), completed.clone()),
-        CountdownFuture::new(8, len, wakers.clone(), completed.clone()),
-        CountdownFuture::new(9, len, wakers, completed),
-    )
+    let [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9] = futures_array::<10>();
+    (f0, f1, f2, f3, f4, f5, f6, f7, f8, f9)
 }
 
 pub fn streams_vec(len: usize) -> Vec<CountdownStream> {
-    let wakers = Rc::new(RefCell::new(VecDeque::new()));
-    let completed = Rc::new(RefCell::new(0));
-    let streams: Vec<_> = (0..len)
+    let wakers = Rc::new(RefCell::new(BinaryHeap::new()));
+    let completed = Rc::new(Cell::new(0));
+    let mut streams: Vec<_> = (0..len)
         .map(|n| CountdownStream::new(n, len, wakers.clone(), completed.clone()))
         .collect();
+    shuffle(&mut streams);
     streams
 }
 
 pub fn streams_array<const N: usize>() -> [CountdownStream; N] {
-    let wakers = Rc::new(RefCell::new(VecDeque::new()));
-    let completed = Rc::new(RefCell::new(0));
-    std::array::from_fn(|n| CountdownStream::new(n, N, wakers.clone(), completed.clone()))
+    let wakers = Rc::new(RefCell::new(BinaryHeap::new()));
+    let completed = Rc::new(Cell::new(0));
+    let mut streams =
+        std::array::from_fn(|n| CountdownStream::new(n, N, wakers.clone(), completed.clone()));
+    shuffle(&mut streams);
+    streams
 }
 
 pub fn streams_tuple() -> (
@@ -81,21 +83,28 @@ pub fn streams_tuple() -> (
     CountdownStream,
     CountdownStream,
 ) {
-    let len = 10;
-    let wakers = Rc::new(RefCell::new(VecDeque::new()));
-    let completed = Rc::new(RefCell::new(0));
-    (
-        CountdownStream::new(0, len, wakers.clone(), completed.clone()),
-        CountdownStream::new(1, len, wakers.clone(), completed.clone()),
-        CountdownStream::new(2, len, wakers.clone(), completed.clone()),
-        CountdownStream::new(3, len, wakers.clone(), completed.clone()),
-        CountdownStream::new(4, len, wakers.clone(), completed.clone()),
-        CountdownStream::new(5, len, wakers.clone(), completed.clone()),
-        CountdownStream::new(6, len, wakers.clone(), completed.clone()),
-        CountdownStream::new(7, len, wakers.clone(), completed.clone()),
-        CountdownStream::new(8, len, wakers.clone(), completed.clone()),
-        CountdownStream::new(9, len, wakers, completed),
-    )
+    let [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9] = streams_array::<10>();
+    (f0, f1, f2, f3, f4, f5, f6, f7, f8, f9)
+}
+
+pub struct PrioritizedWaker(usize, Waker);
+impl PartialEq for PrioritizedWaker {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+impl Eq for PrioritizedWaker {
+    fn assert_receiver_is_total_eq(&self) {}
+}
+impl PartialOrd for PrioritizedWaker {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for PrioritizedWaker {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0).reverse()
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -109,18 +118,18 @@ enum State {
 #[pin_project]
 pub struct CountdownStream {
     state: State,
-    wakers: Rc<RefCell<VecDeque<Waker>>>,
+    wakers: Rc<RefCell<BinaryHeap<PrioritizedWaker>>>,
     index: usize,
     max_count: usize,
-    completed_count: Rc<RefCell<usize>>,
+    completed_count: Rc<Cell<usize>>,
 }
 
 impl CountdownStream {
     pub fn new(
         index: usize,
         max_count: usize,
-        wakers: Rc<RefCell<VecDeque<Waker>>>,
-        completed_count: Rc<RefCell<usize>>,
+        wakers: Rc<RefCell<BinaryHeap<PrioritizedWaker>>>,
+        completed_count: Rc<Cell<usize>>,
     ) -> Self {
         Self {
             state: State::Init,
@@ -145,21 +154,29 @@ impl Stream for CountdownStream {
         match this.state {
             State::Init => {
                 // Push our waker onto the stack so we get woken again someday.
-                this.wakers.borrow_mut().push_back(cx.waker().clone());
+                this.wakers
+                    .borrow_mut()
+                    .push(PrioritizedWaker(*this.index, cx.waker().clone()));
                 *this.state = State::Polled;
                 Poll::Pending
             }
             State::Polled => {
                 // Wake up the next one
-                let _ = this.wakers.borrow_mut().pop_front().map(Waker::wake);
+                let _ = this
+                    .wakers
+                    .borrow_mut()
+                    .pop()
+                    .map(|PrioritizedWaker(_, waker)| waker.wake());
 
-                if *this.completed_count.borrow() == *this.index {
+                if this.completed_count.get() == *this.index {
                     *this.state = State::Done;
-                    *this.completed_count.borrow_mut() += 1;
+                    this.completed_count.set(this.completed_count.get() + 1);
                     Poll::Ready(Some(()))
                 } else {
                     // We're not done yet, so schedule another wakeup
-                    this.wakers.borrow_mut().push_back(cx.waker().clone());
+                    this.wakers
+                        .borrow_mut()
+                        .push(PrioritizedWaker(*this.index, cx.waker().clone()));
                     Poll::Pending
                 }
             }
@@ -172,18 +189,18 @@ impl Stream for CountdownStream {
 #[pin_project]
 pub struct CountdownFuture {
     state: State,
-    wakers: Rc<RefCell<VecDeque<Waker>>>,
+    wakers: Rc<RefCell<BinaryHeap<PrioritizedWaker>>>,
     index: usize,
     max_count: usize,
-    completed_count: Rc<RefCell<usize>>,
+    completed_count: Rc<Cell<usize>>,
 }
 
 impl CountdownFuture {
     pub fn new(
         index: usize,
         max_count: usize,
-        wakers: Rc<RefCell<VecDeque<Waker>>>,
-        completed_count: Rc<RefCell<usize>>,
+        wakers: Rc<RefCell<BinaryHeap<PrioritizedWaker>>>,
+        completed_count: Rc<Cell<usize>>,
     ) -> Self {
         Self {
             state: State::Init,
@@ -208,21 +225,29 @@ impl Future for CountdownFuture {
         match this.state {
             State::Init => {
                 // Push our waker onto the stack so we get woken again someday.
-                this.wakers.borrow_mut().push_back(cx.waker().clone());
+                this.wakers
+                    .borrow_mut()
+                    .push(PrioritizedWaker(*this.index, cx.waker().clone()));
                 *this.state = State::Polled;
                 Poll::Pending
             }
             State::Polled => {
                 // Wake up the next one
-                let _ = this.wakers.borrow_mut().pop_front().map(Waker::wake);
+                let _ = this
+                    .wakers
+                    .borrow_mut()
+                    .pop()
+                    .map(|PrioritizedWaker(_, waker)| waker.wake());
 
-                if *this.completed_count.borrow() == *this.index {
+                if this.completed_count.get() == *this.index {
                     *this.state = State::Done;
-                    *this.completed_count.borrow_mut() += 1;
+                    this.completed_count.set(this.completed_count.get() + 1);
                     Poll::Ready(())
                 } else {
                     // We're not done yet, so schedule another wakeup
-                    this.wakers.borrow_mut().push_back(cx.waker().clone());
+                    this.wakers
+                        .borrow_mut()
+                        .push(PrioritizedWaker(*this.index, cx.waker().clone()));
                     Poll::Pending
                 }
             }
