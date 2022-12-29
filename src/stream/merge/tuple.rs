@@ -111,7 +111,7 @@ macro_rules! impl_merge_tuple {
 
                 for idx in this.awake_list.drain() {
                     let state = &mut this.state[idx];
-                    if state.is_consumed() {
+                    if let PollState::Consumed = *state {
                         continue;
                     }
                     let waker = this.wakers.get(idx).unwrap();
@@ -120,7 +120,7 @@ macro_rules! impl_merge_tuple {
                     let poll_res = match idx {
                         $(
                             $fut_idx => {
-                                unsafe { Pin::new_unchecked(&mut streams.$F) }.poll_next(&mut cx)
+                                streams.$F.as_mut().poll_next(&mut cx)
                             }
                         ),+
                         _ => unreachable!()

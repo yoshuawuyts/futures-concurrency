@@ -6,14 +6,15 @@ use futures_time::prelude::*;
 use async_std::io;
 use async_std::net::TcpStream;
 use futures::channel::oneshot;
-use futures_concurrency::vec::AggregateError;
 use futures_time::time::Duration;
-use std::error;
+use std::error::Error;
 
 #[async_std::main]
-async fn main() -> Result<(), Box<dyn error::Error + Send + Sync + 'static>> {
+async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     // Connect to a socket
-    let mut socket = open_tcp_socket("rust-lang.org", 80, 3).await?;
+    let mut socket = open_tcp_socket("rust-lang.org", 80, 3)
+        .await
+        .map_err(|e| format!("{e:?}"))?;
 
     // Make an HTTP GET request.
     socket.write_all(b"GET / \r\n").await?;
@@ -27,7 +28,7 @@ async fn open_tcp_socket(
     addr: &str,
     port: u16,
     attempts: u64,
-) -> Result<TcpStream, AggregateError<io::Error>> {
+) -> Result<TcpStream, Vec<io::Error>> {
     let (mut sender, mut receiver) = oneshot::channel();
     let mut futures = Vec::with_capacity(attempts as usize);
 

@@ -1,108 +1,67 @@
+use super::super::common::{CombineTuple, MapResult};
 use super::Race as RaceTrait;
-use crate::utils;
 
-use core::fmt::{self, Debug};
+use core::fmt::Debug;
 use core::future::{Future, IntoFuture};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-use pin_project::pin_project;
+#[derive(Debug)]
+#[pin_project::pin_project]
+pub struct RaceFuture<F: Future>(#[pin] F);
+impl<F: Future> Future for RaceFuture<F> {
+    type Output = Result<core::convert::Infallible, F::Output>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        self.project().0.poll(cx).map(Err)
+    }
+}
+
+#[derive(Debug)]
+pub struct MapResultRace;
+impl<R, S> MapResult<Result<R, S>> for MapResultRace {
+    type FinalResult = S;
+    fn to_final_result(result: Result<R, S>) -> Self::FinalResult {
+        match result {
+            Err(s) => s,
+            Ok(_r) => unreachable!(),
+        }
+    }
+}
 
 macro_rules! impl_race_tuple {
-    ($StructName:ident $($F:ident)+) => {
-        /// Wait for the first future to complete.
-        ///
-        /// This `struct` is created by the [`race`] method on the [`Race`] trait. See
-        /// its documentation for more.
-        ///
-        /// [`race`]: crate::future::Race::race
-        /// [`Race`]: crate::future::Race
-        #[pin_project]
-        #[must_use = "futures do nothing unless you `.await` or poll them"]
-        #[allow(non_snake_case)]
-        pub struct $StructName<T, $($F),*>
+    ($($F:ident)+) => {
+        impl<$($F),+> RaceTrait for ($($F,)+)
         where $(
-            $F: Future<Output = T>,
-        )* {
-            done: bool,
-            indexer: utils::Indexer,
-            $(#[pin] $F: $F,)*
-        }
-
-        impl<T, $($F),*> Debug for $StructName<T, $($F),*>
-        where $(
-            $F: Future<Output = T> + Debug,
-            T: Debug,
-        )* {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.debug_tuple("Race")
-                    $(.field(&self.$F))*
-                    .finish()
-            }
-        }
-
-        impl<T, $($F),*> RaceTrait for ($($F,)*)
-        where $(
-            $F: IntoFuture<Output = T>,
-        )* {
-            type Output = T;
-            type Future = $StructName<T, $($F::IntoFuture),*>;
-
+            $F: IntoFuture,
+        )+ {
+            type Output = <Self::Future as Future>::Output;
+            type Future = <(($(RaceFuture<$F::IntoFuture>,)+), MapResultRace) as CombineTuple>::Combined;
             fn race(self) -> Self::Future {
-                let ($($F,)*): ($($F,)*) = self;
-                $StructName {
-                    done: false,
-                    indexer: utils::Indexer::new(utils::tuple_len!($($F,)*)),
-                    $($F: $F.into_future()),*
-                }
-            }
-        }
-
-        impl<T, $($F: Future),*> Future for $StructName<T, $($F),*>
-        where
-            $($F: Future<Output = T>),*
-        {
-            type Output = T;
-
-            fn poll(
-                self: Pin<&mut Self>, cx: &mut Context<'_>
-            ) -> Poll<Self::Output> {
-                let mut this = self.project();
-                assert!(!*this.done, "Futures must not be polled after completing");
-
-                #[repr(usize)]
-                enum Indexes {
-                    $($F),*
-                }
-
-                for i in this.indexer.iter() {
-                    utils::gen_conditions!(i, this, cx, poll, $((Indexes::$F as usize; $F, {
-                        Poll::Ready(output) => {
-                            *this.done = true;
-                            return Poll::Ready(output);
-                        },
-                        _ => continue,
-                    }))*);
-                }
-
-                Poll::Pending
+                let ($($F,)+) = self;
+                (
+                    (
+                        $(RaceFuture($F.into_future()),)+
+                    ),
+                    MapResultRace
+                ).combine()
             }
         }
     };
 }
 
-impl_race_tuple! { Race1 A }
-impl_race_tuple! { Race2 A B }
-impl_race_tuple! { Race3 A B C }
-impl_race_tuple! { Race4 A B C D }
-impl_race_tuple! { Race5 A B C D E }
-impl_race_tuple! { Race6 A B C D E F }
-impl_race_tuple! { Race7 A B C D E F G }
-impl_race_tuple! { Race8 A B C D E F G H }
-impl_race_tuple! { Race9 A B C D E F G H I }
-impl_race_tuple! { Race10 A B C D E F G H I J }
-impl_race_tuple! { Race11 A B C D E F G H I J K }
-impl_race_tuple! { Race12 A B C D E F G H I J K L }
+impl_race_tuple! { A0 }
+impl_race_tuple! { A0 A1 }
+impl_race_tuple! { A0 A1 A2 }
+impl_race_tuple! { A0 A1 A2 A3 }
+impl_race_tuple! { A0 A1 A2 A3 A4 }
+impl_race_tuple! { A0 A1 A2 A3 A4 A5 }
+impl_race_tuple! { A0 A1 A2 A3 A4 A5 A6 }
+impl_race_tuple! { A0 A1 A2 A3 A4 A5 A6 A7 }
+impl_race_tuple! { A0 A1 A2 A3 A4 A5 A6 A7 A8 }
+impl_race_tuple! { A0 A1 A2 A3 A4 A5 A6 A7 A8 A9 }
+impl_race_tuple! { A0 A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 }
+impl_race_tuple! { A0 A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 }
 
 #[cfg(test)]
 mod test {
@@ -113,7 +72,7 @@ mod test {
     fn race_1() {
         futures_lite::future::block_on(async {
             let a = future::ready("world");
-            assert_eq!((a,).race().await, "world");
+            assert_eq!((a,).race().await.any(), "world");
         });
     }
 
@@ -122,7 +81,7 @@ mod test {
         futures_lite::future::block_on(async {
             let a = future::pending();
             let b = future::ready("world");
-            assert_eq!((a, b).race().await, "world");
+            assert_eq!((a, b).race().await.any(), "world");
         });
     }
 
@@ -132,7 +91,7 @@ mod test {
             let a = future::pending();
             let b = future::ready("hello");
             let c = future::ready("world");
-            let result = (a, b, c).race().await;
+            let result = (a, b, c).race().await.any();
             assert!(matches!(result, "hello" | "world"));
         });
     }

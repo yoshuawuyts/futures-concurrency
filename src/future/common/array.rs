@@ -1,4 +1,3 @@
-use crate::future::common::ReturnOrStore;
 use crate::utils::{self, WakerArray};
 
 use core::array;
@@ -17,7 +16,7 @@ where
 {
     type Output;
     type StoredItem;
-    fn maybe_return(idx: usize, res: Fut::Output) -> ReturnOrStore<Self::Output, Self::StoredItem>;
+    fn maybe_return(idx: usize, res: Fut::Output) -> Result<Self::StoredItem, Self::Output>;
     fn when_completed_arr(arr: [Self::StoredItem; N]) -> Self::Output;
 }
 
@@ -86,7 +85,7 @@ where
         let mut this = self.project();
 
         assert!(
-            N == 0 || *this.pending > 0,
+            *this.pending > 0,
             "Futures must not be polled after completing"
         );
 
@@ -110,22 +109,23 @@ where
             let mut cx = Context::from_waker(this.wakers.get(idx).unwrap());
             if let Poll::Ready(value) = fut.poll(&mut cx) {
                 match B::maybe_return(idx, value) {
-                    ReturnOrStore::Store(store) => {
+                    Ok(store) => {
                         this.items[idx].write(store);
                         *filled = true;
                         *this.pending -= 1;
                     }
-                    ReturnOrStore::Return(ret) => return Poll::Ready(ret),
+                    Err(ret) => return Poll::Ready(ret),
                 }
             }
         }
 
         // Check whether we're all done now or need to keep going.
         if *this.pending == 0 {
-            for filled in this.filled.iter_mut() {
-                debug_assert!(*filled, "Future should have filled items array");
-                *filled = false;
-            }
+            debug_assert!(
+                this.filled.iter().all(|&filled| filled),
+                "Future should have filled items array"
+            );
+            this.filled.fill(false);
 
             let mut items = array::from_fn(|_| MaybeUninit::uninit());
             core::mem::swap(this.items, &mut items);

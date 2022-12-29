@@ -121,7 +121,7 @@ macro_rules! impl_zip_tuple {
                     match idx {
                         $(
                             $fut_idx => {
-                                match unsafe { Pin::new_unchecked(&mut streams.$F) }.poll_next(&mut cx) {
+                                match streams.$F.as_mut().poll_next(&mut cx) {
 									Poll::Ready(Some(value)) => {
 										this.items.$fut_idx.write(value);
                                         *filled = true;

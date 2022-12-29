@@ -1,4 +1,3 @@
-use crate::future::common::ReturnOrStore;
 use crate::utils::{self, WakerVec};
 
 use core::fmt;
@@ -17,7 +16,7 @@ where
 {
     type Output;
     type StoredItem;
-    fn maybe_return(idx: usize, res: Fut::Output) -> ReturnOrStore<Self::Output, Self::StoredItem>;
+    fn maybe_return(idx: usize, res: Fut::Output) -> Result<Self::StoredItem, Self::Output>;
     fn when_completed_vec(vec: Vec<Self::StoredItem>) -> Self::Output;
 }
 
@@ -105,12 +104,12 @@ where
             let mut cx = Context::from_waker(this.wakers.get(idx).unwrap());
             if let Poll::Ready(value) = fut.poll(&mut cx) {
                 match B::maybe_return(idx, value) {
-                    ReturnOrStore::Store(store) => {
+                    Ok(store) => {
                         this.items[idx].write(store);
                         this.filled.set(idx, true);
                         *this.pending -= 1;
                     }
-                    ReturnOrStore::Return(ret) => {
+                    Err(ret) => {
                         return Poll::Ready(ret);
                     }
                 }
@@ -119,10 +118,11 @@ where
 
         // Check whether we're all done now or need to keep going.
         if *this.pending == 0 {
-            this.filled.iter_mut().for_each(|mut filled| {
-                debug_assert!(*filled, "Future should have reached a `Ready` state");
-                filled.set(false);
-            });
+            debug_assert!(
+                this.filled.iter().all(|filled| *filled),
+                "Future should have reached a `Ready` state"
+            );
+            this.filled.fill(false);
 
             // SAFETY: we've checked with the state that all of our outputs have been
             // filled, which means we're ready to take the data and assume it's initialized.

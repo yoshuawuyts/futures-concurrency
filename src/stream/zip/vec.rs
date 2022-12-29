@@ -101,10 +101,11 @@ where
         }
 
         if *this.pending == 0 {
-            for mut filled in this.filled.iter_mut() {
-                debug_assert!(*filled, "The items array should have been filled");
-                filled.set(false);
-            }
+            debug_assert!(
+                this.filled.iter().all(|filled| *filled),
+                "Future should have reached a `Ready` state"
+            );
+            this.filled.fill(false);
             *this.pending = usize::MAX;
 
             let mut output = (0..len).map(|_| MaybeUninit::uninit()).collect();

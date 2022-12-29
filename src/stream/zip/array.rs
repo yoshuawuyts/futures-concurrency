@@ -105,10 +105,12 @@ where
         }
 
         if *this.pending == 0 {
-            for filled in this.filled.iter_mut() {
-                debug_assert!(*filled, "The items array should have been filled");
-                *filled = false;
-            }
+            debug_assert!(
+                this.filled.iter().all(|&filled| filled),
+                "The items array should have been filled"
+            );
+            this.filled.fill(false);
+
             *this.pending = usize::MAX;
 
             let mut items = array::from_fn(|_| MaybeUninit::uninit());

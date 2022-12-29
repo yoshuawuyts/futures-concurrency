@@ -1,7 +1,6 @@
+use super::super::common::{CombinatorArray, CombinatorBehaviorArray};
 use super::{Join as JoinTrait, JoinBehavior};
-use crate::future::common::CombinatorArray;
-
-use core::future::IntoFuture;
+use core::future::{Future, IntoFuture};
 
 /// Waits for two similarly-typed futures to complete.
 ///
@@ -11,6 +10,26 @@ use core::future::IntoFuture;
 /// [`join`]: crate::future::Join::join
 /// [`Join`]: crate::future::Join
 pub type Join<Fut, const N: usize> = CombinatorArray<Fut, JoinBehavior, N>;
+
+impl<Fut, const N: usize> CombinatorBehaviorArray<Fut, N> for JoinBehavior
+where
+    Fut: Future,
+{
+    type Output = [Fut::Output; N];
+
+    type StoredItem = Fut::Output;
+
+    fn maybe_return(
+        _idx: usize,
+        res: <Fut as Future>::Output,
+    ) -> Result<Self::StoredItem, Self::Output> {
+        Ok(res)
+    }
+
+    fn when_completed_arr(arr: [Self::StoredItem; N]) -> Self::Output {
+        arr
+    }
+}
 
 impl<Fut, const N: usize> JoinTrait for [Fut; N]
 where

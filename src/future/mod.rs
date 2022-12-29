@@ -68,6 +68,7 @@
 //! - `future::RaceOk`: wait for the first _successful_ future in the set to
 //! complete, or return an `Err` if *no* futures complete successfully.
 //!
+pub use common::select_types;
 pub use join::Join;
 pub use race::Race;
 pub use race_ok::RaceOk;

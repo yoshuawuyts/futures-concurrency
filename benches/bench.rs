@@ -216,6 +216,6 @@ mod race {
     async fn tuple_race() {
         let futures = futures_tuple();
         let output = futures.race().await;
-        assert_eq!(output, ());
+        assert_eq!(output.any(), ());
     }
 }

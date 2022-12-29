@@ -1,10 +1,9 @@
 mod array;
+mod tuple;
 mod vec;
+
 pub(crate) use array::{CombinatorArray, CombinatorBehaviorArray};
+pub(crate) use tuple::{CombineTuple, MapResult};
 pub(crate) use vec::{CombinatorBehaviorVec, CombinatorVec};
 
-#[derive(Debug)]
-pub enum ReturnOrStore<T, U> {
-    Return(T),
-    Store(U),
-}
+pub use tuple::select_types;

@@ -11,14 +11,17 @@ pub(crate) mod vec;
 /// aggregate error of all failed futures.
 pub trait RaceOk {
     /// The resulting output type.
-    type Output;
+    type Ok;
 
     /// The resulting error type.
     type Error;
 
     /// Which kind of future are we turning this into?
-    type Future: Future<Output = Result<Self::Output, Self::Error>>;
+    type Future: Future<Output = Result<Self::Ok, Self::Error>>;
 
     /// Waits for the first successful future to complete.
     fn race_ok(self) -> Self::Future;
 }
+
+#[derive(Debug)]
+pub struct RaceOkBehavior;

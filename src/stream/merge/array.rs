@@ -80,7 +80,7 @@ where
 
         for idx in this.awake_list.drain() {
             let state = &mut this.state[idx];
-            if state.is_consumed() {
+            if let PollState::Consumed = *state {
                 continue;
             }
             let waker = this.wakers.get(idx).unwrap();

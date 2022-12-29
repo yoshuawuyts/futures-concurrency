@@ -1,7 +1,6 @@
+use super::super::common::{CombinatorBehaviorVec, CombinatorVec};
 use super::{Join as JoinTrait, JoinBehavior};
-use crate::future::common::CombinatorVec;
-
-use core::future::IntoFuture;
+use core::future::{Future, IntoFuture};
 use std::vec::Vec;
 
 /// Waits for two similarly-typed futures to complete.
@@ -12,6 +11,26 @@ use std::vec::Vec;
 /// [`join`]: crate::future::Join::join
 /// [`Join`]: crate::future::Join
 pub type Join<Fut> = CombinatorVec<Fut, JoinBehavior>;
+
+impl<Fut> CombinatorBehaviorVec<Fut> for JoinBehavior
+where
+    Fut: Future,
+{
+    type Output = Vec<Fut::Output>;
+
+    type StoredItem = Fut::Output;
+
+    fn maybe_return(
+        _idx: usize,
+        res: <Fut as Future>::Output,
+    ) -> Result<Self::StoredItem, Self::Output> {
+        Ok(res)
+    }
+
+    fn when_completed_vec(vec: Vec<Self::StoredItem>) -> Self::Output {
+        vec
+    }
+}
 
 impl<Fut> JoinTrait for Vec<Fut>
 where
@@ -27,14 +46,9 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::utils::dummy_waker;
-
     use super::*;
 
     use std::future;
-    use std::future::Future;
-    use std::pin::Pin;
-    use std::task::Context;
 
     #[test]
     fn smoke() {
@@ -42,17 +56,5 @@ mod test {
             let fut = vec![future::ready("hello"), future::ready("world")].join();
             assert_eq!(fut.await, vec!["hello", "world"]);
         });
-    }
-
-    #[test]
-    fn debug() {
-        let mut fut = vec![future::ready("hello"), future::ready("world")].join();
-        assert_eq!(format!("{:?}", fut), "[Pending, Pending]");
-        let mut fut = Pin::new(&mut fut);
-
-        let waker = dummy_waker();
-        let mut cx = Context::from_waker(&waker);
-        let _ = fut.as_mut().poll(&mut cx);
-        assert_eq!(format!("{:?}", fut), "[Consumed, Consumed]");
     }
 }

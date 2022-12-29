@@ -12,16 +12,19 @@ pub(crate) mod vec;
 /// operation.
 pub trait TryJoin {
     /// The resulting output type.
-    type Output;
+    type Ok;
 
     /// The resulting error type.
     type Error;
 
     /// Which kind of future are we turning this into?
-    type Future: Future<Output = Result<Self::Output, Self::Error>>;
+    type Future: Future<Output = Result<Self::Ok, Self::Error>>;
 
     /// Waits for multiple futures to complete, either returning when all
     /// futures complete successfully, or return early when any future completes
     /// with an error.
     fn try_join(self) -> Self::Future;
 }
+
+#[derive(Debug)]
+pub struct TryJoinBehavior;
