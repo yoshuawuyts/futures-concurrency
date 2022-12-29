@@ -73,6 +73,7 @@ pub use race::Race;
 pub use race_ok::RaceOk;
 pub use try_join::TryJoin;
 
+mod common;
 pub(crate) mod join;
 pub(crate) mod race;
 pub(crate) mod race_ok;
