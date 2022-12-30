@@ -8,39 +8,6 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 macro_rules! impl_merge_tuple {
-    ($ignore:ident $StructName:ident) => {
-        /// A stream that merges multiple streams into a single stream.
-        ///
-        /// This `struct` is created by the [`merge`] method on the [`Merge`] trait. See its
-        /// documentation for more.
-        ///
-        /// [`merge`]: trait.Merge.html#method.merge
-        /// [`Merge`]: trait.Merge.html
-        pub struct $StructName {}
-
-        impl fmt::Debug for $StructName {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.debug_tuple("Merge").finish()
-            }
-        }
-
-        impl Stream for $StructName {
-            type Item = core::convert::Infallible; // TODO: convert to `never` type in the stdlib
-
-            fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-                Poll::Ready(None)
-            }
-        }
-
-        impl MergeTrait for () {
-            type Item = core::convert::Infallible; // TODO: convert to `never` type in the stdlib
-            type Stream = $StructName;
-
-            fn merge(self) -> Self::Stream {
-                $StructName { }
-            }
-        }
-    };
     ($mod_name:ident $StructName:ident $($F:ident=$fut_idx:tt)+) => {
         mod $mod_name {
             #[pin_project::pin_project]
@@ -65,7 +32,9 @@ macro_rules! impl_merge_tuple {
             wakers: WakerArray<{$mod_name::LEN}>,
             pending: usize,
             state: [PollState; $mod_name::LEN],
-            awake_list: ArrayDequeue<usize, {$mod_name::LEN}>
+            awake_list: ArrayDequeue<usize, {$mod_name::LEN}>,
+            #[cfg(debug_assertions)]
+            done: bool
         }
 
         impl<T, $($F),*> fmt::Debug for $StructName<T, $($F),*>
@@ -88,6 +57,9 @@ macro_rules! impl_merge_tuple {
 
             fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
                 let this = self.project();
+
+                #[cfg(debug_assertions)]
+assert!(!*this.done, "Stream should not be polled after completing");
 
                 {
                     let mut awakeness = this.wakers.awakeness();
@@ -141,6 +113,10 @@ macro_rules! impl_merge_tuple {
                     }
                 }
                 if *this.pending == 0 {
+                    #[cfg(debug_assertions)]
+                    {
+                        *this.done = true;
+                    }
                     Poll::Ready(None)
                 }
                 else {
@@ -163,13 +139,14 @@ macro_rules! impl_merge_tuple {
                     wakers: WakerArray::new(),
                     pending: $mod_name::LEN,
                     state: [PollState::Ready; $mod_name::LEN],
-                    awake_list: ArrayDequeue::new(core::array::from_fn(core::convert::identity), $mod_name::LEN)
+                    awake_list: ArrayDequeue::new(core::array::from_fn(core::convert::identity), $mod_name::LEN),
+                    #[cfg(debug_assertions)]
+                    done: false
                 }
             }
         }
     };
 }
-impl_merge_tuple! { merge0 Merge0 }
 impl_merge_tuple! { merge1 Merge1 A=0 }
 impl_merge_tuple! { merge2 Merge2 A=0 B=1 }
 impl_merge_tuple! { merge3 Merge3 A=0 B=1 C=2 }
@@ -182,6 +159,22 @@ impl_merge_tuple! { merge9 Merge9 A=0 B=1 C=2 D=3 E=4 F=5 G=6 H=7 I=8 }
 impl_merge_tuple! { merge10 Merge10 A=0 B=1 C=2 D=3 E=4 F=5 G=6 H=7 I=8 J=9 }
 impl_merge_tuple! { merge11 Merge11 A=0 B=1 C=2 D=3 E=4 F=5 G=6 H=7 I=8 J=9 K=10 }
 impl_merge_tuple! { merge12 Merge12 A=0 B=1 C=2 D=3 E=4 F=5 G=6 H=7 I=8 J=9 K=10 L=11 }
+
+impl MergeTrait for () {
+    type Item = core::convert::Infallible;
+    type Stream = Merge0;
+    fn merge(self) -> Self::Stream {
+        Merge0
+    }
+}
+#[derive(Debug)]
+pub struct Merge0;
+impl Stream for Merge0 {
+    type Item = core::convert::Infallible;
+    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Poll::Ready(None)
+    }
+}
 
 #[cfg(test)]
 mod tests {

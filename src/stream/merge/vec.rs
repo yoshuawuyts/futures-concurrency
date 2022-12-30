@@ -28,6 +28,8 @@ where
     consumed: BitVec,
     awake_set: BitVec,
     awake_list: VecDeque<usize>,
+    #[cfg(debug_assertions)]
+    done: bool,
 }
 
 impl<S> Merge<S>
@@ -43,6 +45,8 @@ where
             consumed: BitVec::repeat(false, len),
             awake_set: BitVec::repeat(false, len),
             awake_list: VecDeque::with_capacity(len),
+            #[cfg(debug_assertions)]
+            done: false,
         }
     }
 }
@@ -64,6 +68,9 @@ where
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
+
+        #[cfg(debug_assertions)]
+        assert!(!*this.done, "Stream should not be polled after completing");
 
         {
             let mut awakeness = this.wakers.awakeness();
@@ -98,6 +105,10 @@ where
             }
         }
         if *this.pending == 0 {
+            #[cfg(debug_assertions)]
+            {
+                *this.done = true;
+            }
             Poll::Ready(None)
         } else {
             Poll::Pending

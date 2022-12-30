@@ -31,6 +31,8 @@ where
     filled: [bool; N],
     awake_list_buffer: [usize; N],
     pending: usize,
+    #[cfg(debug_assertions)]
+    done: bool,
 }
 
 impl<S, const N: usize> Zip<S, N>
@@ -45,6 +47,8 @@ where
             wakers: WakerArray::new(),
             awake_list_buffer: [0; N],
             pending: N,
+            #[cfg(debug_assertions)]
+            done: false,
         }
     }
 }
@@ -67,9 +71,14 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
+        #[cfg(debug_assertions)]
+        assert!(!*this.done, "Stream should not be polled after completing");
+
         let num_awake = {
             let mut awakeness = this.wakers.awakeness();
             awakeness.set_parent_waker(cx.waker());
+            // pending = usize::MAX is a special value used to communicate that
+            // a zipped value has been yielded and everything should be restarted.
             let num_awake = if *this.pending == usize::MAX {
                 *this.pending = N;
                 *this.awake_list_buffer = array::from_fn(core::convert::identity);
@@ -98,6 +107,11 @@ where
                     *this.pending -= 1;
                 }
                 Poll::Ready(None) => {
+                    #[cfg(debug_assertions)]
+                    {
+                        *this.done = true;
+                    }
+
                     return Poll::Ready(None);
                 }
                 Poll::Pending => {}
@@ -111,6 +125,7 @@ where
             );
             this.filled.fill(false);
 
+            // Set this so that the wakers get restarted next time.
             *this.pending = usize::MAX;
 
             let mut items = array::from_fn(|_| MaybeUninit::uninit());

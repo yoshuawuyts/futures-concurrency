@@ -9,14 +9,23 @@ use core::task::{Context, Poll};
 
 use futures_core::TryFuture;
 
-pub trait MapResult<IntermediateResult> {
-    type FinalResult;
-    fn to_final_result(result: IntermediateResult) -> Self::FinalResult;
-}
-
+// Basically we're implementing try_join here.
+// All the other combinators can be derived from try_join by wrapping subfutures
+// to return Ok or Error appropriately, and mapping the final result.
+//
+// For example, race_ok wants to break upon the first Ok subfuture completion,
+// so it would map subfuture Ok to Err, causing this underlying try_join to break.
+// Then it would take the Err result and convert it back to Ok.
 pub trait CombineTuple {
     type Combined;
     fn combine(self) -> Self::Combined;
+}
+
+// The final result conversion could be done by derived combinators,
+// but providing the facilities to do it here helps reduce the number of poll layers needed.
+pub trait MapResult<IntermediateResult> {
+    type FinalResult;
+    fn to_final_result(result: IntermediateResult) -> Self::FinalResult;
 }
 
 macro_rules! impl_common_tuple {
@@ -139,6 +148,8 @@ macro_rules! impl_common_tuple {
                         let mut out = ($(MaybeUninit::<$F::Ok>::uninit(),)+);
                         core::mem::swap(&mut out, this.items);
                         let ($($F,)+) = out;
+                        // SAFETY: we've checked with the state that all of our outputs have been
+                        // filled, which means we're ready to take the data and assume it's initialized.
                         unsafe { ($($F.assume_init(),)+) }
                     };
                     Poll::Ready(B::to_final_result(Ok(out)))
@@ -155,6 +166,8 @@ macro_rules! impl_common_tuple {
                 let this = self.project();
                 $(
                     if this.filled[$idx] {
+                        // SAFETY: we've just filtered down to *only* the initialized values.
+                        // We can assume they're initialized, and this is where we drop them.
                         unsafe { this.items.$idx.assume_init_drop() };
                     }
                 )+

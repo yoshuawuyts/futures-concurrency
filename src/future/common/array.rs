@@ -85,7 +85,7 @@ where
         let mut this = self.project();
 
         assert!(
-            *this.pending > 0,
+            N == 0 || *this.pending > 0,
             "Futures must not be polled after completing"
         );
 
@@ -132,6 +132,9 @@ where
 
             // SAFETY: we've checked with the state that all of our outputs have been
             // filled, which means we're ready to take the data and assume it's initialized.
+            // In the case where N == 0, the assert at the top of this function wouldn't catch poll-after-done,
+            // so we could be calling `assume_init` on unintialized array,
+            // but in such case the array is empty so we're fine;.
             let items = unsafe { utils::array_assume_init(items) };
 
             Poll::Ready(B::when_completed_arr(items))

@@ -25,6 +25,8 @@ where
     pending: usize,
     state: [PollState; N],
     awake_list: ArrayDequeue<usize, N>,
+    #[cfg(debug_assertions)]
+    done: bool,
 }
 
 impl<S, const N: usize> Merge<S, N>
@@ -38,6 +40,8 @@ where
             pending: N,
             state: [PollState::Ready; N],
             awake_list: ArrayDequeue::new(core::array::from_fn(core::convert::identity), N),
+            #[cfg(debug_assertions)]
+            done: false,
         }
     }
 }
@@ -59,6 +63,9 @@ where
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
+
+        #[cfg(debug_assertions)]
+        assert!(!*this.done, "Stream should not be polled after completing");
 
         {
             let mut awakeness = this.wakers.awakeness();
@@ -103,6 +110,10 @@ where
         }
 
         if *this.pending == 0 {
+            #[cfg(debug_assertions)]
+            {
+                *this.done = true;
+            }
             Poll::Ready(None)
         } else {
             Poll::Pending

@@ -10,39 +10,6 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 macro_rules! impl_zip_tuple {
-    ($ignore:ident $StructName:ident) => {
-        /// A stream that merges multiple streams into a single stream.
-        ///
-        /// This `struct` is created by the [`merge`] method on the [`Merge`] trait. See its
-        /// documentation for more.
-        ///
-        /// [`merge`]: trait.Merge.html#method.merge
-        /// [`Merge`]: trait.Merge.html
-        pub struct $StructName {}
-
-        impl fmt::Debug for $StructName {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.debug_tuple("Merge").finish()
-            }
-        }
-
-        impl Stream for $StructName {
-            type Item = ();
-
-            fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-                Poll::Ready(Some(()))
-            }
-        }
-
-        impl ZipTrait for () {
-            type Item = ();
-            type Stream = $StructName;
-
-            fn zip(self) -> Self::Stream {
-                $StructName { }
-            }
-        }
-    };
     ($mod_name:ident $StructName:ident $($F:ident=$fut_idx:tt)+) => {
         mod $mod_name {
             #[pin_project::pin_project]
@@ -69,6 +36,8 @@ macro_rules! impl_zip_tuple {
 			filled: [bool; $mod_name::LEN],
             awake_list_buffer: [usize; $mod_name::LEN],
             pending: usize,
+            #[cfg(debug_assertions)]
+            done: bool
         }
 
         impl<$($F),*> fmt::Debug for $StructName<$($F),*>
@@ -90,6 +59,9 @@ macro_rules! impl_zip_tuple {
 
             fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
                 let this = self.project();
+
+                #[cfg(debug_assertions)]
+assert!(!*this.done, "Stream should not be polled after completing");
 
 				let num_awake = {
 					let mut awakeness = this.wakers.awakeness();
@@ -128,6 +100,10 @@ macro_rules! impl_zip_tuple {
                                         *this.pending -= 1;
 									}
                                     Poll::Ready(None) => {
+                                        #[cfg(debug_assertions)]
+                                        {
+                                            *this.done = true;
+                                        }
                                         return Poll::Ready(None);
                                     }
                                     Poll::Pending => {}
@@ -138,16 +114,17 @@ macro_rules! impl_zip_tuple {
                     };
                 }
                 if *this.pending == 0 {
-                    for filled in this.filled.iter_mut() {
-                        debug_assert!(
-                            *filled,
-                            "The items array should have been filled"
-                        );
-                        *filled = false;
-                    }
+                    debug_assert!(
+                        this.filled.iter().all(|filled| *filled),
+                        "The items array should have been filled"
+                    );
+                    this.filled.fill(false);
+
                     *this.pending = usize::MAX;
                     let mut out = ($(MaybeUninit::<$F::Item>::uninit(),)+);
                     core::mem::swap(&mut out, this.items);
+                    // SAFETY: we've checked with the state that all of our outputs have been
+                    // filled, which means we're ready to take the data and assume it's initialized.
                     Poll::Ready(Some(unsafe { ($(out.$fut_idx.assume_init(),)+) }))
                 }
                 else {
@@ -172,6 +149,8 @@ macro_rules! impl_zip_tuple {
                     filled: [false; $mod_name::LEN],
                     awake_list_buffer: [0; $mod_name::LEN],
                     pending: $mod_name::LEN,
+                    #[cfg(debug_assertions)]
+                    done: false
                 }
             }
         }
@@ -184,6 +163,8 @@ macro_rules! impl_zip_tuple {
                 let this = self.project();
                 $(
                     if this.filled[$fut_idx] {
+                        // SAFETY: we've just filtered down to *only* the initialized values.
+                        // We can assume they're initialized, and this is where we drop them.
                         unsafe { this.items.$fut_idx.assume_init_drop() };
                     }
                 )+
@@ -192,7 +173,6 @@ macro_rules! impl_zip_tuple {
     };
 }
 
-impl_zip_tuple! { zip0 Zip0 }
 impl_zip_tuple! { zip1 Zip1 A=0 }
 impl_zip_tuple! { zip2 Zip2 A=0 B=1 }
 impl_zip_tuple! { zip3 Zip3 A=0 B=1 C=2 }
@@ -205,3 +185,20 @@ impl_zip_tuple! { zip9 Zip9 A=0 B=1 C=2 D=3 E=4 F=5 G=6 H=7 I=8 }
 impl_zip_tuple! { zip10 Zip10 A=0 B=1 C=2 D=3 E=4 F=5 G=6 H=7 I=8 J=9 }
 impl_zip_tuple! { zip11 Zip11 A=0 B=1 C=2 D=3 E=4 F=5 G=6 H=7 I=8 J=9 K=10 }
 impl_zip_tuple! { zip12 Zip12 A=0 B=1 C=2 D=3 E=4 F=5 G=6 H=7 I=8 J=9 K=10 L=11 }
+
+impl ZipTrait for () {
+    type Item = ();
+    type Stream = Zip0;
+
+    fn zip(self) -> Self::Stream {
+        Zip0
+    }
+}
+#[derive(Debug)]
+pub struct Zip0;
+impl Stream for Zip0 {
+    type Item = ();
+    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Poll::Ready(Some(()))
+    }
+}

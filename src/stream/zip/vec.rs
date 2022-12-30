@@ -31,6 +31,8 @@ where
     filled: BitVec,
     awake_list_buffer: Vec<usize>,
     pending: usize,
+    #[cfg(debug_assertions)]
+    done: bool,
 }
 
 impl<S> Zip<S>
@@ -46,6 +48,8 @@ where
             filled: BitVec::repeat(false, len),
             awake_list_buffer: Vec::new(),
             pending: len,
+            #[cfg(debug_assertions)]
+            done: false,
         }
     }
 }
@@ -68,10 +72,15 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
+        #[cfg(debug_assertions)]
+        assert!(!*this.done, "Stream should not be polled after completing");
+
         let len = this.streams.len();
         {
             let mut awakeness = this.wakers.awakeness();
             awakeness.set_parent_waker(cx.waker());
+            // pending = usize::MAX is a special value used to communicate that
+            // a zipped value has been yielded and everything should be restarted.
             if *this.pending == usize::MAX {
                 *this.pending = len;
                 this.awake_list_buffer.clear();
@@ -95,7 +104,13 @@ where
                     filled.set(true);
                     *this.pending -= 1;
                 }
-                Poll::Ready(None) => return Poll::Ready(None),
+                Poll::Ready(None) => {
+                    #[cfg(debug_assertions)]
+                    {
+                        *this.done = true;
+                    }
+                    return Poll::Ready(None);
+                }
                 Poll::Pending => {}
             }
         }
@@ -106,10 +121,14 @@ where
                 "Future should have reached a `Ready` state"
             );
             this.filled.fill(false);
+
+            // Set this so that the wakers get restarted next time.
             *this.pending = usize::MAX;
 
             let mut output = (0..len).map(|_| MaybeUninit::uninit()).collect();
             mem::swap(this.items, &mut output);
+            // SAFETY: we've checked with the state that all of our outputs have been
+            // filled, which means we're ready to take the data and assume it's initialized.
             let output = unsafe { vec_assume_init(output) };
             Poll::Ready(Some(output))
         } else {

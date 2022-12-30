@@ -126,6 +126,9 @@ where
 
             // SAFETY: we've checked with the state that all of our outputs have been
             // filled, which means we're ready to take the data and assume it's initialized.
+            // In the case where the len is 0, the assert at the top of this function wouldn't catch poll-after-done,
+            // so we could be calling `assume_init` on unintialized array,
+            // but in such case the array is empty so we're fine;.
             let items = unsafe {
                 let items = mem::take(this.items);
                 mem::transmute::<Vec<MaybeUninit<B::StoredItem>>, Vec<B::StoredItem>>(items)
@@ -149,6 +152,8 @@ where
 
         for (filled, output) in this.filled.iter().zip(this.items.iter_mut()) {
             if *filled {
+                // SAFETY: we've just filtered down to *only* the initialized values.
+                // We can assume they're initialized, and this is where we drop them.
                 unsafe { output.assume_init_drop() }
             }
         }
