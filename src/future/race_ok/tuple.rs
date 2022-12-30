@@ -68,3 +68,53 @@ impl_race_ok_tuple! { A0 A1 A2 A3 A4 A5 A6 A7 }
 impl_race_ok_tuple! { A0 A1 A2 A3 A4 A5 A6 A7 A8 }
 impl_race_ok_tuple! { A0 A1 A2 A3 A4 A5 A6 A7 A8 A9 }
 impl_race_ok_tuple! { A0 A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use core::future;
+    use std::error::Error;
+
+    type DynError = Box<dyn Error>;
+
+    #[test]
+    fn race_ok_1() {
+        futures_lite::future::block_on(async {
+            let a = async { Ok::<_, DynError>("world") };
+            let res = (a,).race_ok().await;
+            assert!(matches!(res.unwrap().any(), "world"));
+        });
+    }
+
+    #[test]
+    fn race_ok_2() {
+        futures_lite::future::block_on(async {
+            let a = future::pending::<Result<&str, ()>>();
+            let b = async { Ok::<_, DynError>("world") };
+            let res = (a, b).race_ok().await;
+            assert!(matches!(res.unwrap().any(), "world"));
+        });
+    }
+
+    #[test]
+    fn race_ok_3() {
+        futures_lite::future::block_on(async {
+            let a = future::pending::<Result<&str, ()>>();
+            let b = async { Ok::<_, DynError>("hello") };
+            let c = async { Ok::<_, DynError>("world") };
+            let result = (a, b, c).race_ok().await;
+            assert!(matches!(result.unwrap().any(), "hello" | "world"));
+        });
+    }
+
+    #[test]
+    fn race_ok_err() {
+        futures_lite::future::block_on(async {
+            let a = async { Err::<(), _>("hello") };
+            let b = async { Err::<(), _>("world") };
+            let errors = (a, b).race_ok().await.unwrap_err();
+            assert_eq!(errors.0, "hello");
+            assert_eq!(errors.1, "world");
+        });
+    }
+}
