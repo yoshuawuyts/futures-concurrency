@@ -10,6 +10,10 @@ use std::vec::Vec;
 use bitvec::vec::BitVec;
 use pin_project::{pin_project, pinned_drop};
 
+// For code comments, see the array module.
+
+/// A trait for making CombinatorVec behave as Join/TryJoin/Race/RaceOk.
+/// See [super::CombinatorBehaviorArray], which is very similar, for documentation.
 pub trait CombinatorBehaviorVec<Fut>
 where
     Fut: Future,
@@ -20,13 +24,7 @@ where
     fn when_completed_vec(vec: Vec<Self::StoredItem>) -> Self::Output;
 }
 
-/// Waits for two similarly-typed futures to complete.
-///
-/// This `struct` is created by the [`join`] method on the [`Join`] trait. See
-/// its documentation for more.
-///
-/// [`join`]: crate::future::Join::join
-/// [`Join`]: crate::future::Join
+/// See [super::CombinatorArray] for documentation.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project(PinnedDrop)]
 pub struct CombinatorVec<Fut, B>
@@ -91,13 +89,14 @@ where
         {
             let mut awakeness = this.wakers.awakeness();
             awakeness.set_parent_waker(cx.waker());
+
             this.awake_list_buffer.clone_from(awakeness.awake_list());
+
             awakeness.clear();
         }
 
         for idx in this.awake_list_buffer.drain(..) {
             if this.filled[idx] {
-                // Woken future is already complete, don't poll it again.
                 continue;
             }
             let fut = utils::get_pin_mut_from_vec(this.futures.as_mut(), idx).unwrap();
@@ -116,7 +115,6 @@ where
             }
         }
 
-        // Check whether we're all done now or need to keep going.
         if *this.pending == 0 {
             debug_assert!(
                 this.filled.iter().all(|filled| *filled),
@@ -124,15 +122,18 @@ where
             );
             this.filled.fill(false);
 
-            // SAFETY: we've checked with the state that all of our outputs have been
-            // filled, which means we're ready to take the data and assume it's initialized.
-            // In the case where the len is 0, the assert at the top of this function wouldn't catch poll-after-done,
-            // so we could be calling `assume_init` on unintialized array,
-            // but in such case the array is empty so we're fine;.
+            // SAFETY: this.pending is only decremented when an item slot is filled.
+            // pending reaching 0 means the entire items array is filled.
+            //
+            // For len > 0, we can only enter this if block once (because the assert at the top),
+            // so it is safe to take the data.
+            // For len == 0, we can enter this if block many times (in case of poll-after-done),
+            // but then the items array is empty anyway so we're fine.
             let items = unsafe {
                 let items = mem::take(this.items);
                 mem::transmute::<Vec<MaybeUninit<B::StoredItem>>, Vec<B::StoredItem>>(items)
             };
+
             Poll::Ready(B::when_completed_vec(items))
         } else {
             Poll::Pending
@@ -152,8 +153,7 @@ where
 
         for (filled, output) in this.filled.iter().zip(this.items.iter_mut()) {
             if *filled {
-                // SAFETY: we've just filtered down to *only* the initialized values.
-                // We can assume they're initialized, and this is where we drop them.
+                // SAFETY: filled is only set to true for initialized items.
                 unsafe { output.assume_init_drop() }
             }
         }

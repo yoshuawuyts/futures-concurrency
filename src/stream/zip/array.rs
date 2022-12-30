@@ -24,13 +24,31 @@ pub struct Zip<S, const N: usize>
 where
     S: Stream,
 {
+    // Number of substreams that we're waiting for.
+    // MAGIC VALUE: pending == usize::MAX is used to signal that
+    // we just yielded a zipped value and every stream should be woken up again.
+    //
+    // pending value goes like
+    // N,N-1,...,1,0,
+    // <zipped item yielded>,usize::MAX,
+    // N,N-1,...,1,0,
+    // <zipped item yielded>,usize::MAX,...
+    pending: usize,
+    wakers: WakerArray<N>,
+    /// The stored output from each substream.
+    items: [MaybeUninit<<S as Stream>::Item>; N],
+    /// Whether each item in self.items is initialized.
+    /// Invariant: self.filled.count_falses() == self.pending
+    /// EXCEPT when self.pending==usize::MAX, self.filled must be all false.
+    filled: [bool; N],
+    /// A temporary buffer for indices that have woken.
+    /// The data here don't have to persist between each `poll_next`.
+    awake_list_buffer: [usize; N],
     #[pin]
     streams: [S; N],
-    items: [MaybeUninit<<S as Stream>::Item>; N],
-    wakers: WakerArray<N>,
-    filled: [bool; N],
-    awake_list_buffer: [usize; N],
-    pending: usize,
+    /// Streams should not be polled after complete.
+    /// In debug, we panic to the user.
+    /// In release, we might sleep or poll substreams after completion.
     #[cfg(debug_assertions)]
     done: bool,
 }
@@ -45,6 +63,7 @@ where
             items: array::from_fn(|_| MaybeUninit::uninit()),
             filled: [false; N],
             wakers: WakerArray::new(),
+            // TODO: this is a temporary buffer so it can be MaybeUninit.
             awake_list_buffer: [0; N],
             pending: N,
             #[cfg(debug_assertions)]
@@ -75,27 +94,34 @@ where
         assert!(!*this.done, "Stream should not be polled after completing");
 
         let num_awake = {
+            // Lock the awakeness Mutex.
             let mut awakeness = this.wakers.awakeness();
             awakeness.set_parent_waker(cx.waker());
-            // pending = usize::MAX is a special value used to communicate that
-            // a zipped value has been yielded and everything should be restarted.
+
             let num_awake = if *this.pending == usize::MAX {
+                // pending = usize::MAX is a special value used to communicate that
+                // a zipped value has been yielded and everything should be restarted.
                 *this.pending = N;
+                // Fill the awake_list_buffer with 0..N.
                 *this.awake_list_buffer = array::from_fn(core::convert::identity);
                 N
             } else {
+                // Copy the awake list out of the Mutex.
                 let awake_list = awakeness.awake_list();
                 let num_awake = awake_list.len();
                 this.awake_list_buffer[..num_awake].copy_from_slice(awake_list);
                 num_awake
             };
+            // Clear the list in the Mutex.
             awakeness.clear();
             num_awake
         };
 
+        // Iterate over the awake list.
         for &idx in this.awake_list_buffer.iter().take(num_awake) {
             let filled = &mut this.filled[idx];
             if *filled {
+                // Woken substream has already yielded.
                 continue;
             }
             let stream = utils::get_pin_mut(this.streams.as_mut(), idx).unwrap();
@@ -107,6 +133,8 @@ where
                     *this.pending -= 1;
                 }
                 Poll::Ready(None) => {
+                    // If one substream ends, the entire Zip ends.
+
                     #[cfg(debug_assertions)]
                     {
                         *this.done = true;
@@ -125,14 +153,14 @@ where
             );
             this.filled.fill(false);
 
-            // Set this so that the wakers get restarted next time.
+            // Set this to the magic value so that the wakers get restarted next time.
             *this.pending = usize::MAX;
 
             let mut items = array::from_fn(|_| MaybeUninit::uninit());
             mem::swap(this.items, &mut items);
 
-            // SAFETY: we've checked with the state that all of our outputs have been
-            // filled, which means we're ready to take the data and assume it's initialized.
+            // SAFETY: this.pending is only decremented when an item slot is filled.
+            // pending reaching 0 means the entire items array is filled.
             let items = unsafe { utils::array_assume_init(items) };
             Poll::Ready(Some(items))
         } else {
@@ -152,8 +180,7 @@ where
 
         for (&filled, output) in this.filled.iter().zip(this.items.iter_mut()) {
             if filled {
-                // SAFETY: we've just filtered down to *only* the initialized values.
-                // We can assume they're initialized, and this is where we drop them.
+                // SAFETY: when filled is true the item must be initialized.
                 unsafe { output.assume_init_drop() };
             }
         }

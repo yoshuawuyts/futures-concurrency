@@ -18,13 +18,13 @@ macro_rules! impl_zip_tuple {
             pub(super) const LEN: usize = [$($fut_idx),+].len();
         }
 
-        /// A stream that merges multiple streams into a single stream.
+        /// A stream that zips multiple streams into a single stream.
         ///
-        /// This `struct` is created by the [`merge`] method on the [`Merge`] trait. See its
+        /// This `struct` is created by the [`zip`] method on the [`Zip`] trait. See its
         /// documentation for more.
         ///
-        /// [`merge`]: trait.Merge.html#method.merge
-        /// [`Merge`]: trait.Merge.html
+        /// [`zip`]: trait.Zip.html#method.zip
+        /// [`Zip`]: trait.Zip.html
         #[pin_project(PinnedDrop)]
         pub struct $StructName<$($F),*>
         where $(

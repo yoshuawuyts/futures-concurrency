@@ -13,8 +13,8 @@ use futures_core::TryFuture;
 // All the other combinators can be derived from try_join by wrapping subfutures
 // to return Ok or Error appropriately, and mapping the final result.
 //
-// For example, race_ok wants to break upon the first Ok subfuture completion,
-// so it would map subfuture Ok to Err, causing this underlying try_join to break.
+// For example, RaceOk wants to break upon the first Ok subfuture completion,
+// so it would map subfuture Ok to Err, causing this underlying TryJoin to break.
 // Then it would take the Err result and convert it back to Ok.
 pub trait CombineTuple {
     type Combined;

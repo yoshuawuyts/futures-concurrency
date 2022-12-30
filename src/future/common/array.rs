@@ -10,23 +10,30 @@ use core::task::{Context, Poll};
 
 use pin_project::{pin_project, pinned_drop};
 
+/// A trait for making CombinatorArray behave as Join/TryJoin/Race/RaceOk.
 pub trait CombinatorBehaviorArray<Fut, const N: usize>
 where
     Fut: Future,
 {
+    /// The output type of the future.
+    /// Example: for RaceOk, this is Result<F::Ok, [F::Error; N]>.
     type Output;
+
+    /// The type of item stored.
+    /// Example: for RaceOk this is F::Error.
     type StoredItem;
+
+    /// Takes the output of a subfuture and decide what to do with it.
+    /// If this function returns Err(output), the combinator would early return Poll::Ready(output).
+    /// For Ok(item), the combinator would keep the item.
+    /// If by the end, all items are kept (no early return made), then `when_completed_arr` will be called.
     fn maybe_return(idx: usize, res: Fut::Output) -> Result<Self::StoredItem, Self::Output>;
+
+    /// Called when all subfutures are completed and none cause the combinator to return early.
+    /// The argument is an array of the kept item from each subfuture.
     fn when_completed_arr(arr: [Self::StoredItem; N]) -> Self::Output;
 }
 
-/// Waits for two similarly-typed futures to complete.
-///
-/// This `struct` is created by the [`join`] method on the [`Join`] trait. See
-/// its documentation for more.
-///
-/// [`join`]: crate::future::Join::join
-/// [`Join`]: crate::future::Join
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project(PinnedDrop)]
 pub struct CombinatorArray<Fut, B, const N: usize>
@@ -35,10 +42,16 @@ where
     B: CombinatorBehaviorArray<Fut, N>,
 {
     behavior: PhantomData<B>,
+    /// Number of subfutures that have not yet completed.
     pending: usize,
-    items: [MaybeUninit<B::StoredItem>; N],
     wakers: WakerArray<N>,
+    /// The stored items from each subfuture.
+    items: [MaybeUninit<B::StoredItem>; N],
+    /// Whether each item in self.items is initialized.
+    /// Invariant: self.filled.count_falses() == self.pending.
     filled: [bool; N],
+    /// A temporary buffer for indices that have woken.
+    /// The data here don't have to persist between each `poll`.
     awake_list_buffer: [usize; N],
     #[pin]
     futures: [Fut; N],
@@ -54,9 +67,10 @@ where
         CombinatorArray {
             behavior: PhantomData,
             pending: N,
-            items: array::from_fn(|_| MaybeUninit::uninit()),
             wakers: WakerArray::new(),
+            items: array::from_fn(|_| MaybeUninit::uninit()),
             filled: [false; N],
+            // TODO: this is a temporary buffer so it can be MaybeUninit.
             awake_list_buffer: [0; N],
             futures,
         }
@@ -84,36 +98,48 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
 
+        // If this.pending == 0, the future is done.
         assert!(
             N == 0 || *this.pending > 0,
             "Futures must not be polled after completing"
         );
 
         let num_awake = {
+            // Lock the awakeness Mutex.
             let mut awakeness = this.wakers.awakeness();
             awakeness.set_parent_waker(cx.waker());
+
+            // Copy the list of indices that have woken..
             let awake_list = awakeness.awake_list();
             let num_awake = awake_list.len();
             this.awake_list_buffer[..num_awake].copy_from_slice(awake_list);
+
+            // Clear the list.
             awakeness.clear();
             num_awake
+
+            // Awakeneess Mutex should be unlocked here.
         };
 
+        // Iterate over the indices we've copied out of the Mutex.
         for &idx in this.awake_list_buffer.iter().take(num_awake) {
             let filled = &mut this.filled[idx];
             if *filled {
-                // Woken future is already complete, don't poll it again.
+                // Woken subfuture is already complete, don't poll it again.
+                // (Futures probably shouldn't wake after they are complete, but there's no guarantee.)
                 continue;
             }
             let fut = utils::get_pin_mut(this.futures.as_mut(), idx).unwrap();
             let mut cx = Context::from_waker(this.wakers.get(idx).unwrap());
             if let Poll::Ready(value) = fut.poll(&mut cx) {
                 match B::maybe_return(idx, value) {
+                    // Keep the item for returning once every subfuture is done.
                     Ok(store) => {
                         this.items[idx].write(store);
                         *filled = true;
                         *this.pending -= 1;
                     }
+                    // Early return.
                     Err(ret) => return Poll::Ready(ret),
                 }
             }
@@ -121,6 +147,8 @@ where
 
         // Check whether we're all done now or need to keep going.
         if *this.pending == 0 {
+            // Check an internal invariant.
+            // No matter how ill-behaved the subfutures are, this should be held.
             debug_assert!(
                 this.filled.iter().all(|&filled| filled),
                 "Future should have filled items array"
@@ -130,13 +158,17 @@ where
             let mut items = array::from_fn(|_| MaybeUninit::uninit());
             core::mem::swap(this.items, &mut items);
 
-            // SAFETY: we've checked with the state that all of our outputs have been
-            // filled, which means we're ready to take the data and assume it's initialized.
-            // In the case where N == 0, the assert at the top of this function wouldn't catch poll-after-done,
-            // so we could be calling `assume_init` on unintialized array,
-            // but in such case the array is empty so we're fine;.
+            // SAFETY: this.pending is only decremented when an item slot is filled.
+            // pending reaching 0 means the entire items array is filled.
+            //
+            // For N > 0, we can only enter this if block once (because the assert at the top),
+            // so it is safe to take the data.
+            // For N == 0, we can enter this if block many times (in case of poll-after-done),
+            // but then the items array is empty anyway so we're fine.
             let items = unsafe { utils::array_assume_init(items) };
 
+            // Let the Behavior do any final transformation.
+            // For example, TryJoin would wrap the whole thing in Ok.
             Poll::Ready(B::when_completed_arr(items))
         } else {
             Poll::Pending
@@ -156,8 +188,7 @@ where
 
         for (&filled, output) in this.filled.iter().zip(this.items.iter_mut()) {
             if filled {
-                // SAFETY: we've just filtered down to *only* the initialized values.
-                // We can assume they're initialized, and this is where we drop them.
+                // SAFETY: filled is only set to true for initialized items.
                 unsafe { output.assume_init_drop() };
             }
         }

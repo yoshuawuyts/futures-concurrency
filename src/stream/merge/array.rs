@@ -22,9 +22,18 @@ where
     #[pin]
     streams: [S; N],
     wakers: WakerArray<N>,
+    /// Number of substreams that haven't completed.
     pending: usize,
+    /// The states of the N streams.
+    /// Pending = stream is sleeping
+    /// Ready = stream is awake
+    /// Consumed = stream is complete
     state: [PollState; N],
+    /// List of awoken streams.
     awake_list: ArrayDequeue<usize, N>,
+    /// Streams should not be polled after complete.
+    /// In debug, we panic to the user.
+    /// In release, we might sleep or poll substreams after completion.
     #[cfg(debug_assertions)]
     done: bool,
 }
@@ -38,7 +47,9 @@ where
             streams,
             wakers: WakerArray::new(),
             pending: N,
+            // Start with every substream awake.
             state: [PollState::Ready; N],
+            // Start with indices of every substream since they're all awake.
             awake_list: ArrayDequeue::new(core::array::from_fn(core::convert::identity), N),
             #[cfg(debug_assertions)]
             done: false,
@@ -68,35 +79,50 @@ where
         assert!(!*this.done, "Stream should not be polled after completing");
 
         {
+            // Lock the awakeness Mutex.
             let mut awakeness = this.wakers.awakeness();
             awakeness.set_parent_waker(cx.waker());
+
+            // Copy over the indices of awake substreams.
             let awake_list = awakeness.awake_list();
             let states = &mut *this.state;
             this.awake_list.extend(awake_list.iter().filter_map(|&idx| {
+                // Only add to our list if the substream is actually pending.
+                // Our awake list will never contain duplicate indices.
                 let state = &mut states[idx];
                 match state {
                     PollState::Pending => {
+                        // Set the state to awake.
                         *state = PollState::Ready;
                         Some(idx)
                     }
                     _ => None,
                 }
             }));
+
+            // Clear the list in the Mutex.
             awakeness.clear();
+
+            // The Mutex should be unlocked here.
         }
 
         for idx in this.awake_list.drain() {
             let state = &mut this.state[idx];
-            if let PollState::Consumed = *state {
-                continue;
-            }
+            // At this point state must be PollState::Ready (substream is awake).
+
             let waker = this.wakers.get(idx).unwrap();
             let mut cx = Context::from_waker(waker);
             let stream = utils::get_pin_mut(this.streams.as_mut(), idx).unwrap();
             match stream.poll_next(&mut cx) {
                 Poll::Ready(Some(item)) => {
+                    // Queue the substream to be polled again next time.
+                    // Todo: figure out how to do this without locking the Mutex.
+                    // We can do `this.awake_list.push_back(idx)`
+                    // but that will cause this substream to be scheduled before the others that have woken
+                    // between the indices-copying and now, leading to unfairness.
                     waker.wake_by_ref();
                     *state = PollState::Pending;
+
                     return Poll::Ready(Some(item));
                 }
                 Poll::Ready(None) => {

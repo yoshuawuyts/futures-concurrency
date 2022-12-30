@@ -9,6 +9,8 @@ use std::collections::VecDeque;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+// For code comments, see the array merge code, which is very similar.
+
 /// A stream that merges multiple streams into a single stream.
 ///
 /// This `struct` is created by the [`merge`] method on the [`Merge`] trait. See its
@@ -42,6 +44,11 @@ where
             streams,
             wakers: WakerVec::new(len),
             pending: len,
+            // Instead of using Vec<PollState>, we use two bitvecs.
+            // !consumed && !awake = PollState::Pending
+            // !consumed && awake = PollState::Ready
+            // consumed = PollState::Consumed
+            // TODO: is this space-saving (from 8N to 2N bits) really worth it?
             consumed: BitVec::repeat(false, len),
             awake_set: BitVec::repeat(false, len),
             awake_list: VecDeque::with_capacity(len),
@@ -79,15 +86,14 @@ where
             let awake_set = &mut *this.awake_set;
             let consumed = &mut *this.consumed;
             this.awake_list.extend(awake_list.iter().filter_map(|&idx| {
+                // Only add substream that is in !awake && !consumed state.
+                // Set the state to awake in the process.
                 (!awake_set.replace(idx, true) && !consumed[idx]).then_some(idx)
             }));
             awakeness.clear();
         }
 
         while let Some(idx) = this.awake_list.pop_front() {
-            if this.consumed[idx] {
-                continue;
-            }
             this.awake_set.set(idx, false);
             let waker = this.wakers.get(idx).unwrap();
             let mut cx = Context::from_waker(waker);
