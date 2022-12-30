@@ -1,10 +1,12 @@
 use crate::utils::WakerArray;
+
 use core::fmt::{self, Debug};
 use core::future::Future;
 use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 use core::pin::Pin;
 use core::task::{Context, Poll};
+
 use futures_core::TryFuture;
 
 pub trait MapResult<IntermediateResult> {

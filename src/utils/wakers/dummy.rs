@@ -1,4 +1,4 @@
-use std::task::{RawWaker, RawWakerVTable, Waker};
+use core::task::{RawWaker, RawWakerVTable, Waker};
 
 pub(crate) fn dummy_waker() -> Waker {
     fn new_raw_waker() -> RawWaker {

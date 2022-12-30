@@ -1,5 +1,6 @@
 use super::super::common::{CombinatorArray, CombinatorBehaviorArray};
 use super::{Join as JoinTrait, JoinBehavior};
+
 use core::future::{Future, IntoFuture};
 
 /// Waits for two similarly-typed futures to complete.

@@ -1,8 +1,8 @@
+use crate::utils::dummy_waker;
+
 use std::task::Waker;
 
 use bitvec::vec::BitVec;
-
-use crate::utils::dummy_waker;
 
 pub(crate) struct AwakenessVec {
     awake_set: BitVec<u8>,

@@ -1,5 +1,6 @@
 use super::super::common::{CombinatorBehaviorVec, CombinatorVec};
 use super::{Join as JoinTrait, JoinBehavior};
+
 use core::future::{Future, IntoFuture};
 use std::vec::Vec;
 

@@ -1,12 +1,8 @@
-use std::{
-    cell::RefCell,
-    collections::VecDeque,
-    pin::Pin,
-    rc::Rc,
-    task::{Context, Poll, Waker},
-};
+use core::pin::Pin;
+use core::task::{Context, Poll, Waker};
+use std::{cell::RefCell, collections::VecDeque, rc::Rc};
 
-use futures::Stream;
+use futures_core::Stream;
 
 pub(crate) struct LocalChannel<T> {
     queue: VecDeque<T>,

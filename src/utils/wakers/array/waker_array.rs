@@ -1,3 +1,6 @@
+use super::super::shared_slice_waker::{waker_from_position, WakerArrayTrait};
+use super::awakeness::AwakenessArray;
+
 use core::array;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -6,9 +9,6 @@ use std::task::Waker;
 
 use bitvec::prelude::BitArray;
 use bitvec::slice::BitSlice;
-
-use super::super::shared_slice_waker::{waker_from_position, WakerArrayTrait};
-use super::awakeness::AwakenessArray;
 
 struct BitArrayWrapped<const N: usize>(BitArray<[u8; N]>);
 

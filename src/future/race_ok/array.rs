@@ -1,5 +1,6 @@
 use super::super::common::{CombinatorArray, CombinatorBehaviorArray};
 use super::{RaceOk as RaceOkTrait, RaceOkBehavior};
+
 use core::future::{Future, IntoFuture};
 
 /// Wait for the first successful future to complete.

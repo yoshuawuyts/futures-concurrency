@@ -1,7 +1,5 @@
-use std::{
-    sync::Arc,
-    task::{RawWaker, RawWakerVTable, Waker},
-};
+use core::task::{RawWaker, RawWakerVTable, Waker};
+use std::sync::Arc;
 
 pub(super) trait WakerArrayTrait {
     fn get_wake_data_slice(&self) -> &[*const Self];

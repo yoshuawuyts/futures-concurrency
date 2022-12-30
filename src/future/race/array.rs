@@ -1,5 +1,6 @@
 use super::super::common::{CombinatorArray, CombinatorBehaviorArray};
 use super::{Race as RaceTrait, RaceBehavior};
+
 use core::future::{Future, IntoFuture};
 
 /// Wait for the first future to complete.
