@@ -1,6 +1,6 @@
 use super::super::dummy_waker;
 
-use std::task::Waker;
+use core::task::Waker;
 
 pub(crate) struct AwakenessArray<const N: usize> {
     awake_set: [bool; N],

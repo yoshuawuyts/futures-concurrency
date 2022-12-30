@@ -3,9 +3,10 @@ use crate::stream::IntoStream;
 use crate::utils::{ArrayDequeue, PollState, WakerArray};
 
 use core::fmt;
+use core::pin::Pin;
+use core::task::{Context, Poll};
+
 use futures_core::Stream;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 macro_rules! impl_merge_tuple {
     ($mod_name:ident $StructName:ident $($F:ident=$fut_idx:tt)+) => {

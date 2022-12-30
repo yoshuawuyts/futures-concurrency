@@ -6,7 +6,6 @@ use core::fmt;
 use core::mem::MaybeUninit;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use std::mem;
 
 use bitvec::vec::BitVec;
 use futures_core::Stream;
@@ -125,7 +124,7 @@ where
             *this.pending = usize::MAX;
 
             let mut output = (0..len).map(|_| MaybeUninit::uninit()).collect();
-            mem::swap(this.items, &mut output);
+            core::mem::swap(this.items, &mut output);
 
             let output = unsafe { vec_assume_init(output) };
             Poll::Ready(Some(output))
@@ -197,6 +196,6 @@ unsafe fn vec_assume_init<T>(vec: Vec<MaybeUninit<T>>) -> Vec<T> {
     // * `MaybeUninit` does not drop, so there are no double-frees
     // And thus the conversion is safe
     let ret = unsafe { (&vec as *const _ as *const Vec<T>).read() };
-    mem::forget(vec);
+    core::mem::forget(vec);
     ret
 }

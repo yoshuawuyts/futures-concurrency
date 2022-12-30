@@ -1,10 +1,10 @@
 use super::super::shared_slice_waker::{waker_from_position, WakerArrayTrait};
 use super::awakeness::AwakenessVec;
 
+use core::task::Waker;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
-use std::task::Waker;
 
 /// A collection of wakers which delegate to an in-line waker.
 pub(crate) struct WakerVec {

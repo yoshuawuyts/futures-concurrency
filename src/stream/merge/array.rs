@@ -3,9 +3,10 @@ use crate::stream::IntoStream;
 use crate::utils::{self, ArrayDequeue, PollState, WakerArray};
 
 use core::fmt;
+use core::pin::Pin;
+use core::task::{Context, Poll};
+
 use futures_core::Stream;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 /// A stream that merges multiple streams into a single stream.
 ///

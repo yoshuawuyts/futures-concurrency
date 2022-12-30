@@ -7,7 +7,6 @@ use core::fmt;
 use core::mem::MaybeUninit;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use std::mem;
 
 use futures_core::Stream;
 use pin_project::{pin_project, pinned_drop};
@@ -157,7 +156,7 @@ where
             *this.pending = usize::MAX;
 
             let mut items = array::from_fn(|_| MaybeUninit::uninit());
-            mem::swap(this.items, &mut items);
+            core::mem::swap(this.items, &mut items);
 
             // SAFETY: this.pending is only decremented when an item slot is filled.
             // pending reaching 0 means the entire items array is filled.

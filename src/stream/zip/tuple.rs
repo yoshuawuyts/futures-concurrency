@@ -4,10 +4,11 @@ use crate::utils::WakerArray;
 
 use core::fmt;
 use core::mem::MaybeUninit;
+use core::pin::Pin;
+use core::task::{Context, Poll};
+
 use futures_core::Stream;
 use pin_project::{pin_project, pinned_drop};
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 macro_rules! impl_zip_tuple {
     ($mod_name:ident $StructName:ident $($F:ident=$fut_idx:tt)+) => {

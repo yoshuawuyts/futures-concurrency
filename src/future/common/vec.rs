@@ -2,9 +2,9 @@ use crate::utils::{self, WakerVec};
 
 use core::fmt;
 use core::future::Future;
+use core::mem::MaybeUninit;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use std::mem::{self, MaybeUninit};
 use std::vec::Vec;
 
 use bitvec::vec::BitVec;
@@ -130,8 +130,8 @@ where
             // For len == 0, we can enter this if block many times (in case of poll-after-done),
             // but then the items array is empty anyway so we're fine.
             let items = unsafe {
-                let items = mem::take(this.items);
-                mem::transmute::<Vec<MaybeUninit<B::StoredItem>>, Vec<B::StoredItem>>(items)
+                let items = core::mem::take(this.items);
+                core::mem::transmute::<Vec<MaybeUninit<B::StoredItem>>, Vec<B::StoredItem>>(items)
             };
 
             Poll::Ready(B::when_completed_vec(items))

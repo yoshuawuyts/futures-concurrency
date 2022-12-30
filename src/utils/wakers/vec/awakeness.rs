@@ -1,6 +1,6 @@
 use crate::utils::dummy_waker;
 
-use std::task::Waker;
+use core::task::Waker;
 
 use bitvec::vec::BitVec;
 

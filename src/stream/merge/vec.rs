@@ -2,12 +2,13 @@ use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
 use crate::utils::{self, WakerVec};
 
-use bitvec::vec::BitVec;
 use core::fmt;
-use futures_core::Stream;
+use core::pin::Pin;
+use core::task::{Context, Poll};
 use std::collections::VecDeque;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+
+use bitvec::vec::BitVec;
+use futures_core::Stream;
 
 // For code comments, see the array merge code, which is very similar.
 
