@@ -173,7 +173,7 @@ mod tests {
     use futures_lite::stream;
 
     #[test]
-    fn zip_array_3() {
+    fn zip_vec_3() {
         block_on(async {
             let a = stream::repeat(1).take(2);
             let b = stream::repeat(2).take(2);

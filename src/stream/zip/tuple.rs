@@ -203,3 +203,23 @@ impl Stream for Zip0 {
         Poll::Ready(Some(()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_lite::{future::block_on, stream, StreamExt};
+    #[test]
+    fn zip_tuple_3() {
+        block_on(async {
+            let mut s = (
+                stream::repeat(3),
+                stream::repeat("hello"),
+                stream::once(1).chain(stream::once(5)),
+            )
+                .zip();
+            assert_eq!(s.next().await.unwrap(), (3, "hello", 1));
+            assert_eq!(s.next().await.unwrap(), (3, "hello", 5));
+            assert_eq!(s.next().await, None);
+        })
+    }
+}
