@@ -62,13 +62,6 @@ impl WakeDataContainer for WakerVecInner {
     }
 
     fn wake_index(&self, index: usize) {
-        let mut readiness = self.readiness.lock().unwrap();
-        if !readiness.set_ready(index) {
-            readiness
-                .parent_waker()
-                .as_ref()
-                .expect("`parent_waker` not available from `Readiness`. Did you forget to call `Readiness::set_waker`?")
-                .wake_by_ref();
-        }
+        self.readiness.lock().unwrap().wake(index);
     }
 }

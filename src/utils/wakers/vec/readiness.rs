@@ -1,70 +1,58 @@
-use bitvec::{bitvec, vec::BitVec};
-use std::task::Waker;
+use super::super::dummy_waker;
 
-/// Tracks which wakers are "ready" and should be polled.
-#[derive(Debug)]
+use core::task::Waker;
+
+use bitvec::vec::BitVec;
+
 pub(crate) struct ReadinessVec {
-    count: usize,
-    max_count: usize,
-    ready: BitVec,
-    parent_waker: Option<Waker>,
+    /// Whether each subfuture has woken.
+    awake_set: BitVec<u8>,
+    /// Indices of subfutures that have woken.
+    awake_list: Vec<usize>,
+    parent_waker: Waker,
 }
 
 impl ReadinessVec {
-    /// Create a new instance of readiness.
-    pub(crate) fn new(count: usize) -> Self {
+    pub(crate) fn new(len: usize) -> Self {
+        let awake_set = BitVec::repeat(true, len);
         Self {
-            count,
-            max_count: count,
-            ready: bitvec![true as usize; count],
-            parent_waker: None,
+            awake_set,
+            awake_list: (0..len).collect(),
+            parent_waker: dummy_waker(),
         }
     }
-
-    /// Returns the old ready state for this id
-    pub(crate) fn set_ready(&mut self, id: usize) -> bool {
-        if !self.ready[id] {
-            self.count += 1;
-            self.ready.set(id, true);
-
-            false
+    pub(crate) fn set_parent_waker(&mut self, waker: &Waker) {
+        // If self.parent_waker and the given waker are the same then don't do the replacement.
+        if !self.parent_waker.will_wake(waker) {
+            self.parent_waker = waker.to_owned();
+        }
+    }
+    fn set_woken(&mut self, index: usize) -> bool {
+        let was_awake = self.awake_set.replace(index, true);
+        if !was_awake {
+            self.awake_list.push(index);
+        }
+        was_awake
+    }
+    pub(crate) fn wake(&mut self, index: usize) {
+        if !self.set_woken(index) && self.awake_list.len() == 1 {
+            self.parent_waker.wake_by_ref();
+        }
+    }
+    pub(crate) fn awake_list(&self) -> &Vec<usize> {
+        &self.awake_list
+    }
+    pub(crate) fn clear(&mut self) {
+        // Depending on how many items was in the list,
+        // either use `fill` (memset) or iterate and set each.
+        // TODO: I came up with the 64 factor at random. Maybe test different factors?
+        if self.awake_list.len() * 64 < self.awake_set.len() {
+            self.awake_list.drain(..).for_each(|idx| {
+                self.awake_set.set(idx, false);
+            });
         } else {
-            true
+            self.awake_list.clear();
+            self.awake_set.fill(false);
         }
-    }
-
-    /// Set all markers to ready.
-    pub(crate) fn set_all_ready(&mut self) {
-        self.ready.fill(true);
-        self.count = self.max_count;
-    }
-
-    /// Returns whether the task id was previously ready
-    pub(crate) fn clear_ready(&mut self, id: usize) -> bool {
-        if self.ready[id] {
-            self.count -= 1;
-            self.ready.set(id, false);
-
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Returns `true` if any of the wakers are ready.
-    pub(crate) fn any_ready(&self) -> bool {
-        self.count > 0
-    }
-
-    /// Access the parent waker.
-    #[inline]
-    pub(crate) fn parent_waker(&self) -> Option<&Waker> {
-        self.parent_waker.as_ref()
-    }
-
-    /// Set the parent `Waker`. This needs to be called at the start of every
-    /// `poll` function.
-    pub(crate) fn set_waker(&mut self, parent_waker: &Waker) {
-        self.parent_waker = Some(parent_waker.clone());
     }
 }
