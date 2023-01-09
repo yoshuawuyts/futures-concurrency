@@ -1,7 +1,9 @@
 mod array;
+mod shared_arc;
+mod vec;
+
 #[cfg(test)]
 mod dummy;
-mod vec;
 
 #[cfg(test)]
 pub(crate) use dummy::DummyWaker;
