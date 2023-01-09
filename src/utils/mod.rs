@@ -16,7 +16,7 @@ pub(crate) use tuple::{gen_conditions, tuple_len};
 pub(crate) use wakers::{WakerArray, WakerVec};
 
 #[cfg(test)]
-pub(crate) use wakers::DummyWaker;
+pub(crate) use wakers::dummy_waker;
 
 #[cfg(test)]
 pub(crate) mod channel;
