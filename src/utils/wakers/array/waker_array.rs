@@ -75,3 +75,43 @@ impl<const N: usize> WakeDataContainer for WakerArrayInner<N> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::utils::wakers::dummy_waker;
+
+    use super::*;
+    #[test]
+    fn check_refcount() {
+        let mut wa = WakerArray::<5>::new();
+        assert_eq!(Arc::strong_count(&wa.inner), 6);
+        wa.wakers[4] = dummy_waker();
+        assert_eq!(Arc::strong_count(&wa.inner), 5);
+        let cloned = wa.wakers[3].clone();
+        assert_eq!(Arc::strong_count(&wa.inner), 6);
+        wa.wakers[3] = wa.wakers[4].clone();
+        assert_eq!(Arc::strong_count(&wa.inner), 5);
+        drop(cloned);
+        assert_eq!(Arc::strong_count(&wa.inner), 4);
+
+        wa.wakers[0].wake_by_ref();
+        wa.wakers[0].wake_by_ref();
+        wa.wakers[0].wake_by_ref();
+        assert_eq!(Arc::strong_count(&wa.inner), 4);
+
+        wa.wakers[0] = wa.wakers[1].clone();
+        assert_eq!(Arc::strong_count(&wa.inner), 4);
+
+        let taken = std::mem::replace(&mut wa.wakers[2], dummy_waker());
+        assert_eq!(Arc::strong_count(&wa.inner), 4);
+        taken.wake_by_ref();
+        taken.wake_by_ref();
+        taken.wake_by_ref();
+        assert_eq!(Arc::strong_count(&wa.inner), 4);
+        taken.wake();
+        assert_eq!(Arc::strong_count(&wa.inner), 3);
+
+        wa.wakers = array::from_fn(|_| dummy_waker());
+        assert_eq!(Arc::strong_count(&wa.inner), 1);
+    }
+}
