@@ -1,5 +1,5 @@
 use super::RaceOk;
-use crate::utils;
+use crate::utils::{self, PollArray};
 
 use core::array;
 use core::fmt;
@@ -8,7 +8,7 @@ use core::mem::{self, MaybeUninit};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-use pin_project::pin_project;
+use pin_project::{pin_project, pinned_drop};
 
 mod error;
 pub(crate) use error::AggregateError;
@@ -24,7 +24,7 @@ macro_rules! impl_race_ok_tuple {
         /// [`RaceOk`]: crate::future::RaceOk
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
-        #[pin_project]
+        #[pin_project(PinnedDrop)]
         pub struct $StructName<T, ERR, $($F),*>
         where
             $( $F: Future<Output = Result<T, ERR>>, )*
@@ -33,8 +33,9 @@ macro_rules! impl_race_ok_tuple {
             completed: usize,
             done: bool,
             indexer: utils::Indexer,
-            errors: [MaybeUninit<ERR>; {utils::tuple_len!($($F,)*)}],
-            $(#[pin] $F: $F,)*
+            errors: [MaybeUninit<ERR>; { utils::tuple_len!($($F,)*) }],
+            errors_states: PollArray<{ utils::tuple_len!($($F,)*) }>,
+            $( #[pin] $F: $F, )*
         }
 
         impl<T, ERR, $($F),*> fmt::Debug for $StructName<T, ERR, $($F),*>
@@ -66,6 +67,7 @@ macro_rules! impl_race_ok_tuple {
                     done: false,
                     indexer: utils::Indexer::new(utils::tuple_len!($($F,)*)),
                     errors: array::from_fn(|_| MaybeUninit::uninit()),
+                    errors_states: PollArray::new(),
                     $($F: $F.into_future()),*
                 }
             }
@@ -103,6 +105,7 @@ macro_rules! impl_race_ok_tuple {
                             },
                             Err(err) => {
                                 this.errors[i] = MaybeUninit::new(err);
+                                this.errors_states[i].set_ready();
                                 *this.completed += 1;
                                 continue;
                             },
@@ -113,6 +116,9 @@ macro_rules! impl_race_ok_tuple {
 
                 let all_completed = *this.completed == LEN;
                 if all_completed {
+                    // mark all error states as consumed before we return it
+                    this.errors_states.set_all_completed();
+
                     let mut errors = array::from_fn(|_| MaybeUninit::uninit());
                     mem::swap(&mut errors, this.errors);
 
@@ -123,6 +129,28 @@ macro_rules! impl_race_ok_tuple {
                 }
 
                 Poll::Pending
+            }
+        }
+
+        #[pinned_drop]
+        impl<T, ERR, $($F: Future,)*> PinnedDrop for $StructName<T, ERR, $($F,)*>
+        where
+            $( $F: Future<Output = Result<T, ERR>>, )*
+            ERR: fmt::Debug,
+        {
+            fn drop(self: Pin<&mut Self>) {
+                let this = self.project();
+
+                this
+                    .errors_states
+                    .iter_mut()
+                    .zip(this.errors.iter_mut())
+                    .filter(|(st, _err)| st.is_ready())
+                    .for_each(|(st, err)| {
+                        // SAFETY: we've filtered down to only the `ready`/initialized data
+                        unsafe { err.assume_init_drop() };
+                        st.set_consumed();
+                    });
             }
         }
     };
