@@ -7,7 +7,7 @@ use core::mem::MaybeUninit;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-use pin_project::pin_project;
+use pin_project::{pin_project, pinned_drop};
 
 /// Generates the `poll` call for every `Future` inside `$futures`.
 // This is implemented as a tt-muncher of the future name `$($F:ident)`
@@ -22,7 +22,7 @@ macro_rules! poll {
             if let Poll::Ready(value) = $futures.$fut_name.as_mut().poll(&mut $cx) {
                 $this.outputs.$fut_idx.write(value);
                 *$this.completed += 1;
-                $this.state[$fut_idx].set_consumed();
+                $this.state[$fut_idx].set_ready();
             }
         }
         poll!(@inner $iteration, $this, $futures, $cx, $($F)* | $($rest)*);
@@ -33,6 +33,25 @@ macro_rules! poll {
 
     ($iteration:ident, $this:ident, $futures:ident, $cx:ident, $LEN:ident, $($F:ident,)+) => {
         poll!(@inner $iteration, $this, $futures, $cx, $($F)+ | 0 1 2 3 4 5 6 7 8 9 10 11);
+    };
+}
+
+macro_rules! drop_outputs {
+    (@drop $output:ident, $($rem_outs:ident,)* | $states:expr, $stix:tt, $($rem_idx:tt,)*) => {
+        if $states[$stix].is_ready() {
+            // SAFETY: we're filtering out only the outputs marked as `ready`,
+            // which means that this memory is initialized
+            unsafe { $output.assume_init_drop() };
+            $states[$stix].set_consumed();
+        }
+        drop_outputs!(@drop $($rem_outs,)* | $states, $($rem_idx,)*);
+    };
+
+    // base condition, no more outputs to look
+    (@drop | $states:expr, $($rem_idx:tt,)*) => {};
+
+    ($($outs:ident,)+ | $states:expr) => {
+        drop_outputs!(@drop $($outs,)+ | $states, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,);
     };
 }
 
@@ -85,19 +104,21 @@ macro_rules! impl_join_tuple {
             pub(super) const LEN: usize = [$(Indexes::$F,)+].len();
         }
 
-        /// Waits for two similarly-typed futures to complete.
+        /// Waits for many similarly-typed futures to complete.
         ///
         /// This `struct` is created by the [`join`] method on the [`Join`] trait. See
         /// its documentation for more.
         ///
         /// [`join`]: crate::future::Join::join
         /// [`Join`]: crate::future::Join
-        #[pin_project]
+        #[pin_project(PinnedDrop)]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
         pub struct $StructName<$($F: Future),+> {
             #[pin] futures: $mod_name::Futures<$($F,)+>,
             outputs: ($(MaybeUninit<$F::Output>,)+),
+            // trace the state of outputs, marking them as ready or consumed
+            // then, drop the non-consumed values, if any
             state: PollArray<{$mod_name::LEN}>,
             wakers: WakerArray<{$mod_name::LEN}>,
             completed: usize,
@@ -140,7 +161,7 @@ macro_rules! impl_join_tuple {
                         // nothing ready yet
                         return Poll::Pending;
                     }
-                    if !readiness.clear_ready(index) || this.state[index].is_consumed() {
+                    if !readiness.clear_ready(index) || this.state[index].is_ready() {
                         // future not ready yet or already polled to completion, skip
                         continue;
                     }
@@ -162,12 +183,26 @@ macro_rules! impl_join_tuple {
                             unsafe { ($($F.assume_init(),)+) }
                         };
 
+                        this.state.set_all_completed();
+
                         return Poll::Ready(out);
                     }
                     readiness = this.wakers.readiness().lock().unwrap();
                 }
 
                 Poll::Pending
+            }
+        }
+
+        #[pinned_drop]
+        impl<$($F: Future),+> PinnedDrop for $StructName<$($F),+> {
+            fn drop(self: Pin<&mut Self>) {
+                let this = self.project();
+
+                let ($(ref mut $F,)+) = this.outputs;
+
+                let states = this.state;
+                drop_outputs!($($F,)+ | states);
             }
         }
 
@@ -191,6 +226,7 @@ macro_rules! impl_join_tuple {
             }
         }
     };
+
 }
 
 impl_join_tuple! { join0 Join0 }
@@ -245,5 +281,40 @@ mod test {
             let c = future::ready(12);
             assert_eq!((a, b, c).join().await, ("hello", "world", 12));
         });
+    }
+
+    #[test]
+    fn does_not_leak_memory() {
+        use core::cell::RefCell;
+        use futures_lite::future::pending;
+
+        thread_local! {
+            static NOT_LEAKING: RefCell<bool> = RefCell::new(false);
+        };
+
+        struct FlipFlagAtDrop;
+        impl Drop for FlipFlagAtDrop {
+            fn drop(&mut self) {
+                NOT_LEAKING.with(|v| {
+                    *v.borrow_mut() = true;
+                });
+            }
+        }
+
+        futures_lite::future::block_on(async {
+            // this will trigger Miri if we don't drop the memory
+            let string = future::ready("memory leak".to_owned());
+
+            // this will not flip the thread_local flag if we don't drop the memory
+            let flip = future::ready(FlipFlagAtDrop);
+
+            let leak = (string, flip, pending::<u8>()).join();
+
+            _ = futures_lite::future::poll_once(leak).await;
+        });
+
+        NOT_LEAKING.with(|flag| {
+            assert!(*flag.borrow());
+        })
     }
 }
