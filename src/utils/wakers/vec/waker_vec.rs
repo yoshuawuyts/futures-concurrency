@@ -1,5 +1,5 @@
 use core::task::Waker;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use super::{
     super::shared_arc::{waker_for_wake_data_slot, WakeDataContainer},
@@ -51,8 +51,8 @@ impl WakerVec {
         self.wakers.get(index)
     }
 
-    pub(crate) fn readiness(&self) -> &Mutex<ReadinessVec> {
-        &self.inner.readiness
+    pub(crate) fn readiness(&self) -> MutexGuard<'_, ReadinessVec> {
+        self.inner.readiness.lock().unwrap()
     }
 }
 

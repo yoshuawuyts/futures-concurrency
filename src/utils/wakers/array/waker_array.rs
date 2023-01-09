@@ -1,6 +1,6 @@
 use core::array;
 use core::task::Waker;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use super::{
     super::shared_arc::{waker_for_wake_data_slot, WakeDataContainer},
@@ -54,8 +54,8 @@ impl<const N: usize> WakerArray<N> {
     }
 
     /// Access the `Readiness`.
-    pub(crate) fn readiness(&self) -> &Mutex<ReadinessArray<N>> {
-        &self.inner.readiness
+    pub(crate) fn readiness(&self) -> MutexGuard<'_, ReadinessArray<N>> {
+        self.inner.readiness.lock().unwrap()
     }
 }
 
