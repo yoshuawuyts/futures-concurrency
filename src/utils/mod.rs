@@ -2,10 +2,8 @@
 
 mod array;
 mod array_dequeue;
-mod indexer;
 mod pin;
 mod poll_state;
-mod tuple;
 mod wakers;
 
 pub(crate) use array::array_assume_init;
@@ -16,4 +14,3 @@ pub(crate) use wakers::{WakerArray, WakerVec};
 
 #[cfg(test)]
 pub(crate) mod channel;
-pub(crate) use wakers::dummy_waker;
