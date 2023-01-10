@@ -51,7 +51,7 @@ macro_rules! impl_race_ok_tuple {
                 write!(f, "multiple errors occurred: [")?;
                 let ($($E,)+) = &self.errors;
                 $(
-                    write!(f, "{}", $E)?;
+                    write!(f, "\n{},", $E)?;
                 )+
                 write!(f, "]")
             }

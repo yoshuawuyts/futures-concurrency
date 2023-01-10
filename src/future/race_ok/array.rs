@@ -58,7 +58,7 @@ mod err {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "multiple errors occurred: [")?;
             for e in self.errors.iter() {
-                write!(f, "\n{}", e)?;
+                write!(f, "\n{e},")?;
             }
             write!(f, "]")
         }
