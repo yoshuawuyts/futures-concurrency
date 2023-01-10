@@ -1,13 +1,7 @@
-use super::TryJoin as TryJoinTrait;
-use crate::utils::iter_pin_mut;
-use crate::utils::MaybeDone;
+use super::super::common::{CombinatorBehaviorVec, CombinatorVec};
+use super::{TryJoin as TryJoinTrait, TryJoinBehavior};
 
-use core::fmt;
 use core::future::{Future, IntoFuture};
-use core::mem;
-use core::pin::Pin;
-use core::task::{Context, Poll};
-use std::boxed::Box;
 use std::vec::Vec;
 
 /// Wait for all futures to complete successfully, or abort early on error.
@@ -17,71 +11,41 @@ use std::vec::Vec;
 ///
 /// [`try_join`]: crate::future::TryJoin::try_join
 /// [`TryJoin`]: crate::future::TryJoin
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct TryJoin<Fut, T, E>
-where
-    Fut: Future<Output = Result<T, E>>,
-{
-    elems: Pin<Box<[MaybeDone<Fut>]>>,
-}
+pub type TryJoin<Fut> = CombinatorVec<Fut, TryJoinBehavior>;
 
-impl<Fut, T, E> fmt::Debug for TryJoin<Fut, T, E>
+impl<T, E, Fut> CombinatorBehaviorVec<Fut> for TryJoinBehavior
 where
-    Fut: Future<Output = Result<T, E>> + fmt::Debug,
-    Fut::Output: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_list().entries(self.elems.iter()).finish()
-    }
-}
-
-impl<Fut, T, E> Future for TryJoin<Fut, T, E>
-where
-    T: std::fmt::Debug,
     Fut: Future<Output = Result<T, E>>,
 {
     type Output = Result<Vec<T>, E>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut all_done = true;
+    type StoredItem = T;
 
-        for mut elem in iter_pin_mut(self.elems.as_mut()) {
-            if elem.as_mut().poll(cx).is_pending() {
-                all_done = false
-            } else if let Some(Err(_)) = elem.as_ref().output() {
-                return Poll::Ready(Err(elem.take().unwrap().unwrap_err()));
-            }
+    fn maybe_return(
+        _idx: usize,
+        res: <Fut as Future>::Output,
+    ) -> Result<Self::StoredItem, Self::Output> {
+        match res {
+            Ok(v) => Ok(v),
+            Err(e) => Err(Err(e)),
         }
+    }
 
-        if all_done {
-            let mut elems = mem::replace(&mut self.elems, Box::pin([]));
-            let result = iter_pin_mut(elems.as_mut())
-                .map(|e| e.take().unwrap())
-                .collect();
-            Poll::Ready(result)
-        } else {
-            Poll::Pending
-        }
+    fn when_completed(vec: Vec<Self::StoredItem>) -> Self::Output {
+        Ok(vec)
     }
 }
 
-impl<Fut, T, E> TryJoinTrait for Vec<Fut>
+impl<T, E, Fut> TryJoinTrait for Vec<Fut>
 where
-    T: std::fmt::Debug,
     Fut: IntoFuture<Output = Result<T, E>>,
 {
-    type Output = Vec<T>;
+    type Ok = Vec<T>;
     type Error = E;
-    type Future = TryJoin<Fut::IntoFuture, T, E>;
+    type Future = TryJoin<Fut::IntoFuture>;
 
     fn try_join(self) -> Self::Future {
-        let elems: Box<[_]> = self
-            .into_iter()
-            .map(|fut| MaybeDone::new(fut.into_future()))
-            .collect();
-        TryJoin {
-            elems: elems.into(),
-        }
+        TryJoin::new(self.into_iter().map(IntoFuture::into_future).collect())
     }
 }
 

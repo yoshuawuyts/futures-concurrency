@@ -1,11 +1,12 @@
 use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, Indexer, PollArray, WakerArray};
+use crate::utils::{self, ArrayDequeue, PollState, WakerArray};
 
 use core::fmt;
+use core::pin::Pin;
+use core::task::{Context, Poll};
+
 use futures_core::Stream;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 /// A stream that merges multiple streams into a single stream.
 ///
@@ -21,10 +22,20 @@ where
 {
     #[pin]
     streams: [S; N],
-    indexer: Indexer,
     wakers: WakerArray<N>,
-    state: PollArray<N>,
-    complete: usize,
+    /// Number of substreams that haven't completed.
+    pending: usize,
+    /// The states of the N streams.
+    /// Pending = stream is sleeping
+    /// Ready = stream is awake
+    /// Consumed = stream is complete
+    state: [PollState; N],
+    /// List of awoken streams.
+    awake_list: ArrayDequeue<usize, N>,
+    /// Streams should not be polled after complete.
+    /// In debug, we panic to the user.
+    /// In release, we might sleep or poll substreams after completion.
+    #[cfg(debug_assertions)]
     done: bool,
 }
 
@@ -35,10 +46,13 @@ where
     pub(crate) fn new(streams: [S; N]) -> Self {
         Self {
             streams,
-            indexer: Indexer::new(N),
             wakers: WakerArray::new(),
-            state: PollArray::new(),
-            complete: 0,
+            pending: N,
+            // Start with every substream awake.
+            state: [PollState::Ready; N],
+            // Start with indices of every substream since they're all awake.
+            awake_list: ArrayDequeue::new(core::array::from_fn(core::convert::identity), N),
+            #[cfg(debug_assertions)]
             done: false,
         }
     }
@@ -62,48 +76,75 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
-        let mut readiness = this.wakers.readiness().lock().unwrap();
-        readiness.set_waker(cx.waker());
+        #[cfg(debug_assertions)]
+        assert!(!*this.done, "Stream should not be polled after completing");
 
-        // Iterate over our streams one-by-one. If a stream yields a value,
-        // we exit early. By default we'll return `Poll::Ready(None)`, but
-        // this changes if we encounter a `Poll::Pending`.
-        for index in this.indexer.iter() {
-            if !readiness.any_ready() {
-                // Nothing is ready yet
-                return Poll::Pending;
-            } else if !readiness.clear_ready(index) || this.state[index].is_consumed() {
-                continue;
-            }
+        {
+            // Lock the readiness Mutex.
+            let mut readiness = this.wakers.readiness();
+            readiness.set_parent_waker(cx.waker());
 
-            // unlock readiness so we don't deadlock when polling
-            drop(readiness);
+            // Copy over the indices of awake substreams.
+            let awake_list = readiness.awake_list();
+            let states = &mut *this.state;
+            this.awake_list.extend(awake_list.iter().filter_map(|&idx| {
+                // Only add to our list if the substream is actually pending.
+                // Our awake list will never contain duplicate indices.
+                let state = &mut states[idx];
+                match state {
+                    PollState::Pending => {
+                        // Set the state to awake.
+                        *state = PollState::Ready;
+                        Some(idx)
+                    }
+                    _ => None,
+                }
+            }));
 
-            // Obtain the intermediate waker.
-            let mut cx = Context::from_waker(this.wakers.get(index).unwrap());
+            // Clear the list in the Mutex.
+            readiness.clear();
 
-            let stream = utils::get_pin_mut(this.streams.as_mut(), index).unwrap();
+            // The Mutex should be unlocked here.
+        }
+
+        for idx in this.awake_list.drain() {
+            let state = &mut this.state[idx];
+            // At this point state must be PollState::Ready (substream is awake).
+
+            let waker = this.wakers.get(idx).unwrap();
+            let mut cx = Context::from_waker(waker);
+            let stream = utils::get_pin_mut(this.streams.as_mut(), idx).unwrap();
             match stream.poll_next(&mut cx) {
                 Poll::Ready(Some(item)) => {
-                    // Mark ourselves as ready again because we need to poll for the next item.
-                    this.wakers.readiness().lock().unwrap().set_ready(index);
+                    // Queue the substream to be polled again next time.
+                    // Todo: figure out how to do this without locking the Mutex.
+                    // We can do `this.awake_list.push_back(idx)`
+                    // but that will cause this substream to be scheduled before the others that have woken
+                    // between the indices-copying and now, leading to unfairness.
+                    waker.wake_by_ref();
+                    *state = PollState::Pending;
+
                     return Poll::Ready(Some(item));
                 }
                 Poll::Ready(None) => {
-                    *this.complete += 1;
-                    this.state[index].set_consumed();
-                    if *this.complete == this.streams.len() {
-                        return Poll::Ready(None);
-                    }
+                    *this.pending -= 1;
+                    *state = PollState::Consumed;
                 }
-                Poll::Pending => {}
+                Poll::Pending => {
+                    *state = PollState::Pending;
+                }
             }
-
-            // Lock readiness so we can use it again
-            readiness = this.wakers.readiness().lock().unwrap();
         }
 
-        Poll::Pending
+        if *this.pending == 0 {
+            #[cfg(debug_assertions)]
+            {
+                *this.done = true;
+            }
+            Poll::Ready(None)
+        } else {
+            Poll::Pending
+        }
     }
 }
 

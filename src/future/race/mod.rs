@@ -23,3 +23,6 @@ pub trait Race {
     /// This function returns a new future which polls all futures concurrently.
     fn race(self) -> Self::Future;
 }
+
+#[derive(Debug)]
+pub struct RaceBehavior;

@@ -47,8 +47,9 @@ impl ReadinessVec {
         // either use `fill` (memset) or iterate and set each.
         // TODO: I came up with the 64 factor at random. Maybe test different factors?
         if self.awake_list.len() * 64 < self.awake_set.len() {
+            let awake_set = &mut self.awake_set;
             self.awake_list.drain(..).for_each(|idx| {
-                self.awake_set.set(idx, false);
+                awake_set.set(idx, false);
             });
         } else {
             self.awake_list.clear();

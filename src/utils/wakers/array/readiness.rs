@@ -53,8 +53,9 @@ impl<const N: usize> ReadinessArray<N> {
         if self.awake_list_len < Self::TRESHOLD {
             self.awake_set.fill(false);
         } else {
+            let awake_set = &mut self.awake_set;
             self.awake_list.iter().for_each(|&idx| {
-                self.awake_set[idx] = false;
+                awake_set[idx] = false;
             });
         }
         self.awake_list_len = 0;

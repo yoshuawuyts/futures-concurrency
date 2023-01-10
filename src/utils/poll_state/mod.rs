@@ -1,11 +1,14 @@
-#![allow(clippy::module_inception)]
-
-mod array;
-mod maybe_done;
-mod poll_state;
-mod vec;
-
-pub(crate) use array::PollArray;
-pub(crate) use maybe_done::MaybeDone;
-pub(crate) use poll_state::PollState;
-pub(crate) use vec::PollVec;
+/// Enumerate the current poll state.
+#[derive(Debug, Clone, Copy, Default)]
+#[repr(u8)]
+pub(crate) enum PollState {
+    /// Polling the underlying future or stream.
+    #[default]
+    Pending,
+    /// Data has been written to the output structure, and is now ready to be
+    /// read.
+    Ready,
+    /// The underlying future or stream has finished yielding data and all data
+    /// has been read. We can now stop reasoning about it.
+    Consumed,
+}

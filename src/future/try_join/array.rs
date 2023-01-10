@@ -1,12 +1,6 @@
-use super::TryJoin as TryJoinTrait;
-use crate::utils::MaybeDone;
-
-use core::fmt;
+use super::super::common::{CombinatorArray, CombinatorBehaviorArray};
+use super::{TryJoin as TryJoinTrait, TryJoinBehavior};
 use core::future::{Future, IntoFuture};
-use core::pin::Pin;
-use core::task::{Context, Poll};
-
-use pin_project::pin_project;
 
 /// Wait for all futures to complete successfully, or abort early on error.
 ///
@@ -15,87 +9,41 @@ use pin_project::pin_project;
 ///
 /// [`try_join`]: crate::future::TryJoin::try_join
 /// [`TryJoin`]: crate::future::TryJoin
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[pin_project]
-pub struct TryJoin<Fut, T, E, const N: usize>
-where
-    T: fmt::Debug,
-    Fut: Future<Output = Result<T, E>>,
-{
-    elems: [MaybeDone<Fut>; N],
-}
+pub type TryJoin<Fut, const N: usize> = CombinatorArray<Fut, TryJoinBehavior, N>;
 
-impl<Fut, T, E, const N: usize> fmt::Debug for TryJoin<Fut, T, E, N>
+impl<T, E, Fut, const N: usize> CombinatorBehaviorArray<Fut, N> for TryJoinBehavior
 where
-    Fut: Future<Output = Result<T, E>> + fmt::Debug,
-    Fut::Output: fmt::Debug,
-    T: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_list().entries(self.elems.iter()).finish()
-    }
-}
-
-impl<Fut, T, E, const N: usize> Future for TryJoin<Fut, T, E, N>
-where
-    T: fmt::Debug,
     Fut: Future<Output = Result<T, E>>,
-    E: fmt::Debug,
 {
     type Output = Result<[T; N], E>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut all_done = true;
+    type StoredItem = T;
 
-        let this = self.project();
-
-        for elem in this.elems.iter_mut() {
-            // SAFETY: we don't ever move the pinned container here; we only pin project
-            let mut elem = unsafe { Pin::new_unchecked(elem) };
-            if elem.as_mut().poll(cx).is_pending() {
-                all_done = false
-            } else if let Some(Err(_)) = elem.as_ref().output() {
-                return Poll::Ready(Err(elem.take().unwrap().unwrap_err()));
-            }
+    fn maybe_return(
+        _idx: usize,
+        res: <Fut as Future>::Output,
+    ) -> Result<Self::StoredItem, Self::Output> {
+        match res {
+            Ok(v) => Ok(v),
+            Err(e) => Err(Err(e)),
         }
+    }
 
-        if all_done {
-            use core::array;
-            use core::mem::MaybeUninit;
-
-            // Create the result array based on the indices
-            // TODO: replace with `MaybeUninit::uninit_array()` when it becomes stable
-            let mut out: [_; N] = array::from_fn(|_| MaybeUninit::uninit());
-
-            // NOTE: this clippy attribute can be removed once we can `collect` into `[usize; K]`.
-            #[allow(clippy::needless_range_loop)]
-            for (i, el) in this.elems.iter_mut().enumerate() {
-                // SAFETY: we don't ever move the pinned container here; we only pin project
-                let el = unsafe { Pin::new_unchecked(el) }.take().unwrap().unwrap();
-                out[i] = MaybeUninit::new(el);
-            }
-            let result = unsafe { out.as_ptr().cast::<[T; N]>().read() };
-            Poll::Ready(Ok(result))
-        } else {
-            Poll::Pending
-        }
+    fn when_completed(arr: [Self::StoredItem; N]) -> Self::Output {
+        Ok(arr)
     }
 }
 
-impl<Fut, T, E, const N: usize> TryJoinTrait for [Fut; N]
+impl<T, E, Fut, const N: usize> TryJoinTrait for [Fut; N]
 where
-    T: std::fmt::Debug,
     Fut: IntoFuture<Output = Result<T, E>>,
-    E: fmt::Debug,
 {
-    type Output = [T; N];
+    type Ok = [T; N];
     type Error = E;
-    type Future = TryJoin<Fut::IntoFuture, T, E, N>;
+    type Future = TryJoin<Fut::IntoFuture, N>;
 
     fn try_join(self) -> Self::Future {
-        TryJoin {
-            elems: self.map(|fut| MaybeDone::new(fut.into_future())),
-        }
+        TryJoin::new(self.map(IntoFuture::into_future))
     }
 }
 
