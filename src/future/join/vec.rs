@@ -2,6 +2,7 @@ use super::super::common::{CombinatorBehaviorVec, CombinatorVec};
 use super::{Join as JoinTrait, JoinBehavior};
 
 use core::future::{Future, IntoFuture};
+use core::ops::ControlFlow;
 use std::vec::Vec;
 
 /// Waits for two similarly-typed futures to complete.
@@ -24,8 +25,8 @@ where
     fn maybe_return(
         _idx: usize,
         res: <Fut as Future>::Output,
-    ) -> Result<Self::StoredItem, Self::Output> {
-        Ok(res)
+    ) -> ControlFlow<Self::Output, Self::StoredItem> {
+        ControlFlow::Continue(res)
     }
 
     fn when_completed(vec: Vec<Self::StoredItem>) -> Self::Output {

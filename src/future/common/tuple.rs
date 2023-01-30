@@ -4,6 +4,7 @@ use core::fmt::{self, Debug};
 use core::future::Future;
 use core::marker::PhantomData;
 use core::mem::MaybeUninit;
+use core::ops::ControlFlow;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
@@ -25,9 +26,9 @@ pub trait TupleMaybeReturn<R, O> {
     /// The type of the item to store for this subfuture.
     type StoredItem;
     /// Take the return value of a subfuture and decide whether to store it or early return.
-    /// Ok(v) = store v.
-    /// Err(o) = early return o.
-    fn maybe_return(idx: usize, res: R) -> Result<Self::StoredItem, O>;
+    /// ControlFlow::Continue(v) = store v.
+    /// ControlFlow::Break(o) = early return o.
+    fn maybe_return(idx: usize, res: R) -> ControlFlow<O, Self::StoredItem>;
 }
 /// This and [TupleMaybeReturn] takes the role of [super::array::CombinatorBehaviorArray] but for tuples.
 /// Type parameters:
@@ -159,10 +160,10 @@ macro_rules! impl_common_tuple {
                             $idx => {
                                 if let Poll::Ready(value) = futures.$F.as_mut().poll(&mut cx) {
 									match B::maybe_return($idx, value) {
-										Err(ret) => {
+										ControlFlow::Break(ret) => {
                                             return Poll::Ready(ret);
 										},
-										Ok(store) => {
+										ControlFlow::Continue(store) => {
 											this.items.$idx.write(store);
 											true
 										}

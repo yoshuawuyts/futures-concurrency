@@ -3,11 +3,12 @@ use super::{Join as JoinTrait, JoinBehavior};
 
 use core::future::IntoFuture;
 use core::marker::PhantomData;
+use core::ops::ControlFlow;
 
 impl<T, O> TupleMaybeReturn<T, O> for JoinBehavior {
     type StoredItem = T;
-    fn maybe_return(_: usize, res: T) -> Result<Self::StoredItem, O> {
-        Ok(res)
+    fn maybe_return(_: usize, res: T) -> ControlFlow<O, Self::StoredItem> {
+        ControlFlow::Continue(res)
     }
 }
 impl<O> TupleWhenCompleted<O, O> for JoinBehavior {

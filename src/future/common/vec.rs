@@ -3,6 +3,7 @@ use crate::utils::{self, WakerVec};
 use core::fmt;
 use core::future::Future;
 use core::mem::MaybeUninit;
+use core::ops::ControlFlow;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 use std::vec::Vec;
@@ -20,7 +21,7 @@ where
 {
     type Output;
     type StoredItem;
-    fn maybe_return(idx: usize, res: Fut::Output) -> Result<Self::StoredItem, Self::Output>;
+    fn maybe_return(idx: usize, res: Fut::Output) -> ControlFlow<Self::Output, Self::StoredItem>;
     fn when_completed(vec: Vec<Self::StoredItem>) -> Self::Output;
 }
 
@@ -103,12 +104,12 @@ where
             let mut cx = Context::from_waker(this.wakers.get(idx).unwrap());
             if let Poll::Ready(value) = fut.poll(&mut cx) {
                 match B::maybe_return(idx, value) {
-                    Ok(store) => {
+                    ControlFlow::Continue(store) => {
                         this.items[idx].write(store);
                         this.filled.set(idx, true);
                         *this.pending -= 1;
                     }
-                    Err(ret) => {
+                    ControlFlow::Break(ret) => {
                         return Poll::Ready(ret);
                     }
                 }

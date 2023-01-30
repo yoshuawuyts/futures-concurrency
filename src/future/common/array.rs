@@ -5,6 +5,7 @@ use core::fmt;
 use core::future::Future;
 use core::marker::PhantomData;
 use core::mem::MaybeUninit;
+use core::ops::ControlFlow;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
@@ -30,15 +31,15 @@ where
     type StoredItem;
 
     /// Takes the output of a subfuture and decide what to do with it.
-    /// If this function returns Err(output), the combinator would early return Poll::Ready(output).
-    /// For Ok(item), the combinator would keep the item in an array.
+    /// If this function returns ControlFlow::Break(output), the combinator would early return Poll::Ready(output).
+    /// For ControlFlow::Continue(item), the combinator would keep the item in an array.
     /// If by the end, all items are kept (no early return made),
     /// then `when_completed` will be called on the items array.
     ///
     /// Example:
-    /// Join will always wrap the output in Ok because it want to wait until all outputs are ready.
-    /// Race will always wrap the output in Err because it want to early return with the first output.
-    fn maybe_return(idx: usize, res: Fut::Output) -> Result<Self::StoredItem, Self::Output>;
+    /// Join will always wrap the output in ControlFlow::Continue because it want to wait until all outputs are ready.
+    /// Race will always wrap the output in ControlFlow::Break because it want to early return with the first output.
+    fn maybe_return(idx: usize, res: Fut::Output) -> ControlFlow<Self::Output, Self::StoredItem>;
 
     /// Called when all subfutures are completed and none caused the combinator to return early.
     /// The argument is an array of the kept item from each subfuture.
@@ -145,13 +146,13 @@ where
             if let Poll::Ready(value) = fut.poll(&mut cx) {
                 match B::maybe_return(idx, value) {
                     // Keep the item for returning once every subfuture is done.
-                    Ok(store) => {
+                    ControlFlow::Continue(store) => {
                         this.items[idx].write(store);
                         *filled = true;
                         *this.pending -= 1;
                     }
                     // Early return.
-                    Err(ret) => return Poll::Ready(ret),
+                    ControlFlow::Break(ret) => return Poll::Ready(ret),
                 }
             }
         }

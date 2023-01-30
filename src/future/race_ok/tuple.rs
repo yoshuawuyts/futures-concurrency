@@ -4,17 +4,15 @@ use super::{RaceOk as RaceOkTrait, RaceOkBehavior};
 
 use core::future::IntoFuture;
 use core::marker::PhantomData;
+use core::ops::ControlFlow;
 use std::{error::Error, fmt::Display};
 
 impl<T, E, AggE> TupleMaybeReturn<Result<T, E>, Result<T, AggE>> for RaceOkBehavior {
     type StoredItem = E;
-    fn maybe_return(_: usize, res: Result<T, E>) -> Result<Self::StoredItem, Result<T, AggE>> {
+    fn maybe_return(_: usize, res: Result<T, E>) -> ControlFlow<Result<T, AggE>, Self::StoredItem> {
         match res {
-            // If subfuture returns Ok we want to early return from the combinator.
-            // We do this by returning Err to the combinator.
-            Ok(t) => Err(Ok(t)),
-            // If subfuture returns Err, we keep the error for potential use in AggregateError.
-            Err(e) => Ok(e),
+            Ok(t) => ControlFlow::Break(Ok(t)),
+            Err(e) => ControlFlow::Continue(e),
         }
     }
 }

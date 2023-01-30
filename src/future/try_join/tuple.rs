@@ -3,15 +3,16 @@ use super::{TryJoin as TryJoinTrait, TryJoinBehavior};
 
 use core::future::IntoFuture;
 use core::marker::PhantomData;
+use core::ops::ControlFlow;
 
 use futures_core::TryFuture;
 
 impl<T, AggT, E> TupleMaybeReturn<Result<T, E>, Result<AggT, E>> for TryJoinBehavior {
     type StoredItem = T;
-    fn maybe_return(_: usize, res: Result<T, E>) -> Result<Self::StoredItem, Result<AggT, E>> {
+    fn maybe_return(_: usize, res: Result<T, E>) -> ControlFlow<Result<AggT, E>, Self::StoredItem> {
         match res {
-            Ok(t) => Ok(t),
-            Err(e) => Err(Err(e)),
+            Ok(t) => ControlFlow::Continue(t),
+            Err(e) => ControlFlow::Break(Err(e)),
         }
     }
 }

@@ -2,6 +2,7 @@ use super::super::common::{CombinatorArray, CombinatorBehaviorArray};
 use super::{Join as JoinTrait, JoinBehavior};
 
 use core::future::{Future, IntoFuture};
+use core::ops::ControlFlow;
 
 /// Waits for two similarly-typed futures to complete.
 ///
@@ -23,8 +24,9 @@ where
     fn maybe_return(
         _idx: usize,
         res: <Fut as Future>::Output,
-    ) -> Result<Self::StoredItem, Self::Output> {
-        Ok(res)
+    ) -> ControlFlow<Self::Output, Self::StoredItem> {
+        // Continue with other subfutures
+        ControlFlow::Continue(res)
     }
 
     fn when_completed(arr: [Self::StoredItem; N]) -> Self::Output {

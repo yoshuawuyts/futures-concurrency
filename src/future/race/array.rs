@@ -2,6 +2,7 @@ use super::super::common::{CombinatorArray, CombinatorBehaviorArray};
 use super::{Race as RaceTrait, RaceBehavior};
 
 use core::future::{Future, IntoFuture};
+use core::ops::ControlFlow;
 
 /// Wait for the first future to complete.
 ///
@@ -23,8 +24,9 @@ where
     fn maybe_return(
         _idx: usize,
         res: <Fut as Future>::Output,
-    ) -> Result<Self::StoredItem, Self::Output> {
-        Err(res)
+    ) -> ControlFlow<Self::Output, Self::StoredItem> {
+        // Subfuture finished, so the race is over. Break now.
+        ControlFlow::Break(res)
     }
 
     fn when_completed(_arr: [Self::StoredItem; N]) -> Self::Output {

@@ -3,6 +3,7 @@ use super::error::AggregateError;
 use super::{RaceOk as RaceOkTrait, RaceOkBehavior};
 
 use core::future::{Future, IntoFuture};
+use core::ops::ControlFlow;
 
 /// Wait for the first successful future to complete.
 ///
@@ -24,10 +25,12 @@ where
     fn maybe_return(
         _idx: usize,
         res: <Fut as Future>::Output,
-    ) -> Result<Self::StoredItem, Self::Output> {
+    ) -> ControlFlow<Self::Output, Self::StoredItem> {
         match res {
-            Ok(v) => Err(Ok(v)),
-            Err(e) => Ok(e),
+            // Got an Ok result. Break now.
+            Ok(v) => ControlFlow::Break(Ok(v)),
+            // Err result. Continue polling other subfutures.
+            Err(e) => ControlFlow::Continue(e),
         }
     }
 

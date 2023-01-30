@@ -1,6 +1,8 @@
 use super::super::common::{CombinatorArray, CombinatorBehaviorArray};
 use super::{TryJoin as TryJoinTrait, TryJoinBehavior};
+
 use core::future::{Future, IntoFuture};
+use core::ops::ControlFlow;
 
 /// Wait for all futures to complete successfully, or abort early on error.
 ///
@@ -22,10 +24,12 @@ where
     fn maybe_return(
         _idx: usize,
         res: <Fut as Future>::Output,
-    ) -> Result<Self::StoredItem, Self::Output> {
+    ) -> ControlFlow<Self::Output, Self::StoredItem> {
         match res {
-            Ok(v) => Ok(v),
-            Err(e) => Err(Err(e)),
+            // Got an Ok result. Keep it.
+            Ok(v) => ControlFlow::Continue(v),
+            // An error happended. Break now.
+            Err(e) => ControlFlow::Break(Err(e)),
         }
     }
 

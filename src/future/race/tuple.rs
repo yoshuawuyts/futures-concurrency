@@ -4,14 +4,14 @@ use super::{Race as RaceTrait, RaceBehavior};
 use core::convert::Infallible;
 use core::future::{Future, IntoFuture};
 use core::marker::PhantomData;
+use core::ops::ControlFlow;
 
 impl<T> TupleMaybeReturn<T, T> for RaceBehavior {
     // We early return as soon as any subfuture finishes.
     // Results from subfutures are never stored.
     type StoredItem = Infallible;
-    fn maybe_return(_: usize, res: T) -> Result<Self::StoredItem, T> {
-        // Err = early return.
-        Err(res)
+    fn maybe_return(_: usize, res: T) -> ControlFlow<T, Self::StoredItem> {
+        ControlFlow::Break(res)
     }
 }
 impl<S, O> TupleWhenCompleted<S, O> for RaceBehavior {

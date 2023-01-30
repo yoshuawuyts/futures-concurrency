@@ -2,6 +2,7 @@ use super::super::common::{CombinatorBehaviorVec, CombinatorVec};
 use super::{Race as RaceTrait, RaceBehavior};
 
 use core::future::{Future, IntoFuture};
+use core::ops::ControlFlow;
 
 /// Wait for the first future to complete.
 ///
@@ -23,8 +24,8 @@ where
     fn maybe_return(
         _idx: usize,
         res: <Fut as Future>::Output,
-    ) -> Result<Self::StoredItem, Self::Output> {
-        Err(res)
+    ) -> ControlFlow<Self::Output, Self::StoredItem> {
+        ControlFlow::Break(res)
     }
 
     fn when_completed(_vec: Vec<Self::StoredItem>) -> Self::Output {
