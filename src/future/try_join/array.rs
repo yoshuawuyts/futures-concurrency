@@ -54,8 +54,8 @@ where
             let mut elem = unsafe { Pin::new_unchecked(elem) };
             if elem.as_mut().poll(cx).is_pending() {
                 all_done = false
-            } else if let Some(Err(_)) = elem.as_ref().output() {
-                return Poll::Ready(Err(elem.take().unwrap().unwrap_err()));
+            } else if let Some(err) = elem.take_err() {
+                return Poll::Ready(Err(err));
             }
         }
 
@@ -71,8 +71,13 @@ where
             #[allow(clippy::needless_range_loop)]
             for (i, el) in this.elems.iter_mut().enumerate() {
                 // SAFETY: we don't ever move the pinned container here; we only pin project
-                let el = unsafe { Pin::new_unchecked(el) }.take().unwrap().unwrap();
-                out[i] = MaybeUninit::new(el);
+                let pin = unsafe { Pin::new_unchecked(el) };
+                match pin.take_ok() {
+                    Some(el) => out[i] = MaybeUninit::new(el),
+                    // All futures are done and we iterate only once to take them so this is not
+                    // reachable
+                    None => unreachable!(),
+                }
             }
             let result = unsafe { out.as_ptr().cast::<[T; N]>().read() };
             Poll::Ready(Ok(result))

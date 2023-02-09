@@ -48,17 +48,22 @@ where
         for mut elem in iter_pin_mut(self.elems.as_mut()) {
             if elem.as_mut().poll(cx).is_pending() {
                 all_done = false
-            } else if let Some(Err(_)) = elem.as_ref().output() {
-                return Poll::Ready(Err(elem.take().unwrap().unwrap_err()));
+            } else if let Some(err) = elem.take_err() {
+                return Poll::Ready(Err(err));
             }
         }
 
         if all_done {
             let mut elems = mem::replace(&mut self.elems, Box::pin([]));
             let result = iter_pin_mut(elems.as_mut())
-                .map(|e| e.take().unwrap())
+                .map(|e| match e.take_ok() {
+                    Some(output) => output,
+                    // Since all futures are done and we reached here, it means none returned an
+                    // `Err` and so this is unreachable.
+                    None => unreachable!(),
+                })
                 .collect();
-            Poll::Ready(result)
+            Poll::Ready(Ok(result))
         } else {
             Poll::Pending
         }

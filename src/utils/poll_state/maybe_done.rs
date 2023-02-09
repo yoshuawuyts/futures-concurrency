@@ -22,30 +22,38 @@ impl<Fut: Future> MaybeDone<Fut> {
     pub(crate) fn new(future: Fut) -> MaybeDone<Fut> {
         Self::Future(future)
     }
+}
 
-    /// Returns an [`Option`] containing a reference to the output of the future.
-    /// The output of this method will be [`Some`] if and only if the inner
-    /// future has been completed and [`take`](MaybeDone::take)
-    /// has not yet been called.
+impl<T, E, Fut> MaybeDone<Fut>
+where
+    Fut: Future<Output = Result<T, E>>,
+{
+    /// Attempt to take the `Ok(output)` of a `MaybeDone` without driving it towards completion.
+    /// If the future is done but is an `Err(_)`, this will return `None`.
     #[inline]
-    pub(crate) fn output(self: Pin<&Self>) -> Option<&Fut::Output> {
-        let this = self.get_ref();
+    pub(crate) fn take_ok(self: Pin<&mut Self>) -> Option<T> {
+        let this = unsafe { self.get_unchecked_mut() };
         match this {
-            MaybeDone::Done(res) => Some(res),
-            _ => None,
+            MaybeDone::Done(Ok(_)) => {}
+            MaybeDone::Done(Err(_)) | MaybeDone::Future(_) | MaybeDone::Gone => return None,
+        }
+        if let MaybeDone::Done(Ok(output)) = mem::replace(this, MaybeDone::Gone) {
+            Some(output)
+        } else {
+            unreachable!()
         }
     }
 
-    /// Attempt to take the output of a `MaybeDone` without driving it
-    /// towards completion.
+    /// Attempt to take the `Err(output)` of a `MaybeDone` without driving it towards completion.
+    /// If the future is done but is an `Ok(_)`, this will return `None`.
     #[inline]
-    pub(crate) fn take(self: Pin<&mut Self>) -> Option<Fut::Output> {
+    pub(crate) fn take_err(self: Pin<&mut Self>) -> Option<E> {
         let this = unsafe { self.get_unchecked_mut() };
         match this {
-            MaybeDone::Done(_) => {}
-            MaybeDone::Future(_) | MaybeDone::Gone => return None,
-        };
-        if let MaybeDone::Done(output) = mem::replace(this, MaybeDone::Gone) {
+            MaybeDone::Done(Err(_)) => {}
+            MaybeDone::Done(Ok(_)) | MaybeDone::Future(_) | MaybeDone::Gone => return None,
+        }
+        if let MaybeDone::Done(Err(output)) = mem::replace(this, MaybeDone::Gone) {
             Some(output)
         } else {
             unreachable!()
