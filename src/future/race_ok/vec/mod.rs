@@ -41,8 +41,6 @@ where
 
 impl<Fut, T, E> Future for RaceOk<Fut, T, E>
 where
-    T: std::fmt::Debug,
-    E: fmt::Debug,
     Fut: Future<Output = Result<T, E>>,
 {
     type Output = Result<T, AggregateError<E>>;
@@ -77,8 +75,6 @@ where
 
 impl<Fut, T, E> RaceOkTrait for Vec<Fut>
 where
-    T: fmt::Debug,
-    E: fmt::Debug,
     Fut: IntoFuture<Output = Result<T, E>>,
 {
     type Output = T;

@@ -37,7 +37,6 @@ where
 
 impl<Fut, T, E> Future for TryJoin<Fut, T, E>
 where
-    T: std::fmt::Debug,
     Fut: Future<Output = Result<T, E>>,
 {
     type Output = Result<Vec<T>, E>;
@@ -72,7 +71,6 @@ where
 
 impl<Fut, T, E> TryJoinTrait for Vec<Fut>
 where
-    T: std::fmt::Debug,
     Fut: IntoFuture<Output = Result<T, E>>,
 {
     type Output = Vec<T>;

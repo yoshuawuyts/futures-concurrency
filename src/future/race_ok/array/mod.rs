@@ -26,7 +26,6 @@ pub use error::AggregateError;
 #[pin_project]
 pub struct RaceOk<Fut, T, E, const N: usize>
 where
-    T: fmt::Debug,
     Fut: Future<Output = Result<T, E>>,
 {
     #[pin]
@@ -39,7 +38,6 @@ impl<Fut, T, E, const N: usize> fmt::Debug for RaceOk<Fut, T, E, N>
 where
     Fut: Future<Output = Result<T, E>> + fmt::Debug,
     Fut::Output: fmt::Debug,
-    T: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.futures.iter()).finish()
@@ -48,9 +46,7 @@ where
 
 impl<Fut, T, E, const N: usize> Future for RaceOk<Fut, T, E, N>
 where
-    T: fmt::Debug,
     Fut: Future<Output = Result<T, E>>,
-    E: fmt::Debug,
 {
     type Output = Result<T, AggregateError<E, N>>;
 
@@ -88,9 +84,7 @@ where
 
 impl<Fut, T, E, const N: usize> RaceOkTrait for [Fut; N]
 where
-    T: fmt::Debug,
     Fut: IntoFuture<Output = Result<T, E>>,
-    E: fmt::Debug,
 {
     type Output = T;
     type Error = AggregateError<E, N>;

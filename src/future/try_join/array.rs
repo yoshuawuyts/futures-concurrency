@@ -19,7 +19,6 @@ use pin_project::pin_project;
 #[pin_project]
 pub struct TryJoin<Fut, T, E, const N: usize>
 where
-    T: fmt::Debug,
     Fut: Future<Output = Result<T, E>>,
 {
     elems: [MaybeDone<Fut>; N],
@@ -29,7 +28,6 @@ impl<Fut, T, E, const N: usize> fmt::Debug for TryJoin<Fut, T, E, N>
 where
     Fut: Future<Output = Result<T, E>> + fmt::Debug,
     Fut::Output: fmt::Debug,
-    T: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.elems.iter()).finish()
@@ -38,9 +36,7 @@ where
 
 impl<Fut, T, E, const N: usize> Future for TryJoin<Fut, T, E, N>
 where
-    T: fmt::Debug,
     Fut: Future<Output = Result<T, E>>,
-    E: fmt::Debug,
 {
     type Output = Result<[T; N], E>;
 
@@ -89,9 +85,7 @@ where
 
 impl<Fut, T, E, const N: usize> TryJoinTrait for [Fut; N]
 where
-    T: std::fmt::Debug,
     Fut: IntoFuture<Output = Result<T, E>>,
-    E: fmt::Debug,
 {
     type Output = [T; N];
     type Error = E;
