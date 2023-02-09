@@ -35,3 +35,4 @@ futures-lite = "1.12.0"
 criterion = { version = "0.3", features = ["async", "async_futures", "html_reports"] }
 async-std = { version = "1.12.0", features = ["attributes"] }
 futures-time = "3.0.0"
+rand = "0.8.5"
