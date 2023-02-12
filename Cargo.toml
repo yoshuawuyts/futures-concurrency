@@ -28,6 +28,7 @@ harness = false
 bitvec = { version = "1.0.1", default-features = false, features = ["alloc"] }
 futures-core = "0.3"
 pin-project = "1.0.8"
+sptr = "0.3.2"
 
 [dev-dependencies]
 futures = "0.3.25"

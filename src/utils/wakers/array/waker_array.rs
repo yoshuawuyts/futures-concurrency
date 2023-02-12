@@ -3,7 +3,7 @@ use core::task::Waker;
 use std::sync::{Arc, Mutex};
 
 use super::{
-    super::shared_arc::{waker_for_wake_data_slot, WakeDataContainer},
+    super::shared_arc::{waker_from_redirect_position, SharedArcContent},
     ReadinessArray,
 };
 
@@ -15,7 +15,7 @@ pub(crate) struct WakerArray<const N: usize> {
 
 /// See [super::super::shared_arc] for how this works.
 struct WakerArrayInner<const N: usize> {
-    wake_data: [*const Self; N],
+    redirect: [*const Self; N],
     readiness: Mutex<ReadinessArray<N>>,
 }
 
@@ -24,7 +24,7 @@ impl<const N: usize> WakerArray<N> {
     pub(crate) fn new() -> Self {
         let mut inner = Arc::new(WakerArrayInner {
             readiness: Mutex::new(ReadinessArray::new()),
-            wake_data: [std::ptr::null(); N], // We don't know the Arc's address yet so put null for now.
+            redirect: [std::ptr::null(); N], // We don't know the Arc's address yet so put null for now.
         });
         let raw = Arc::into_raw(Arc::clone(&inner)); // The Arc's address.
 
@@ -33,14 +33,14 @@ impl<const N: usize> WakerArray<N> {
         // So N Wakers -> count = N+1.
         unsafe { Arc::decrement_strong_count(raw) }
 
-        // Make wake_data all point to the Arc itself.
-        Arc::get_mut(&mut inner).unwrap().wake_data = [raw; N];
+        // Make redirect all point to the Arc itself.
+        Arc::get_mut(&mut inner).unwrap().redirect = [raw; N];
 
-        // Now the wake_data array is complete. Time to create the actual Wakers.
+        // Now the redirect array is complete. Time to create the actual Wakers.
         let wakers = array::from_fn(|i| {
-            let data = inner.wake_data.get(i).unwrap();
+            let data = inner.redirect.get(i).unwrap();
             unsafe {
-                waker_for_wake_data_slot::<WakerArrayInner<N>>(
+                waker_from_redirect_position::<WakerArrayInner<N>>(
                     data as *const *const WakerArrayInner<N>,
                 )
             }
@@ -59,9 +59,9 @@ impl<const N: usize> WakerArray<N> {
     }
 }
 
-impl<const N: usize> WakeDataContainer for WakerArrayInner<N> {
-    fn get_wake_data_slice(&self) -> &[*const Self] {
-        &self.wake_data
+impl<const N: usize> SharedArcContent for WakerArrayInner<N> {
+    fn get_redirect_slice(&self) -> &[*const Self] {
+        &self.redirect
     }
 
     fn wake_index(&self, index: usize) {

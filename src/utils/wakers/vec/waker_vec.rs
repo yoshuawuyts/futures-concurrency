@@ -2,7 +2,7 @@ use core::task::Waker;
 use std::sync::{Arc, Mutex};
 
 use super::{
-    super::shared_arc::{waker_for_wake_data_slot, WakeDataContainer},
+    super::shared_arc::{waker_from_redirect_position, SharedArcContent},
     ReadinessVec,
 };
 
@@ -14,7 +14,7 @@ pub(crate) struct WakerVec {
 
 /// See [super::super::shared_arc] for how this works.
 struct WakerVecInner {
-    wake_data: Vec<*const Self>,
+    redirect: Vec<*const Self>,
     readiness: Mutex<ReadinessVec>,
 }
 
@@ -23,7 +23,7 @@ impl WakerVec {
     pub(crate) fn new(len: usize) -> Self {
         let mut inner = Arc::new(WakerVecInner {
             readiness: Mutex::new(ReadinessVec::new(len)),
-            wake_data: Vec::new(),
+            redirect: Vec::new(),
         });
         let raw = Arc::into_raw(Arc::clone(&inner)); // The Arc's address.
 
@@ -32,15 +32,15 @@ impl WakerVec {
         // So N Wakers -> count = N+1.
         unsafe { Arc::decrement_strong_count(raw) }
 
-        // Make wake_data all point to the Arc itself.
-        Arc::get_mut(&mut inner).unwrap().wake_data = vec![raw; len];
+        // Make redirect all point to the Arc itself.
+        Arc::get_mut(&mut inner).unwrap().redirect = vec![raw; len];
 
-        // Now the wake_data vec is complete. Time to create the actual Wakers.
+        // Now the redirect vec is complete. Time to create the actual Wakers.
         let wakers = inner
-            .wake_data
+            .redirect
             .iter()
             .map(|data| unsafe {
-                waker_for_wake_data_slot::<WakerVecInner>(data as *const *const WakerVecInner)
+                waker_from_redirect_position::<WakerVecInner>(data as *const *const WakerVecInner)
             })
             .collect();
 
@@ -56,9 +56,9 @@ impl WakerVec {
     }
 }
 
-impl WakeDataContainer for WakerVecInner {
-    fn get_wake_data_slice(&self) -> &[*const Self] {
-        &self.wake_data
+impl SharedArcContent for WakerVecInner {
+    fn get_redirect_slice(&self) -> &[*const Self] {
+        &self.redirect
     }
 
     fn wake_index(&self, index: usize) {
