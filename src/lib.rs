@@ -67,11 +67,16 @@ pub mod prelude {
 pub mod future;
 pub mod stream;
 
+/// Error types.
+pub mod errors {
+    pub use crate::future::race_ok::error::AggregateError;
+}
+
 /// Helper functions and types for fixed-length arrays.
 pub mod array {
     pub use crate::future::join::array::Join;
     pub use crate::future::race::array::Race;
-    pub use crate::future::race_ok::array::{AggregateError, RaceOk};
+    pub use crate::future::race_ok::array::RaceOk;
     pub use crate::future::try_join::array::TryJoin;
     pub use crate::stream::chain::array::Chain;
     pub use crate::stream::merge::array::Merge;
@@ -82,7 +87,7 @@ pub mod array {
 pub mod vec {
     pub use crate::future::join::vec::Join;
     pub use crate::future::race::vec::Race;
-    pub use crate::future::race_ok::vec::{AggregateError, RaceOk};
+    pub use crate::future::race_ok::vec::RaceOk;
     pub use crate::future::try_join::vec::TryJoin;
     pub use crate::stream::chain::vec::Chain;
     pub use crate::stream::merge::vec::Merge;

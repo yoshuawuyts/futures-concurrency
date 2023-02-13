@@ -1,13 +1,8 @@
-use crate::utils::{self, Indexer};
+use super::super::common::{CombinatorArray, CombinatorBehaviorArray};
+use super::{Race as RaceTrait, RaceBehavior};
 
-use super::Race as RaceTrait;
-
-use core::fmt;
 use core::future::{Future, IntoFuture};
-use core::pin::Pin;
-use core::task::{Context, Poll};
-
-use pin_project::pin_project;
+use core::ops::ControlFlow;
 
 /// Wait for the first future to complete.
 ///
@@ -16,49 +11,26 @@ use pin_project::pin_project;
 ///
 /// [`race`]: crate::future::Race::race
 /// [`Race`]: crate::future::Race
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[pin_project]
-pub struct Race<Fut, const N: usize>
-where
-    Fut: Future,
-{
-    #[pin]
-    futures: [Fut; N],
-    indexer: Indexer,
-    done: bool,
-}
+pub type Race<Fut, const N: usize> = CombinatorArray<Fut, RaceBehavior, N>;
 
-impl<Fut, const N: usize> fmt::Debug for Race<Fut, N>
-where
-    Fut: Future + fmt::Debug,
-    Fut::Output: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_list().entries(self.futures.iter()).finish()
-    }
-}
-
-impl<Fut, const N: usize> Future for Race<Fut, N>
+impl<Fut, const N: usize> CombinatorBehaviorArray<Fut, N> for RaceBehavior
 where
     Fut: Future,
 {
     type Output = Fut::Output;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut this = self.project();
-        assert!(!*this.done, "Futures must not be polled after completing");
+    type StoredItem = core::convert::Infallible;
 
-        for index in this.indexer.iter() {
-            let fut = utils::get_pin_mut(this.futures.as_mut(), index).unwrap();
-            match fut.poll(cx) {
-                Poll::Ready(item) => {
-                    *this.done = true;
-                    return Poll::Ready(item);
-                }
-                Poll::Pending => continue,
-            }
-        }
-        Poll::Pending
+    fn maybe_return(
+        _idx: usize,
+        res: <Fut as Future>::Output,
+    ) -> ControlFlow<Self::Output, Self::StoredItem> {
+        // Subfuture finished, so the race is over. Break now.
+        ControlFlow::Break(res)
+    }
+
+    fn when_completed(_arr: [Self::StoredItem; N]) -> Self::Output {
+        panic!("race only works on non-empty arrays");
     }
 }
 
@@ -70,11 +42,7 @@ where
     type Future = Race<Fut::IntoFuture, N>;
 
     fn race(self) -> Self::Future {
-        Race {
-            futures: self.map(|fut| fut.into_future()),
-            indexer: Indexer::new(N),
-            done: false,
-        }
+        Race::new(self.map(IntoFuture::into_future))
     }
 }
 

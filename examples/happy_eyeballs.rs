@@ -1,12 +1,12 @@
 use async_std::io::prelude::*;
 use futures::future::TryFutureExt;
+use futures_concurrency::errors::AggregateError;
 use futures_concurrency::prelude::*;
 use futures_time::prelude::*;
 
 use async_std::io;
 use async_std::net::TcpStream;
 use futures::channel::oneshot;
-use futures_concurrency::vec::AggregateError;
 use futures_time::time::Duration;
 use std::error;
 
@@ -27,7 +27,7 @@ async fn open_tcp_socket(
     addr: &str,
     port: u16,
     attempts: u64,
-) -> Result<TcpStream, AggregateError<io::Error>> {
+) -> Result<TcpStream, AggregateError<Vec<io::Error>>> {
     let (mut sender, mut receiver) = oneshot::channel();
     let mut futures = Vec::with_capacity(attempts as usize);
 

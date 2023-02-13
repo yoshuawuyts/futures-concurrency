@@ -1,10 +1,9 @@
 mod array;
-#[cfg(test)]
 mod dummy;
+mod shared_arc;
 mod vec;
 
-#[cfg(test)]
-pub(crate) use dummy::DummyWaker;
+pub(crate) use dummy::dummy_waker;
 
 pub(crate) use array::*;
 pub(crate) use vec::*;

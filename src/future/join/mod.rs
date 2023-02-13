@@ -23,3 +23,6 @@ pub trait Join {
     /// This function returns a new future which polls all futures concurrently.
     fn join(self) -> Self::Future;
 }
+
+#[derive(Debug)]
+pub struct JoinBehavior;
