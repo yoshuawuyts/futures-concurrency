@@ -1,5 +1,5 @@
 use core::task::Waker;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
 use super::{
     super::shared_arc::{waker_from_redirect_position, SharedArcContent},
@@ -21,27 +21,18 @@ struct WakerVecInner {
 impl WakerVec {
     /// Create a new instance of `WakerVec`.
     pub(crate) fn new(len: usize) -> Self {
-        let mut inner = Arc::new(WakerVecInner {
-            readiness: Mutex::new(ReadinessVec::new(len)),
-            redirect: Vec::new(),
+        let inner = Arc::new_cyclic(|w| {
+            // `Weak::as_ptr` on a live Weak gives the same thing as `Arc::into_raw`.
+            let raw = Weak::as_ptr(w);
+            WakerVecInner {
+                readiness: Mutex::new(ReadinessVec::new(len)),
+                redirect: vec![raw; len],
+            }
         });
-        let raw = Arc::into_raw(Arc::clone(&inner)); // The Arc's address.
-
-        // At this point the strong count is 2. Decrement it to 1.
-        // Each time we create/clone a Waker the count will be incremented by 1.
-        // So N Wakers -> count = N+1.
-        unsafe { Arc::decrement_strong_count(raw) }
-
-        // Make redirect all point to the Arc itself.
-        Arc::get_mut(&mut inner).unwrap().redirect = vec![raw; len];
 
         // Now the redirect vec is complete. Time to create the actual Wakers.
-        let wakers = inner
-            .redirect
-            .iter()
-            .map(|data| unsafe {
-                waker_from_redirect_position::<WakerVecInner>(data as *const *const WakerVecInner)
-            })
+        let wakers = (0..len)
+            .map(|i| unsafe { waker_from_redirect_position(Arc::clone(&inner), i) })
             .collect();
 
         Self { inner, wakers }
@@ -56,7 +47,8 @@ impl WakerVec {
     }
 }
 
-impl SharedArcContent for WakerVecInner {
+#[deny(unsafe_op_in_unsafe_fn)]
+unsafe impl SharedArcContent for WakerVecInner {
     fn get_redirect_slice(&self) -> &[*const Self] {
         &self.redirect
     }

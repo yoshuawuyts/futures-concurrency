@@ -1,6 +1,6 @@
 use core::array;
 use core::task::Waker;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
 use super::{
     super::shared_arc::{waker_from_redirect_position, SharedArcContent},
@@ -22,29 +22,17 @@ struct WakerArrayInner<const N: usize> {
 impl<const N: usize> WakerArray<N> {
     /// Create a new instance of `WakerArray`.
     pub(crate) fn new() -> Self {
-        let mut inner = Arc::new(WakerArrayInner {
-            readiness: Mutex::new(ReadinessArray::new()),
-            redirect: [std::ptr::null(); N], // We don't know the Arc's address yet so put null for now.
-        });
-        let raw = Arc::into_raw(Arc::clone(&inner)); // The Arc's address.
-
-        // At this point the strong count is 2. Decrement it to 1.
-        // Each time we create/clone a Waker the count will be incremented by 1.
-        // So N Wakers -> count = N+1.
-        unsafe { Arc::decrement_strong_count(raw) }
-
-        // Make redirect all point to the Arc itself.
-        Arc::get_mut(&mut inner).unwrap().redirect = [raw; N];
-
-        // Now the redirect array is complete. Time to create the actual Wakers.
-        let wakers = array::from_fn(|i| {
-            let data = inner.redirect.get(i).unwrap();
-            unsafe {
-                waker_from_redirect_position::<WakerArrayInner<N>>(
-                    data as *const *const WakerArrayInner<N>,
-                )
+        let inner = Arc::new_cyclic(|w| {
+            // `Weak::as_ptr` on a live Weak gives the same thing as `Arc::into_raw`.
+            let raw = Weak::as_ptr(w);
+            WakerArrayInner {
+                readiness: Mutex::new(ReadinessArray::new()),
+                redirect: [raw; N],
             }
         });
+
+        let wakers =
+            array::from_fn(|i| unsafe { waker_from_redirect_position(Arc::clone(&inner), i) });
 
         Self { inner, wakers }
     }
@@ -59,7 +47,8 @@ impl<const N: usize> WakerArray<N> {
     }
 }
 
-impl<const N: usize> SharedArcContent for WakerArrayInner<N> {
+#[deny(unsafe_op_in_unsafe_fn)]
+unsafe impl<const N: usize> SharedArcContent for WakerArrayInner<N> {
     fn get_redirect_slice(&self) -> &[*const Self] {
         &self.redirect
     }
@@ -84,7 +73,10 @@ mod tests {
     #[test]
     fn check_refcount() {
         let mut wa = WakerArray::<5>::new();
+
+        // Each waker holds 1 ref, and the combinator itself holds 1.
         assert_eq!(Arc::strong_count(&wa.inner), 6);
+
         wa.wakers[4] = dummy_waker();
         assert_eq!(Arc::strong_count(&wa.inner), 5);
         let cloned = wa.wakers[3].clone();
@@ -105,13 +97,17 @@ mod tests {
         let taken = std::mem::replace(&mut wa.wakers[2], dummy_waker());
         assert_eq!(Arc::strong_count(&wa.inner), 4);
         taken.wake_by_ref();
-        taken.wake_by_ref();
-        taken.wake_by_ref();
+        assert_eq!(Arc::strong_count(&wa.inner), 4);
+        taken.clone().wake();
         assert_eq!(Arc::strong_count(&wa.inner), 4);
         taken.wake();
         assert_eq!(Arc::strong_count(&wa.inner), 3);
 
         wa.wakers = array::from_fn(|_| dummy_waker());
         assert_eq!(Arc::strong_count(&wa.inner), 1);
+
+        let weak = Arc::downgrade(&wa.inner);
+        drop(wa);
+        assert_eq!(weak.strong_count(), 0);
     }
 }

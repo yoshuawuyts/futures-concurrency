@@ -43,43 +43,46 @@ use std::sync::Arc;
 
 /// A trait to be implemented on [super::WakerArray] and [super::WakerVec] for polymorphism.
 /// These are the type that goes in the Arc. They both contain the Readiness and the redirect array/vec.
-pub(super) trait SharedArcContent {
-    /// Get the reference of the redirect slice. This is used to compute the index.
+/// # Safety
+/// The `get_redirect_slice` method MUST always return the same slice for the same self.
+pub(super) unsafe trait SharedArcContent {
+    /// Get the reference of the redirect slice.
     fn get_redirect_slice(&self) -> &[*const Self];
+
     /// Called when the subfuture at the specified index should be polled.
     /// Should call `Readiness::set_ready`.
     fn wake_index(&self, index: usize);
 }
 
 /// Create one waker following the mechanism described in the [module][self] doc.
-/// The following must be upheld for safety:
-/// - `pointer` must points to a slot in the redirect array.
-/// - that slot must contain a pointer obtained by `Arc::<A>::into_raw`.
-/// - the Arc must still be alive at the time this function is called.
-/// The following should be upheld for correct behavior:
-/// - calling `SharedArcContent::get_redirect_slice` on the content of the Arc should give the redirect array within which `pointer` points to.
+/// For safety, the index MUST be within bounds of the slice returned by `A::get_redirect_slice()`.
 #[deny(unsafe_op_in_unsafe_fn)]
 pub(super) unsafe fn waker_from_redirect_position<A: SharedArcContent>(
-    pointer: *const *const A,
+    arc: Arc<A>,
+    index: usize,
 ) -> Waker {
-    /// Create a Waker from a type-erased pointer.
-    /// The pointer must satisfy the safety constraints listed in the wrapping function's documentation.
-    unsafe fn create_waker<A: SharedArcContent>(pointer: *const ()) -> RawWaker {
+    // For `create_waker`, `wake_by_ref`, `wake`, and `drop_waker`, the following MUST be upheld for safety:
+    // - `pointer` must points to a slot in the redirect array.
+    // - that slot must contain a pointer of an Arc obtained from `Arc::<A>::into_raw`.
+    // - that Arc must still be alive (strong count > 0) at the time the function is called.
+
+    /// Clone a Waker from a type-erased pointer.
+    /// The pointer must satisfy the safety constraints listed in the code comments above.
+    unsafe fn clone_waker<A: SharedArcContent>(pointer: *const ()) -> RawWaker {
         // Retype the type-erased pointer.
         let pointer = pointer as *const *const A;
 
-        // We're creating a new Waker, so we need to increment the count.
-        // SAFETY: The constraints listed for the wrapping function documentation means
+        // Increment the count so that the Arc won't die before this new Waker we're creating.
+        // SAFETY: The required constraints means
         // - `*pointer` is an `*const A` obtained from `Arc::<A>::into_raw`.
-        // - the Arc is alive.
-        // So this operation is safe.
+        // - the Arc is alive right now.
         unsafe { Arc::increment_strong_count(*pointer) };
 
         RawWaker::new(pointer as *const (), create_vtable::<A>())
     }
 
     /// Invoke `SharedArcContent::wake_index` with the index in the redirect slice where this pointer points to.
-    /// The pointer must satisfy the safety constraints listed in the wrapping function's documentation.
+    /// The pointer must satisfy the safety constraints listed in the code comments above.
     unsafe fn wake_by_ref<A: SharedArcContent>(pointer: *const ()) {
         // Retype the type-erased pointer.
         let pointer = pointer as *const *const A;
@@ -89,31 +92,28 @@ pub(super) unsafe fn waker_from_redirect_position<A: SharedArcContent>(
         // SAFETY: we are already requiring the pointer in the redirect array slot to be obtained from `Arc::into_raw`.
         let arc_content: &A = unsafe { &*raw };
 
-        // Calculate the index.
-        // This is your familiar pointer math
-        // `item_address = array_address + (index * item_size)`
-        // rearranged to
-        // `index = (item_address - array_address) / item_size`.
-        let item_address = sptr::Strict::addr(pointer);
-        let redirect_slice_address = sptr::Strict::addr(arc_content.get_redirect_slice().as_ptr());
-        let redirect_item_size = core::mem::size_of::<*const A>(); // the size of each item in the redirect slice
-        let index = (item_address - redirect_slice_address) / redirect_item_size;
+        let slice_start = arc_content.get_redirect_slice().as_ptr();
+
+        // We'll switch to [`sub_ptr`](https://github.com/rust-lang/rust/issues/95892) once that's stable.
+        let index = unsafe { pointer.offset_from(slice_start) } as usize;
 
         arc_content.wake_index(index);
     }
 
-    /// The pointer must satisfy the safety constraints listed in the wrapping function's documentation.
+    /// Drop the waker (and drop the shared Arc if other Wakers and the combinator have all been dropped).
+    /// The pointer must satisfy the safety constraints listed in the code comments above.
     unsafe fn drop_waker<A: SharedArcContent>(pointer: *const ()) {
         // Retype the type-erased pointer.
         let pointer = pointer as *const *const A;
 
         // SAFETY: we are already requiring `pointer` to point to a slot in the redirect array.
-        let raw = unsafe { *pointer };
+        let raw: *const A = unsafe { *pointer };
         // SAFETY: we are already requiring the pointer in the redirect array slot to be obtained from `Arc::into_raw`.
         unsafe { Arc::decrement_strong_count(raw) };
     }
 
-    /// The pointer must satisfy the safety constraints listed in the wrapping function's documentation.
+    /// Like `wake_by_ref` but consumes the Waker.
+    /// The pointer must satisfy the safety constraints listed in the code comments above.
     unsafe fn wake<A: SharedArcContent>(pointer: *const ()) {
         // SAFETY: we are already requiring the constraints of `wake_by_ref` and `drop_waker`.
         unsafe {
@@ -124,13 +124,27 @@ pub(super) unsafe fn waker_from_redirect_position<A: SharedArcContent>(
 
     fn create_vtable<A: SharedArcContent>() -> &'static RawWakerVTable {
         &RawWakerVTable::new(
-            create_waker::<A>,
+            clone_waker::<A>,
             wake::<A>,
             wake_by_ref::<A>,
             drop_waker::<A>,
         )
     }
+
+    let redirect_slice: &[*const A] = arc.get_redirect_slice();
+
+    debug_assert!(redirect_slice.len() > index);
+
+    // SAFETY: we are already requiring that index be in bound of the slice.
+    let pointer: *const *const A = unsafe { redirect_slice.as_ptr().add(index) };
+    // Type-erase the pointer because the Waker methods expect so.
+    let pointer = pointer as *const ();
+
+    // We want to transfer management of the one strong count associated with `arc` to the Waker we're creating.
+    // That count should only be decremented when the Waker is dropped (by `drop_waker`).
+    core::mem::forget(arc);
+
     // SAFETY: All our vtable functions adhere to the RawWakerVTable contract,
     // and we are already requiring that `pointer` is what our functions expect.
-    unsafe { Waker::from_raw(create_waker::<A>(pointer as *const ())) }
+    unsafe { Waker::from_raw(RawWaker::new(pointer, create_vtable::<A>())) }
 }
