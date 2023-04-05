@@ -66,6 +66,9 @@ mod utils;
 
 /// The futures concurrency prelude.
 pub mod prelude {
+    pub use super::future::FutureExt as _;
+    pub use super::stream::StreamExt as _;
+
     pub use super::future::Join as _;
     pub use super::future::Race as _;
     pub use super::future::RaceOk as _;
