@@ -57,7 +57,7 @@ macro_rules! drop_outputs {
 
 macro_rules! impl_join_tuple {
     ($mod_name:ident $StructName:ident) => {
-        /// Waits for two similarly-typed futures to complete.
+        /// A future which waits for two similarly-typed futures to complete.
         ///
         /// This `struct` is created by the [`join`] method on the [`Join`] trait. See
         /// its documentation for more.
