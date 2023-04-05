@@ -18,6 +18,7 @@ pub fn futures_vec(len: usize) -> Vec<CountdownFuture> {
     futures
 }
 
+#[allow(unused)]
 pub fn futures_array<const N: usize>() -> [CountdownFuture; N] {
     let wakers = Rc::new(RefCell::new(BinaryHeap::new()));
     let completed = Rc::new(Cell::new(0));
@@ -27,6 +28,7 @@ pub fn futures_array<const N: usize>() -> [CountdownFuture; N] {
     futures
 }
 
+#[allow(unused)]
 pub fn futures_tuple() -> (
     CountdownFuture,
     CountdownFuture,

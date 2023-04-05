@@ -8,6 +8,7 @@ use std::task::{Context, Poll};
 
 use super::{shuffle, PrioritizedWaker, State};
 
+#[allow(unused)]
 pub fn streams_vec(len: usize) -> Vec<CountdownStream> {
     let wakers = Rc::new(RefCell::new(BinaryHeap::new()));
     let completed = Rc::new(Cell::new(0));
@@ -27,6 +28,7 @@ pub fn streams_array<const N: usize>() -> [CountdownStream; N] {
     streams
 }
 
+#[allow(unused)]
 pub fn streams_tuple() -> (
     CountdownStream,
     CountdownStream,
