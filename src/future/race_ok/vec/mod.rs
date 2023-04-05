@@ -41,8 +41,6 @@ where
 
 impl<Fut, T, E> Future for RaceOk<Fut, T, E>
 where
-    T: std::fmt::Debug,
-    E: fmt::Debug,
     Fut: Future<Output = Result<T, E>>,
 {
     type Output = Result<T, AggregateError<E>>;
@@ -53,15 +51,20 @@ where
         for mut elem in iter_pin_mut(self.elems.as_mut()) {
             if elem.as_mut().poll(cx).is_pending() {
                 all_done = false
-            } else if let Some(Ok(_)) = elem.as_ref().output() {
-                return Poll::Ready(Ok(elem.take().unwrap().unwrap()));
+            } else if let Some(output) = elem.take_ok() {
+                return Poll::Ready(Ok(output));
             }
         }
 
         if all_done {
             let mut elems = mem::replace(&mut self.elems, Box::pin([]));
             let result: Vec<E> = iter_pin_mut(elems.as_mut())
-                .map(|e| e.take().unwrap().unwrap_err())
+                .map(|e| match e.take_err() {
+                    Some(err) => err,
+                    // Since all futures are done without any one of them returning `Ok`, they're
+                    // all `Err`s and so `take_err` cannot fail
+                    None => unreachable!(),
+                })
                 .collect();
             Poll::Ready(Err(AggregateError::new(result)))
         } else {
@@ -72,8 +75,6 @@ where
 
 impl<Fut, T, E> RaceOkTrait for Vec<Fut>
 where
-    T: fmt::Debug,
-    E: fmt::Debug,
     Fut: IntoFuture<Output = Result<T, E>>,
 {
     type Output = T;

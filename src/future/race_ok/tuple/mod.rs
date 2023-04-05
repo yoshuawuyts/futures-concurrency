@@ -41,7 +41,6 @@ macro_rules! impl_race_ok_tuple {
         impl<T, ERR, $($F),*> fmt::Debug for $StructName<T, ERR, $($F),*>
         where
             $( $F: Future<Output = Result<T, ERR>> + fmt::Debug, )*
-            T: fmt::Debug,
             ERR: fmt::Debug,
         {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

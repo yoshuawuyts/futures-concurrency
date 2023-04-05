@@ -19,7 +19,6 @@ use pin_project::pin_project;
 #[pin_project]
 pub struct TryJoin<Fut, T, E, const N: usize>
 where
-    T: fmt::Debug,
     Fut: Future<Output = Result<T, E>>,
 {
     elems: [MaybeDone<Fut>; N],
@@ -29,7 +28,6 @@ impl<Fut, T, E, const N: usize> fmt::Debug for TryJoin<Fut, T, E, N>
 where
     Fut: Future<Output = Result<T, E>> + fmt::Debug,
     Fut::Output: fmt::Debug,
-    T: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.elems.iter()).finish()
@@ -38,9 +36,7 @@ where
 
 impl<Fut, T, E, const N: usize> Future for TryJoin<Fut, T, E, N>
 where
-    T: fmt::Debug,
     Fut: Future<Output = Result<T, E>>,
-    E: fmt::Debug,
 {
     type Output = Result<[T; N], E>;
 
@@ -54,8 +50,8 @@ where
             let mut elem = unsafe { Pin::new_unchecked(elem) };
             if elem.as_mut().poll(cx).is_pending() {
                 all_done = false
-            } else if let Some(Err(_)) = elem.as_ref().output() {
-                return Poll::Ready(Err(elem.take().unwrap().unwrap_err()));
+            } else if let Some(err) = elem.take_err() {
+                return Poll::Ready(Err(err));
             }
         }
 
@@ -71,8 +67,13 @@ where
             #[allow(clippy::needless_range_loop)]
             for (i, el) in this.elems.iter_mut().enumerate() {
                 // SAFETY: we don't ever move the pinned container here; we only pin project
-                let el = unsafe { Pin::new_unchecked(el) }.take().unwrap().unwrap();
-                out[i] = MaybeUninit::new(el);
+                let pin = unsafe { Pin::new_unchecked(el) };
+                match pin.take_ok() {
+                    Some(el) => out[i] = MaybeUninit::new(el),
+                    // All futures are done and we iterate only once to take them so this is not
+                    // reachable
+                    None => unreachable!(),
+                }
             }
             let result = unsafe { out.as_ptr().cast::<[T; N]>().read() };
             Poll::Ready(Ok(result))
@@ -84,9 +85,7 @@ where
 
 impl<Fut, T, E, const N: usize> TryJoinTrait for [Fut; N]
 where
-    T: std::fmt::Debug,
     Fut: IntoFuture<Output = Result<T, E>>,
-    E: fmt::Debug,
 {
     type Output = [T; N];
     type Error = E;

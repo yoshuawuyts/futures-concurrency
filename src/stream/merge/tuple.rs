@@ -99,10 +99,9 @@ macro_rules! impl_merge_tuple {
         }
 
         impl<T, $($F),*> fmt::Debug for $StructName<T, $($F),*>
-        where $(
-            $F: Stream<Item = T> + fmt::Debug,
-            T: fmt::Debug,
-        )* {
+        where
+            $( $F: Stream<Item = T> + fmt::Debug, )*
+        {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 f.debug_tuple("Merge")
                     $( .field(&self.streams.$F) )* // Hides implementation detail of Streams struct

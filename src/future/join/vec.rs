@@ -66,7 +66,6 @@ where
 impl<Fut> fmt::Debug for Join<Fut>
 where
     Fut: Future + fmt::Debug,
-    Fut::Output: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.state.iter()).finish()

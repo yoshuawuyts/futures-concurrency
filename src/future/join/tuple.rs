@@ -125,10 +125,9 @@ macro_rules! impl_join_tuple {
         }
 
         impl<$($F),+> Debug for $StructName<$($F),+>
-        where $(
-            $F: Future + Debug,
-            $F::Output: Debug,
-        )+ {
+        where
+            $( $F: Future + Debug, )+
+        {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 f.debug_tuple("Join")
                     $(.field(&self.futures.$F))+

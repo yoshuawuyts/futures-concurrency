@@ -32,7 +32,6 @@ macro_rules! impl_race_tuple {
         impl<T, $($F),*> Debug for $StructName<T, $($F),*>
         where $(
             $F: Future<Output = T> + Debug,
-            T: Debug,
         )* {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 f.debug_tuple("Race")
