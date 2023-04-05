@@ -15,7 +15,7 @@ mod error;
 
 pub use error::AggregateError;
 
-/// Wait for the first successful future to complete.
+/// A future which waits for the first successful future to complete.
 ///
 /// This `struct` is created by the [`race_ok`] method on the [`RaceOk`] trait. See
 /// its documentation for more.

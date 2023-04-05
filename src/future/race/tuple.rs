@@ -10,7 +10,7 @@ use pin_project::pin_project;
 
 macro_rules! impl_race_tuple {
     ($StructName:ident $($F:ident)+) => {
-        /// Wait for the first future to complete.
+        /// A future which waits for the first future to complete.
         ///
         /// This `struct` is created by the [`race`] method on the [`Race`] trait. See
         /// its documentation for more.

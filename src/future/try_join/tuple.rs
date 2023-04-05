@@ -38,7 +38,7 @@ macro_rules! impl_try_join_tuple {
             pub(super) const LEN: usize = [$(Indexes::$F,)+].len();
         }
 
-        /// Wait for all futures to complete successfully, or abort early on error.
+        /// A future which waits for all futures to complete successfully, or abort early on error.
         ///
         /// This `struct` is created by the [`try_join`] method on the [`TryJoin`] trait. See
         /// its documentation for more.
