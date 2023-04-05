@@ -12,6 +12,18 @@
 //! eventually may become the futures concurrency methods provided by the
 //! stdlib. See the [`future`] and [`stream`] submodules for more.
 //!
+//! # Operations
+//!
+//! This library provides the following operations on arrays, vecs, and tuples:
+//!
+//! - [`future::Join`] Wait for all futures to complete.
+//! - [`future::TryJoin`] Wait for all futures to complete successfully, or abort early on error.
+//! - [`future::Race`] Wait for all futures to complete successfully, or abort early on error.
+//! - [`future::RaceOk`] Wait for the first successful future to complete.
+//! - [`stream::Chain`] Takes multiple streams and creates a new stream over all in sequence.
+//! - [`stream::Merge`] Combines multiple streams into a single stream of all their outputs.
+//! - [`stream::Zip`] ‘Zips up’ multiple streams into a single stream of pairs.
+//!
 //! # Limitations
 //!
 //! Because of orphan rules this library can't implement everything the stdlib
