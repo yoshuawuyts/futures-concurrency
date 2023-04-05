@@ -15,6 +15,12 @@ pub(crate) use error::AggregateError;
 
 macro_rules! impl_race_ok_tuple {
     ($StructName:ident $($F:ident)+) => {
+        /// A workaround to avoid calling the recursive macro several times. Since it's for private
+        /// use only, we don't case about capitalization so we reuse `$StructName` for simplicity
+        /// (renaming it as `const LEN: usize = ...`) when in a function for clarity.
+        #[allow(non_upper_case_globals)]
+        const $StructName: usize = utils::tuple_len!($($F,)*);
+
         /// Wait for the first successful future to complete.
         ///
         /// This `struct` is created by the [`race_ok`] method on the [`RaceOk`] trait. See
@@ -33,8 +39,8 @@ macro_rules! impl_race_ok_tuple {
             completed: usize,
             done: bool,
             indexer: utils::Indexer,
-            errors: [MaybeUninit<ERR>; { utils::tuple_len!($($F,)*) }],
-            errors_states: PollArray<{ utils::tuple_len!($($F,)*) }>,
+            errors: [MaybeUninit<ERR>; $StructName],
+            errors_states: PollArray<{ $StructName }>,
             $( #[pin] $F: $F, )*
         }
 
@@ -56,7 +62,7 @@ macro_rules! impl_race_ok_tuple {
             ERR: fmt::Debug,
         {
             type Output = T;
-            type Error = AggregateError<ERR, {utils::tuple_len!($($F,)*)}>;
+            type Error = AggregateError<ERR, { $StructName }>;
             type Future = $StructName<T, ERR, $($F::IntoFuture),*>;
 
             fn race_ok(self) -> Self::Future {
@@ -64,7 +70,7 @@ macro_rules! impl_race_ok_tuple {
                 $StructName {
                     completed: 0,
                     done: false,
-                    indexer: utils::Indexer::new(utils::tuple_len!($($F,)*)),
+                    indexer: utils::Indexer::new($StructName),
                     errors: array::from_fn(|_| MaybeUninit::uninit()),
                     errors_states: PollArray::new(),
                     $($F: $F.into_future()),*
@@ -77,12 +83,12 @@ macro_rules! impl_race_ok_tuple {
             $( $F: Future<Output = Result<T, ERR>>, )*
             ERR: fmt::Debug,
         {
-            type Output = Result<T, AggregateError<ERR, {utils::tuple_len!($($F,)*)}>>;
+            type Output = Result<T, AggregateError<ERR, { $StructName }>>;
 
             fn poll(
                 self: Pin<&mut Self>, cx: &mut Context<'_>
             ) -> Poll<Self::Output> {
-                const LEN: usize = utils::tuple_len!($($F,)*);
+                const LEN: usize = $StructName;
 
                 let mut this = self.project();
 
