@@ -16,13 +16,29 @@
 //!
 //! This library provides the following operations on arrays, vecs, and tuples:
 //!
-//! - [`future::Join`] Wait for all futures to complete.
-//! - [`future::TryJoin`] Wait for all futures to complete successfully, or abort early on error.
-//! - [`future::Race`] Wait for the first future to complete.
-//! - [`future::RaceOk`] Wait for the first successful future to complete.
-//! - [`stream::Chain`] Takes multiple streams and creates a new stream over all in sequence.
-//! - [`stream::Merge`] Combines multiple streams into a single stream of all their outputs.
-//! - [`stream::Zip`] ‘Zips up’ multiple streams into a single stream of pairs.
+//! - [`future::Join`]: Wait for all futures to complete.
+//! - [`future::TryJoin`]: Wait for all futures to complete successfully, or abort early on error.
+//! - [`future::Race`]: Wait for the first future to complete.
+//! - [`future::RaceOk`]: Wait for the first successful future to complete.
+//! - [`stream::Chain`]: Takes multiple streams and creates a new stream over all in sequence.
+//! - [`stream::Merge`]: Combines multiple streams into a single stream of all their outputs.
+//! - [`stream::Zip`]: ‘Zips up’ multiple streams into a single stream of pairs.
+//!
+//! # Examples
+//!
+//! Concurrently await multiple heterogenous futures:
+//! ```rust
+//! use futures_concurrency::prelude::*;
+//! use futures_lite::future::block_on;
+//! use std::future;
+//!
+//! block_on(async {
+//!     let a = future::ready(1u8);
+//!     let b = future::ready("hello");
+//!     let c = future::ready(3u16);
+//!     assert_eq!((a, b, c).join().await, (1, "hello", 3));
+//! })
+//! ```
 //!
 //! # Limitations
 //!
@@ -41,22 +57,7 @@
 //! `for..await in` loops to be iterated over using `merge` semantics. This would
 //! remove the need to think of "merge" as a verb, and would enable treating
 //! sets of futures concurrently.
-//!
-//! # Examples
-//!
-//! Concurrently await multiple heterogenous futures:
-//! ```rust
-//! use futures_concurrency::prelude::*;
-//! use futures_lite::future::block_on;
-//! use std::future;
-//!
-//! block_on(async {
-//!     let a = future::ready(1u8);
-//!     let b = future::ready("hello");
-//!     let c = future::ready(3u16);
-//!     assert_eq!((a, b, c).join().await, (1, "hello", 3));
-//! })
-//! ```
+
 
 #![deny(missing_debug_implementations, nonstandard_style)]
 #![warn(missing_docs, unreachable_pub)]
