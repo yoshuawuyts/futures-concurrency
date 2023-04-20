@@ -18,7 +18,7 @@
 //!
 //! - [`future::Join`] Wait for all futures to complete.
 //! - [`future::TryJoin`] Wait for all futures to complete successfully, or abort early on error.
-//! - [`future::Race`] Wait for all futures to complete successfully, or abort early on error.
+//! - [`future::Race`] Wait for the first future to complete.
 //! - [`future::RaceOk`] Wait for the first successful future to complete.
 //! - [`stream::Chain`] Takes multiple streams and creates a new stream over all in sequence.
 //! - [`stream::Merge`] Combines multiple streams into a single stream of all their outputs.
@@ -93,7 +93,8 @@ pub mod array {
     pub use crate::stream::zip::array::Zip;
 }
 
-/// A contiguous growable array type with heap-allocated contents, written `Vec<T>`.
+/// Helper functions and types for contiguous growable array type with heap-allocated contents,
+/// written `Vec<T>`.
 pub mod vec {
     pub use crate::future::join::vec::Join;
     pub use crate::future::race::vec::Race;

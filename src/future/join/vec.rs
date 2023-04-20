@@ -10,7 +10,7 @@ use std::vec::Vec;
 
 use pin_project::{pin_project, pinned_drop};
 
-/// A future which waits for two similarly-typed futures to complete.
+/// A future which waits for multiple futures to complete.
 ///
 /// This `struct` is created by the [`join`] method on the [`Join`] trait. See
 /// its documentation for more.
