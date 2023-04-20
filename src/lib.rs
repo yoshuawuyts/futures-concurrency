@@ -58,7 +58,6 @@
 //! remove the need to think of "merge" as a verb, and would enable treating
 //! sets of futures concurrently.
 
-
 #![deny(missing_debug_implementations, nonstandard_style)]
 #![warn(missing_docs, unreachable_pub)]
 #![allow(non_snake_case)]
