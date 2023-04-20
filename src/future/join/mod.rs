@@ -7,7 +7,7 @@ pub(crate) mod vec;
 /// Wait for all futures to complete.
 ///
 /// Awaits multiple futures simultaneously, returning the output of the futures
-/// in the same container type they we're created once all complete.
+/// in the same container type they were created once all complete.
 pub trait Join {
     /// The resulting output type.
     type Output;
@@ -21,14 +21,14 @@ pub trait Join {
     /// in the same container type they we're created once all complete.
     ///
     /// # Examples
+    ///
     /// Awaiting multiple futures of the same type can be done using either a vector
     /// or an array.
     /// ```rust
     /// #  futures::executor::block_on(async {
     /// use futures_concurrency::prelude::*;
     ///
-    /// // these can be whatever kind of `Future` you have,
-    /// // as long as it all have the exactly same type
+    /// // all futures passed here are of the same type
     /// let fut1 = core::future::ready(1);
     /// let fut2 = core::future::ready(2);
     /// let fut3 = core::future::ready(3);
@@ -38,18 +38,16 @@ pub trait Join {
     /// # })
     /// ```
     ///
-    /// But in real world, you might want to wait multiple futures of
-    /// different types - let's say you're awaiting on custom `async {}` blocks,
-    /// or that your futures have different `Output` types - for that, you can
-    /// `join` on tuples.
+    /// In practice however, it's common to want to await multiple futures of
+    /// different types. For example if you have two different `async {}` blocks,
+    /// you want to `.await`. To do that, you can call `.join` on tuples of futures.
     /// ```rust
     /// #  futures::executor::block_on(async {
     /// use futures_concurrency::prelude::*;
     ///
     /// async fn some_async_fn() -> usize { 3 }
     ///
-    /// // these can be whatever kind of `Future` you have,
-    /// // even those that have totally different concrete types.
+    /// // the futures passed here are of different types
     /// let fut1 = core::future::ready(1);
     /// let fut2 = async { 2 };
     /// let fut3 = some_async_fn();
