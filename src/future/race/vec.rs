@@ -11,11 +11,10 @@ use pin_project::pin_project;
 
 /// A future which waits for the first future to complete.
 ///
-/// This `struct` is created by the [`race`] method on the [`Race`] trait. See
+/// This `struct` is created by the [`race`] method on the [`Race`][RaceTrait] trait. See
 /// its documentation for more.
 ///
 /// [`race`]: crate::future::Race::race
-/// [`Race`]: crate::future::Race
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
 pub struct Race<Fut>

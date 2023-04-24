@@ -12,11 +12,10 @@ macro_rules! impl_race_tuple {
     ($StructName:ident $($F:ident)+) => {
         /// A future which waits for the first future to complete.
         ///
-        /// This `struct` is created by the [`race`] method on the [`Race`] trait. See
+        /// This `struct` is created by the [`race`] method on the [`Race`][RaceTrait] trait. See
         /// its documentation for more.
         ///
         /// [`race`]: crate::future::Race::race
-        /// [`Race`]: crate::future::Race
         #[pin_project]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
