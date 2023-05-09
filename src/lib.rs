@@ -82,6 +82,36 @@ pub mod prelude {
 pub mod future;
 pub mod stream;
 
+/// Helper functions and types for tuples.
+pub mod tuple {
+    pub use crate::future::join::tuple::{
+        Join0, Join1, Join10, Join11, Join12, Join2, Join3, Join4, Join5, Join6, Join7, Join8,
+        Join9,
+    };
+    pub use crate::future::race::tuple::{
+        Race1, Race10, Race11, Race12, Race2, Race3, Race4, Race5, Race6, Race7, Race8, Race9,
+    };
+    pub use crate::future::race_ok::tuple::{
+        RaceOk1, RaceOk10, RaceOk11, RaceOk12, RaceOk2, RaceOk3, RaceOk4, RaceOk5, RaceOk6,
+        RaceOk7, RaceOk8, RaceOk9,
+    };
+    pub use crate::future::try_join::tuple::{
+        TryJoin1, TryJoin10, TryJoin11, TryJoin12, TryJoin2, TryJoin3, TryJoin4, TryJoin5,
+        TryJoin6, TryJoin7, TryJoin8, TryJoin9,
+    };
+    pub use crate::stream::chain::tuple::{
+        Chain1, Chain10, Chain11, Chain12, Chain2, Chain3, Chain4, Chain5, Chain6, Chain7, Chain8,
+        Chain9,
+    };
+    pub use crate::stream::merge::tuple::{
+        Merge0, Merge1, Merge10, Merge11, Merge12, Merge2, Merge3, Merge4, Merge5, Merge6, Merge7,
+        Merge8, Merge9,
+    };
+    pub use crate::stream::zip::tuple::{
+        Zip1, Zip10, Zip11, Zip12, Zip2, Zip3, Zip4, Zip5, Zip6, Zip7, Zip8, Zip9,
+    };
+}
+
 /// Helper functions and types for fixed-length arrays.
 pub mod array {
     pub use crate::future::join::array::Join;

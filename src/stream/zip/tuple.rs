@@ -41,6 +41,13 @@ macro_rules! impl_zip_for_tuple {
             pub(super) const LEN: usize = [$(Indexes::$F,)+].len();
         }
 
+        /// A stream that ‘zips up’ multiple streams into a single stream of pairs.
+        ///
+        /// This `struct` is created by the [`zip`] method on the [`Zip`] trait. See its
+        /// documentation for more.
+        ///
+        /// [`zip`]: crate::stream::Zip::zip
+        /// [`Zip`]: crate::stream::Zip
         #[pin_project::pin_project(PinnedDrop)]
         pub struct $StructName<$($F,)+>
         where

@@ -41,8 +41,8 @@ macro_rules! impl_merge_tuple {
         /// This `struct` is created by the [`merge`] method on the [`Merge`] trait. See its
         /// documentation for more.
         ///
-        /// [`merge`]: trait.Merge.html#method.merge
-        /// [`Merge`]: trait.Merge.html
+        /// [`merge`]: crate::stream::Merge::merge
+        /// [`Merge`]: crate::stream::Merge
         pub struct $StructName {}
 
         impl fmt::Debug for $StructName {

@@ -21,6 +21,13 @@ macro_rules! impl_chain_for_tuple {
             pub(super) const LEN: usize = [$(Indexes::$F,)+].len();
         }
 
+        /// A stream that chains multiple streams one after another.
+        ///
+        /// This `struct` is created by the [`chain`] method on the [`Chain`] trait. See its
+        /// documentation for more.
+        ///
+        /// [`chain`]: crate::stream::Chain::chain
+        /// [`Chain`]: crate::stream::Chain
         #[pin_project::pin_project]
         pub struct $StructName<$($F,)+> {
             index: usize,
