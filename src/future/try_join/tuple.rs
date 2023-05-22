@@ -104,6 +104,9 @@ macro_rules! impl_try_join_tuple {
                 assert!(!*this.done, "Futures must not be polled after completing");
 
                 for i in this.indexer.iter() {
+                    if this.output_states[i].is_ready() {
+                        continue;
+                    }
                     utils::gen_conditions!(i, this, cx, poll, $(($mod_name::$F; $F, {
                         Poll::Ready(output) => match output {
                             Ok(output) => {
@@ -200,5 +203,21 @@ mod test {
                 .await;
             assert_eq!(res.unwrap_err().to_string(), String::from("oh no"));
         })
+    }
+
+    #[test]
+    fn issue_135_resume_after_completion() {
+        use futures_lite::future::yield_now;
+        futures_lite::future::block_on(async {
+            let ok = async { Ok::<_, ()>(()) };
+            let err = async {
+                yield_now().await;
+                Ok::<_, ()>(())
+            };
+
+            let res = (ok, err).try_join().await;
+
+            assert_eq!(res.unwrap(), ((), ()));
+        });
     }
 }
