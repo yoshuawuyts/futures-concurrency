@@ -10,6 +10,14 @@ use core::task::{Context, Poll};
 
 use pin_project::{pin_project, pinned_drop};
 
+/// Cast an array of `T` to an array of `MaybeUninit<T>`
+fn array_to_maybe_uninit<T, const N: usize>(arr: [T; N]) -> [MaybeUninit<T>; N] {
+    // Implementation copied from: https://doc.rust-lang.org/src/core/mem/maybe_uninit.rs.html#1292
+    let arr = MaybeUninit::new(arr);
+    // SAFETY: T and MaybeUninit<T> have the same layout
+    unsafe { mem::transmute_copy(&mem::ManuallyDrop::new(arr)) }
+}
+
 /// A future which waits for two similarly-typed futures to complete.
 ///
 /// This `struct` is created by the [`join`] method on the [`Join`] trait. See
@@ -29,7 +37,7 @@ where
     wakers: WakerArray<N>,
     state: PollArray<N>,
     #[pin]
-    futures: [Fut; N],
+    futures: [MaybeUninit<Fut>; N],
 }
 
 impl<Fut, const N: usize> Join<Fut, N>
@@ -44,7 +52,7 @@ where
             items: array::from_fn(|_| MaybeUninit::uninit()),
             wakers: WakerArray::new(),
             state: PollArray::new(),
-            futures,
+            futures: array_to_maybe_uninit(futures),
         }
     }
 }
@@ -94,7 +102,7 @@ where
         }
 
         // Poll all ready futures
-        for (i, fut) in utils::iter_pin_mut(this.futures.as_mut()).enumerate() {
+        for (i, mut fut) in utils::iter_pin_mut(this.futures.as_mut()).enumerate() {
             if this.state[i].is_pending() && readiness.clear_ready(i) {
                 // unlock readiness so we don't deadlock when polling
                 drop(readiness);
@@ -102,10 +110,21 @@ where
                 // Obtain the intermediate waker.
                 let mut cx = Context::from_waker(this.wakers.get(i).unwrap());
 
-                if let Poll::Ready(value) = fut.poll(&mut cx) {
+                // Poll the future
+                if let Poll::Ready(value) = unsafe {
+                    fut.as_mut()
+                        .map_unchecked_mut(|t| t.assume_init_mut())
+                        .poll(&mut cx)
+                } {
                     this.items[i] = MaybeUninit::new(value);
                     this.state[i].set_ready();
                     *this.pending -= 1;
+                }
+
+                // If the state was changed from "pending" to "ready", drop the future.
+                if this.state[i].is_ready() {
+                    // SAFETY: we're done with the future, drop in-place
+                    unsafe { fut.get_unchecked_mut().assume_init_drop() };
                 }
 
                 // Lock readiness so we can use it again
@@ -145,9 +164,9 @@ where
     Fut: Future,
 {
     fn drop(self: Pin<&mut Self>) {
-        let this = self.project();
+        let mut this = self.project();
 
-        // Get the indexes of the initialized values.
+        // Get the indexes of the initialized output values.
         let indexes = this
             .state
             .iter_mut()
@@ -160,6 +179,21 @@ where
             // SAFETY: we've just filtered down to *only* the initialized values.
             // We can assume they're initialized, and this is where we drop them.
             unsafe { this.items[i].assume_init_drop() };
+        }
+
+        // Get the indexes of the pending futures.
+        let indexes = this
+            .state
+            .iter_mut()
+            .enumerate()
+            .filter(|(_, state)| state.is_pending())
+            .map(|(i, _)| i);
+
+        // Drop each future at the index.
+        for i in indexes {
+            // SAFETY: we've just filtered down to *only* the pending futures,
+            // which have not yet been dropped.
+            unsafe { this.futures.as_mut().get_unchecked_mut()[i].assume_init_drop() };
         }
     }
 }
