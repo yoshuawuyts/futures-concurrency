@@ -103,6 +103,7 @@ where
                 let mut cx = Context::from_waker(this.wakers.get(i).unwrap());
 
                 // Poll the future
+                // SAFETY: we checked the future state was "pending"
                 if let Poll::Ready(value) = unsafe {
                     fut.as_mut()
                         .map_unchecked_mut(|t| t.assume_init_mut())
