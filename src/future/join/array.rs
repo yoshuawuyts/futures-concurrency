@@ -1,5 +1,5 @@
 use super::Join as JoinTrait;
-use crate::utils::{self, PollArray, WakerArray};
+use crate::utils::{self, array_to_maybe_uninit, PollArray, WakerArray};
 
 use core::array;
 use core::fmt;
@@ -9,14 +9,6 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use pin_project::{pin_project, pinned_drop};
-
-/// Cast an array of `T` to an array of `MaybeUninit<T>`
-fn array_to_maybe_uninit<T, const N: usize>(arr: [T; N]) -> [MaybeUninit<T>; N] {
-    // Implementation copied from: https://doc.rust-lang.org/src/core/mem/maybe_uninit.rs.html#1292
-    let arr = MaybeUninit::new(arr);
-    // SAFETY: T and MaybeUninit<T> have the same layout
-    unsafe { mem::transmute_copy(&mem::ManuallyDrop::new(arr)) }
-}
 
 /// A future which waits for two similarly-typed futures to complete.
 ///

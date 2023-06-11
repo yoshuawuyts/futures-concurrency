@@ -20,3 +20,11 @@ pub(crate) unsafe fn array_assume_init<T, const N: usize>(array: [MaybeUninit<T>
     mem::forget(array);
     ret
 }
+
+/// Cast an array of `T` to an array of `MaybeUninit<T>`
+pub(crate) fn array_to_maybe_uninit<T, const N: usize>(arr: [T; N]) -> [MaybeUninit<T>; N] {
+    // Implementation copied from: https://doc.rust-lang.org/src/core/mem/maybe_uninit.rs.html#1292
+    let arr = MaybeUninit::new(arr);
+    // SAFETY: T and MaybeUninit<T> have the same layout
+    unsafe { mem::transmute_copy(&mem::ManuallyDrop::new(arr)) }
+}
