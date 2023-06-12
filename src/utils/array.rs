@@ -1,4 +1,4 @@
-use std::mem::{self, MaybeUninit};
+use std::mem::{self, ManuallyDrop, MaybeUninit};
 
 /// Extracts the values from an array of `MaybeUninit` containers.
 ///
@@ -22,7 +22,7 @@ pub(crate) unsafe fn array_assume_init<T, const N: usize>(array: [MaybeUninit<T>
 }
 
 /// Cast an array of `T` to an array of `MaybeUninit<T>`
-pub(crate) fn array_to_maybe_uninit<T, const N: usize>(arr: [T; N]) -> [MaybeUninit<T>; N] {
+pub(crate) fn array_to_manually_drop<T, const N: usize>(arr: [T; N]) -> [ManuallyDrop<T>; N] {
     // Implementation copied from: https://doc.rust-lang.org/src/core/mem/maybe_uninit.rs.html#1292
     let arr = MaybeUninit::new(arr);
     // SAFETY: T and MaybeUninit<T> have the same layout

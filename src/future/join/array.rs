@@ -1,12 +1,13 @@
 use super::Join as JoinTrait;
-use crate::utils::{self, array_to_maybe_uninit, PollArray, WakerArray};
+use crate::utils::{self, array_to_manually_drop, PollArray, WakerArray};
 
 use core::array;
 use core::fmt;
 use core::future::{Future, IntoFuture};
-use core::mem::{self, MaybeUninit};
+use core::mem::{self, ManuallyDrop, MaybeUninit};
 use core::pin::Pin;
 use core::task::{Context, Poll};
+use std::ops::DerefMut;
 
 use pin_project::{pin_project, pinned_drop};
 
@@ -29,7 +30,7 @@ where
     wakers: WakerArray<N>,
     state: PollArray<N>,
     #[pin]
-    futures: [MaybeUninit<Fut>; N],
+    futures: [ManuallyDrop<Fut>; N],
 }
 
 impl<Fut, const N: usize> Join<Fut, N>
@@ -44,7 +45,7 @@ where
             items: array::from_fn(|_| MaybeUninit::uninit()),
             wakers: WakerArray::new(),
             state: PollArray::new(),
-            futures: array_to_maybe_uninit(futures),
+            futures: array_to_manually_drop(futures),
         }
     }
 }
@@ -106,7 +107,7 @@ where
                 // SAFETY: we checked the future state was "pending"
                 if let Poll::Ready(value) = unsafe {
                     fut.as_mut()
-                        .map_unchecked_mut(|t| t.assume_init_mut())
+                        .map_unchecked_mut(|t| t.deref_mut())
                         .poll(&mut cx)
                 } {
                     this.items[i] = MaybeUninit::new(value);
@@ -117,7 +118,7 @@ where
                 // If the state was changed from "pending" to "ready", drop the future.
                 if this.state[i].is_ready() {
                     // SAFETY: we're done with the future, drop in-place
-                    unsafe { fut.get_unchecked_mut().assume_init_drop() };
+                    unsafe { ManuallyDrop::drop(fut.get_unchecked_mut()) };
                 }
 
                 // Lock readiness so we can use it again
@@ -186,7 +187,10 @@ where
         for i in indexes {
             // SAFETY: we've just filtered down to *only* the pending futures,
             // which have not yet been dropped.
-            unsafe { this.futures.as_mut().get_unchecked_mut()[i].assume_init_drop() };
+            unsafe {
+                let futures = this.futures.as_mut().get_unchecked_mut();
+                ManuallyDrop::drop(&mut futures[i]);
+            };
         }
     }
 }
