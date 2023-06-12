@@ -48,6 +48,25 @@ impl PollVec {
             Self::Boxed(states.into_boxed_slice())
         }
     }
+
+    /// Get an iterator of indexes of all items which are "ready".
+    pub(crate) fn ready_indexes(&self) -> impl Iterator<Item = usize> + '_ {
+        self.iter()
+            .cloned()
+            .enumerate()
+            .filter(|(_, state)| state.is_ready())
+            .map(|(i, _)| i)
+    }
+
+    /// Get an iterator of indexes of all items which are "pending".
+    #[allow(unused)]
+    pub(crate) fn pending_indexes(&self) -> impl Iterator<Item = usize> + '_ {
+        self.iter()
+            .cloned()
+            .enumerate()
+            .filter(|(_, state)| state.is_pending())
+            .map(|(i, _)| i)
+    }
 }
 
 impl Deref for PollVec {
