@@ -1,10 +1,9 @@
 use super::Join as JoinTrait;
-use crate::utils::{self, FutureArray, PollArray, WakerArray};
+use crate::utils::{FutureArray, OutputArray, PollArray, WakerArray};
 
-use core::array;
 use core::fmt;
 use core::future::{Future, IntoFuture};
-use core::mem::{self, ManuallyDrop, MaybeUninit};
+use core::mem::ManuallyDrop;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 use std::ops::DerefMut;
@@ -29,7 +28,7 @@ where
     /// The number of futures which are currently still in-flight
     pending: usize,
     /// The output data, to be returned after the future completes
-    items: [MaybeUninit<<Fut as Future>::Output>; N],
+    items: OutputArray<<Fut as Future>::Output, N>,
     /// A structure holding the waker passed to the future, and the various
     /// sub-wakers passed to the contained futures.
     wakers: WakerArray<N>,
@@ -49,7 +48,7 @@ where
         Join {
             consumed: false,
             pending: N,
-            items: array::from_fn(|_| MaybeUninit::uninit()),
+            items: OutputArray::uninit(),
             wakers: WakerArray::new(),
             state: PollArray::new(),
             futures: FutureArray::new(futures),
@@ -117,7 +116,7 @@ where
                         .map_unchecked_mut(|t| t.deref_mut())
                         .poll(&mut cx)
                 } {
-                    this.items[i] = MaybeUninit::new(value);
+                    this.items.write(i, value);
                     this.state[i].set_ready();
                     *this.pending -= 1;
                     // SAFETY: the future state has been changed to "ready" which
@@ -142,13 +141,9 @@ where
                 state.set_consumed();
             }
 
-            let mut items = array::from_fn(|_| MaybeUninit::uninit());
-            mem::swap(this.items, &mut items);
-
             // SAFETY: we've checked with the state that all of our outputs have been
             // filled, which means we're ready to take the data and assume it's initialized.
-            let items = unsafe { utils::array_assume_init(items) };
-            Poll::Ready(items)
+            Poll::Ready(unsafe { this.items.take() })
         } else {
             Poll::Pending
         }
@@ -176,7 +171,7 @@ where
         for i in indexes {
             // SAFETY: we've just filtered down to *only* the initialized values.
             // We can assume they're initialized, and this is where we drop them.
-            unsafe { this.items[i].assume_init_drop() };
+            unsafe { this.items.drop(i) };
         }
 
         // Get the indexes of the pending futures.
