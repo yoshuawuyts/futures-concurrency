@@ -159,31 +159,15 @@ where
     fn drop(self: Pin<&mut Self>) {
         let mut this = self.project();
 
-        // Get the indexes of the initialized output values.
-        let indexes = this
-            .state
-            .iter_mut()
-            .enumerate()
-            .filter(|(_, state)| state.is_ready())
-            .map(|(i, _)| i);
-
-        // Drop each value at the index.
-        for i in indexes {
+        // Drop all initialized values.
+        for i in this.state.ready_indexes() {
             // SAFETY: we've just filtered down to *only* the initialized values.
             // We can assume they're initialized, and this is where we drop them.
             unsafe { this.items.drop(i) };
         }
 
-        // Get the indexes of the pending futures.
-        let indexes = this
-            .state
-            .iter_mut()
-            .enumerate()
-            .filter(|(_, state)| state.is_pending())
-            .map(|(i, _)| i);
-
-        // Drop each future at the index.
-        for i in indexes {
+        // Drop all pending futures.
+        for i in this.state.pending_indexes() {
             // SAFETY: we've just filtered down to *only* the pending futures,
             // which have not yet been dropped.
             unsafe { this.futures.as_mut().drop(i) };

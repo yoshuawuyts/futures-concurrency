@@ -142,16 +142,8 @@ where
     fn drop(self: Pin<&mut Self>) {
         let this = self.project();
 
-        // Get the indexes of the initialized values.
-        let indexes = this
-            .state
-            .iter_mut()
-            .enumerate()
-            .filter(|(_, state)| state.is_ready())
-            .map(|(i, _)| i);
-
-        // Drop each value at the index.
-        for i in indexes {
+        // Drop all initialized values.
+        for i in this.state.ready_indexes() {
             // SAFETY: we've just filtered down to *only* the initialized values.
             // We can assume they're initialized, and this is where we drop them.
             unsafe { this.items.drop(i) };
