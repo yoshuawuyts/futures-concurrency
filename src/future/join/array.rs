@@ -104,7 +104,7 @@ where
                 let mut cx = Context::from_waker(this.wakers.get(i).unwrap());
 
                 // Poll the future
-                // SAFETY: we checked the future state was "pending"
+                // SAFETY: the future's state was "pending", so it's safe to poll
                 if let Poll::Ready(value) = unsafe {
                     fut.as_mut()
                         .map_unchecked_mut(|t| t.deref_mut())
@@ -113,11 +113,8 @@ where
                     this.items[i] = MaybeUninit::new(value);
                     this.state[i].set_ready();
                     *this.pending -= 1;
-                }
-
-                // If the state was changed from "pending" to "ready", drop the future.
-                if this.state[i].is_ready() {
-                    // SAFETY: we're done with the future, drop in-place
+                    // SAFETY: the future state has been changed to "ready" which
+                    // means we'll no longer poll the future, so it's safe to drop
                     unsafe { ManuallyDrop::drop(fut.get_unchecked_mut()) };
                 }
 
