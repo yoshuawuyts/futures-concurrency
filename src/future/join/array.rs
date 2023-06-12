@@ -1,5 +1,5 @@
 use super::Join as JoinTrait;
-use crate::utils::{self, array_to_manually_drop, PollArray, WakerArray};
+use crate::utils::{self, FutureArray, PollArray, WakerArray};
 
 use core::array;
 use core::fmt;
@@ -24,13 +24,20 @@ pub struct Join<Fut, const N: usize>
 where
     Fut: Future,
 {
+    /// A boolean which holds whether the future has completed
     consumed: bool,
+    /// The number of futures which are currently still in-flight
     pending: usize,
+    /// The output data, to be returned after the future completes
     items: [MaybeUninit<<Fut as Future>::Output>; N],
+    /// A structure holding the waker passed to the future, and the various
+    /// sub-wakers passed to the contained futures.
     wakers: WakerArray<N>,
+    /// The individual poll state of each future.
     state: PollArray<N>,
     #[pin]
-    futures: [ManuallyDrop<Fut>; N],
+    /// The array of futures passed to the structure.
+    futures: FutureArray<Fut, N>,
 }
 
 impl<Fut, const N: usize> Join<Fut, N>
@@ -45,7 +52,7 @@ where
             items: array::from_fn(|_| MaybeUninit::uninit()),
             wakers: WakerArray::new(),
             state: PollArray::new(),
-            futures: array_to_manually_drop(futures),
+            futures: FutureArray::new(futures),
         }
     }
 }
@@ -80,7 +87,7 @@ where
 
     #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut this = self.project();
+        let this = self.project();
 
         assert!(
             !*this.consumed,
@@ -95,7 +102,7 @@ where
         }
 
         // Poll all ready futures
-        for (i, mut fut) in utils::iter_pin_mut(this.futures.as_mut()).enumerate() {
+        for (i, mut fut) in this.futures.iter().enumerate() {
             if this.state[i].is_pending() && readiness.clear_ready(i) {
                 // unlock readiness so we don't deadlock when polling
                 drop(readiness);
@@ -184,10 +191,7 @@ where
         for i in indexes {
             // SAFETY: we've just filtered down to *only* the pending futures,
             // which have not yet been dropped.
-            unsafe {
-                let futures = this.futures.as_mut().get_unchecked_mut();
-                ManuallyDrop::drop(&mut futures[i]);
-            };
+            unsafe { this.futures.as_mut().drop(i) };
         }
     }
 }
