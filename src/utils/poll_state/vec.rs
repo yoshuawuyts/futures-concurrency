@@ -50,7 +50,7 @@ impl PollVec {
     }
 
     /// Get an iterator of indexes of all items which are "ready".
-    pub(crate) fn ready_indexes<'a>(&'a self) -> impl Iterator<Item = usize> + 'a {
+    pub(crate) fn ready_indexes(&self) -> impl Iterator<Item = usize> + '_ {
         self.iter()
             .cloned()
             .enumerate()
@@ -60,7 +60,7 @@ impl PollVec {
 
     /// Get an iterator of indexes of all items which are "pending".
     #[allow(unused)]
-    pub(crate) fn pending_indexes<'a>(&'a self) -> impl Iterator<Item = usize> + 'a {
+    pub(crate) fn pending_indexes(&self) -> impl Iterator<Item = usize> + '_ {
         self.iter()
             .cloned()
             .enumerate()
