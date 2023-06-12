@@ -59,6 +59,7 @@ impl PollVec {
     }
 
     /// Get an iterator of indexes of all items which are "pending".
+    #[allow(unused)]
     pub(crate) fn pending_indexes<'a>(&'a self) -> impl Iterator<Item = usize> + 'a {
         self.iter()
             .cloned()
