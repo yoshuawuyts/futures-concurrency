@@ -1,11 +1,10 @@
 use super::Join as JoinTrait;
-use crate::utils::{iter_pin_mut_vec, PollVec, WakerVec};
+use crate::utils::{iter_pin_mut_vec, OutputVec, PollVec, WakerVec};
 
 use core::fmt;
 use core::future::{Future, IntoFuture};
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use std::mem::{self, MaybeUninit};
 use std::vec::Vec;
 
 use pin_project::{pin_project, pinned_drop};
@@ -25,7 +24,7 @@ where
 {
     consumed: bool,
     pending: usize,
-    items: Vec<MaybeUninit<<Fut as Future>::Output>>,
+    items: OutputVec<<Fut as Future>::Output>,
     wakers: WakerVec,
     state: PollVec,
     #[pin]
@@ -41,9 +40,7 @@ where
         Join {
             consumed: false,
             pending: len,
-            items: std::iter::repeat_with(MaybeUninit::uninit)
-                .take(len)
-                .collect(),
+            items: OutputVec::uninit(len),
             wakers: WakerVec::new(len),
             state: PollVec::new(len),
             futures,
@@ -105,7 +102,7 @@ where
                 let mut cx = Context::from_waker(this.wakers.get(i).unwrap());
 
                 if let Poll::Ready(value) = fut.poll(&mut cx) {
-                    this.items[i] = MaybeUninit::new(value);
+                    this.items.write(i, value);
                     states[i].set_ready();
                     *this.pending -= 1;
                 }
@@ -129,11 +126,7 @@ where
 
             // SAFETY: we've checked with the state that all of our outputs have been
             // filled, which means we're ready to take the data and assume it's initialized.
-            let items = unsafe {
-                let items = mem::take(this.items);
-                mem::transmute::<_, Vec<Fut::Output>>(items)
-            };
-            Poll::Ready(items)
+            Poll::Ready(unsafe { this.items.take() })
         } else {
             Poll::Pending
         }
@@ -161,7 +154,7 @@ where
         for i in indexes {
             // SAFETY: we've just filtered down to *only* the initialized values.
             // We can assume they're initialized, and this is where we drop them.
-            unsafe { this.items[i].assume_init_drop() };
+            unsafe { this.items.drop(i) };
         }
     }
 }
