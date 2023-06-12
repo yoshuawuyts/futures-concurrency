@@ -1,10 +1,12 @@
 use super::Join as JoinTrait;
-use crate::utils::{iter_pin_mut_vec, OutputVec, PollVec, WakerVec};
+use crate::utils::{FutureVec, OutputVec, PollVec, WakerVec};
 
 use core::fmt;
 use core::future::{Future, IntoFuture};
 use core::pin::Pin;
 use core::task::{Context, Poll};
+use std::mem::ManuallyDrop;
+use std::ops::DerefMut;
 use std::vec::Vec;
 
 use pin_project::{pin_project, pinned_drop};
@@ -28,7 +30,7 @@ where
     wakers: WakerVec,
     state: PollVec,
     #[pin]
-    futures: Vec<Fut>,
+    futures: FutureVec<Fut>,
 }
 
 impl<Fut> Join<Fut>
@@ -43,7 +45,7 @@ where
             items: OutputVec::uninit(len),
             wakers: WakerVec::new(len),
             state: PollVec::new(len),
-            futures,
+            futures: FutureVec::new(futures),
         }
     }
 }
@@ -93,7 +95,7 @@ where
         // Poll all ready futures
         let futures = this.futures.as_mut();
         let states = &mut this.state[..];
-        for (i, fut) in iter_pin_mut_vec(futures).enumerate() {
+        for (i, mut fut) in futures.iter().enumerate() {
             if states[i].is_pending() && readiness.clear_ready(i) {
                 // unlock readiness so we don't deadlock when polling
                 drop(readiness);
@@ -101,10 +103,19 @@ where
                 // Obtain the intermediate waker.
                 let mut cx = Context::from_waker(this.wakers.get(i).unwrap());
 
-                if let Poll::Ready(value) = fut.poll(&mut cx) {
+                // Poll the future
+                // SAFETY: the future's state was "pending", so it's safe to poll
+                if let Poll::Ready(value) = unsafe {
+                    fut.as_mut()
+                        .map_unchecked_mut(|t| t.deref_mut())
+                        .poll(&mut cx)
+                } {
                     this.items.write(i, value);
                     states[i].set_ready();
                     *this.pending -= 1;
+                    // SAFETY: the future state has been changed to "ready" which
+                    // means we'll no longer poll the future, so it's safe to drop
+                    unsafe { ManuallyDrop::drop(fut.get_unchecked_mut()) };
                 }
 
                 // Lock readiness so we can use it again
@@ -140,13 +151,20 @@ where
     Fut: Future,
 {
     fn drop(self: Pin<&mut Self>) {
-        let this = self.project();
+        let mut this = self.project();
 
         // Drop all initialized values.
         for i in this.state.ready_indexes() {
             // SAFETY: we've just filtered down to *only* the initialized values.
             // We can assume they're initialized, and this is where we drop them.
             unsafe { this.items.drop(i) };
+        }
+
+        // Drop all pending futures.
+        for i in this.state.pending_indexes() {
+            // SAFETY: we've just filtered down to *only* the pending futures,
+            // which have not yet been dropped.
+            unsafe { this.futures.as_mut().drop(i) };
         }
     }
 }
