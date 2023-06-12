@@ -9,7 +9,7 @@ mod poll_state;
 mod tuple;
 mod wakers;
 
-pub(crate) use self::futures::FutureArray;
+pub(crate) use self::futures::{FutureArray, FutureVec};
 pub(crate) use array::array_assume_init;
 pub(crate) use indexer::Indexer;
 pub(crate) use output::{OutputArray, OutputVec};
