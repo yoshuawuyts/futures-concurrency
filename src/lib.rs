@@ -59,7 +59,7 @@
 //! sets of futures concurrently.
 
 #![deny(missing_debug_implementations, nonstandard_style)]
-#![warn(missing_docs, unreachable_pub)]
+#![warn(missing_docs)]
 #![allow(non_snake_case)]
 
 mod utils;
