@@ -23,6 +23,7 @@ use pin_project::{pin_project, pinned_drop};
 // # References
 // TT Muncher: https://veykril.github.io/tlborm/decl-macros/patterns/tt-muncher.html
 macro_rules! unsafe_poll {
+    // recursively iterate
     (@inner $iteration:ident, $this:ident, $futures:ident, $cx:ident, $fut_name:ident $($F:ident)* | $fut_idx:tt $($rest:tt)*) => {
         if $fut_idx == $iteration {
 
@@ -42,9 +43,10 @@ macro_rules! unsafe_poll {
         unsafe_poll!(@inner $iteration, $this, $futures, $cx, $($F)* | $($rest)*);
     };
 
-    // base condition, no more futures to poll
+    // base condition
     (@inner $iteration:ident, $this:ident, $futures:ident, $cx:ident, | $($rest:tt)*) => {};
 
+    // macro start
     ($iteration:ident, $this:ident, $futures:ident, $cx:ident, $LEN:ident, $($F:ident,)+) => {
         unsafe_poll!(@inner $iteration, $this, $futures, $cx, $($F)+ | 0 1 2 3 4 5 6 7 8 9 10 11);
     };
@@ -52,6 +54,7 @@ macro_rules! unsafe_poll {
 
 /// Drop all initialized values
 macro_rules! drop_initialized_values {
+    // recursively iterate
     (@drop $output:ident, $($rem_outs:ident,)* | $states:expr, $state_idx:tt, $($rem_idx:tt,)*) => {
         if $states[$state_idx].is_ready() {
             // SAFETY: we've just filtered down to *only* the initialized values.
@@ -62,9 +65,10 @@ macro_rules! drop_initialized_values {
         drop_initialized_values!(@drop $($rem_outs,)* | $states, $($rem_idx,)*);
     };
 
-    // base condition, no more outputs to look
+    // base condition
     (@drop | $states:expr, $($rem_idx:tt,)*) => {};
 
+    // macro start
     ($($outs:ident,)+ | $states:expr) => {
         drop_initialized_values!(@drop $($outs,)+ | $states, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,);
     };
@@ -72,7 +76,7 @@ macro_rules! drop_initialized_values {
 
 /// Drop all pending futures
 macro_rules! drop_pending_futures {
-    // main expansion
+    // recursively iterate
     (@inner $states:ident, $futures:ident, $fut_name:ident $($F:ident)* | $fut_idx:tt $($rest:tt)*) => {
         if $states[$fut_idx].is_pending() {
             // SAFETY: We're accessing the value behind the pinned reference to drop it exactly once.
@@ -87,7 +91,7 @@ macro_rules! drop_pending_futures {
     // base condition
     (@inner $states:ident, $futures:ident, | $($rest:tt)*) => {};
 
-    // start condition
+    // macro start
     ($states:ident, $futures:ident, $($F:ident,)+) => {
         drop_pending_futures!(@inner $states, $futures, $($F)+ | 0 1 2 3 4 5 6 7 8 9 10 11);
     };
@@ -247,7 +251,6 @@ macro_rules! impl_join_tuple {
                 let states = this.state;
                 let mut futures = this.futures;
                 drop_initialized_values!($($F,)+ | states);
-               //         drop_pending_futures!(@inner $states, $futures, $($F)* | $($rest)*);
                 drop_pending_futures!(states, futures, $($F,)+);
             }
         }
@@ -272,7 +275,6 @@ macro_rules! impl_join_tuple {
             }
         }
     };
-
 }
 
 impl_join_tuple! { join0 Join0 }
