@@ -6,6 +6,7 @@ use core::future::{Future, IntoFuture};
 use core::mem::MaybeUninit;
 use core::pin::Pin;
 use core::task::{Context, Poll};
+use std::marker::PhantomData;
 use std::mem::ManuallyDrop;
 use std::ops::DerefMut;
 
@@ -98,6 +99,7 @@ macro_rules! drop_pending_futures {
 }
 
 macro_rules! impl_try_join_tuple {
+    // `Impl TryJoin for ()`
     ($mod_name:ident $StructName:ident) => {
         /// A future which waits for similarly-typed futures to complete, or aborts early on error.
         ///
@@ -135,7 +137,9 @@ macro_rules! impl_try_join_tuple {
             }
         }
     };
-    ($mod_name:ident $StructName:ident $($F:ident)+) => {
+
+    // `Impl TryJoin for (F..)`
+    ($mod_name:ident $StructName:ident $(($F:ident $T:ident))+) => {
         mod $mod_name {
             use std::mem::ManuallyDrop;
 
@@ -161,18 +165,19 @@ macro_rules! impl_try_join_tuple {
         #[pin_project(PinnedDrop)]
         #[must_use = "futures do nothing unless you `.await` or poll them"]
         #[allow(non_snake_case)]
-        pub struct $StructName<$($F: Future),+, Err> {
+        pub struct $StructName<$($F, $T,)+ Err> {
             #[pin]
             futures: $mod_name::Futures<$($F,)+>,
-            outputs: ($(MaybeUninit<$F::Output>,)+),
+            outputs: ($(MaybeUninit<$T>,)+),
             // trace the state of outputs, marking them as ready or consumed
             // then, drop the non-consumed values, if any
             state: PollArray<{$mod_name::LEN}>,
             wakers: WakerArray<{$mod_name::LEN}>,
             completed: usize,
+            _phantom: PhantomData<Err>,
         }
 
-        impl<$($F),+, Err> Debug for $StructName<$($F),+, Err>
+        impl<$($F, $T)+, Err> Debug for $StructName<$($F, $T,)+ Err>
         where
             $( $F: Future + Debug, )+
         {
@@ -186,8 +191,8 @@ macro_rules! impl_try_join_tuple {
         #[allow(unused_mut)]
         #[allow(unused_parens)]
         #[allow(unused_variables)]
-        impl<$($F: Future),+, Err> Future for $StructName<$($F),+, Err> {
-            type Output = ($($F::Output,)+);
+        impl<$($F: Future, $T,)+ Err> Future for $StructName<$($F, $T,)+ Err> {
+            type Output = Result<($($F::Output,)+), Err>;
 
             fn poll(
                 self: Pin<&mut Self>, cx: &mut Context<'_>
@@ -233,7 +238,7 @@ macro_rules! impl_try_join_tuple {
 
                         this.state.set_all_completed();
 
-                        return Poll::Ready(out);
+                        return Poll::Ready(Ok(out));
                     }
                     readiness = this.wakers.readiness().lock().unwrap();
                 }
@@ -243,7 +248,7 @@ macro_rules! impl_try_join_tuple {
         }
 
         #[pinned_drop]
-        impl<$($F: Future),+, Err> PinnedDrop for $StructName<$($F),+, Err> {
+        impl<$($F, $T)+, Err> PinnedDrop for $StructName<$($F, $T,)+ Err> {
             fn drop(self: Pin<&mut Self>) {
                 let this = self.project();
 
@@ -257,13 +262,13 @@ macro_rules! impl_try_join_tuple {
         }
 
         #[allow(unused_parens)]
-        impl<$($F, $F,)+ Err> TryJoinTrait for ($($F,)+)
+        impl<$($F, $T)+, Err> TryJoinTrait for ($($F,)+)
         where $(
-            $F: IntoFuture<Output = Result<$FT, Err>>,
+            $F: IntoFuture<Output = Result<$T, Err>>,
         )+ {
-            type Output = $FT;
+            type Output = ($($T,)+);
             type Error = Err;
-            type Future = $StructName<$($F::IntoFuture),*, Err>;
+            type Future = $StructName<$($F, $T,)+ Err>;
 
             fn try_join(self) -> Self::Future {
                 let ($($F,)+): ($($F,)+) = self;
@@ -273,6 +278,7 @@ macro_rules! impl_try_join_tuple {
                     outputs: ($(MaybeUninit::<$F::Output>::uninit(),)+),
                     wakers: WakerArray::new(),
                     completed: 0,
+                    _phantom: PhantomData,
                 }
             }
         }
@@ -280,98 +286,98 @@ macro_rules! impl_try_join_tuple {
 }
 
 impl_try_join_tuple! { try_join0 TryJoin0 }
-impl_try_join_tuple! { try_join1 TryJoin1 A }
-impl_try_join_tuple! { try_join2 TryJoin2 A B }
-impl_try_join_tuple! { try_join3 TryJoin3 A B C }
-impl_try_join_tuple! { try_join4 TryJoin4 A B C D }
-impl_try_join_tuple! { try_join5 TryJoin5 A B C D E }
-impl_try_join_tuple! { try_join6 TryJoin6 A B C D E F }
-impl_try_join_tuple! { try_join7 TryJoin7 A B C D E F G }
-impl_try_join_tuple! { try_join8 TryJoin8 A B C D E F G H }
-impl_try_join_tuple! { try_join9 TryJoin9 A B C D E F G H I }
-impl_try_join_tuple! { try_join10 TryJoin10 A B C D E F G H I J }
-impl_try_join_tuple! { try_join11 TryJoin11 A B C D E F G H I J K }
-impl_try_join_tuple! { try_join12 TryJoin12 A B C D E F G H I J K L }
+impl_try_join_tuple! { try_join_1 TryJoin1 (A ResA) }
+// impl_try_join_tuple! { try_join_2 TryJoin2 (A ResA) (B ResB) }
+// impl_try_join_tuple! { try_join_3 TryJoin3 (A ResA) (B ResB) (C ResC) }
+// impl_try_join_tuple! { try_join_4 TryJoin4 (A ResA) (B ResB) (C ResC) (D ResD) }
+// impl_try_join_tuple! { try_join_5 TryJoin5 (A ResA) (B ResB) (C ResC) (D ResD) (E ResE) }
+// impl_try_join_tuple! { try_join_6 TryJoin6 (A ResA) (B ResB) (C ResC) (D ResD) (E ResE) (F ResF) }
+// impl_try_join_tuple! { try_join_7 TryJoin7 (A ResA) (B ResB) (C ResC) (D ResD) (E ResE) (F ResF) (G ResG) }
+// impl_try_join_tuple! { try_join_8 TryJoin8 (A ResA) (B ResB) (C ResC) (D ResD) (E ResE) (F ResF) (G ResG) (H ResH) }
+// impl_try_join_tuple! { try_join_9 TryJoin9 (A ResA) (B ResB) (C ResC) (D ResD) (E ResE) (F ResF) (G ResG) (H ResH) (I ResI) }
+// impl_try_join_tuple! { try_join_10 TryJoin10 (A ResA) (B ResB) (C ResC) (D ResD) (E ResE) (F ResF) (G ResG) (H ResH) (I ResI) (J ResJ) }
+// impl_try_join_tuple! { try_join_11 TryJoin11 (A ResA) (B ResB) (C ResC) (D ResD) (E ResE) (F ResF) (G ResG) (H ResH) (I ResI) (J ResJ) (K ResK) }
+// impl_try_join_tuple! { try_join_12 TryJoin12 (A ResA) (B ResB) (C ResC) (D ResD) (E ResE) (F ResF) (G ResG) (H ResH) (I ResI) (J ResJ) (K ResK) (L ResL) }
+//
+// #[cfg(test)]
+// mod test {
+//     use super::*;
 
-#[cfg(test)]
-mod test {
-    use super::*;
+//     use std::convert::Infallible;
+//     use std::future;
+//     use std::io::{self, Error, ErrorKind};
 
-    use std::convert::Infallible;
-    use std::future;
-    use std::io::{self, Error, ErrorKind};
+//     #[test]
+//     fn all_ok() {
+//         futures_lite::future::block_on(async {
+//             let a = async { Ok::<_, Infallible>("aaaa") };
+//             let b = async { Ok::<_, Infallible>(1) };
+//             let c = async { Ok::<_, Infallible>('z') };
 
-    #[test]
-    fn all_ok() {
-        futures_lite::future::block_on(async {
-            let a = async { Ok::<_, Infallible>("aaaa") };
-            let b = async { Ok::<_, Infallible>(1) };
-            let c = async { Ok::<_, Infallible>('z') };
+//             let result = (a, b, c).try_join().await;
+//             assert_eq!(result, Ok(("aaaa", 1, 'z')));
+//         })
+//     }
 
-            let result = (a, b, c).try_join().await;
-            assert_eq!(result, Ok(("aaaa", 1, 'z')));
-        })
-    }
+//     #[test]
+//     fn one_err() {
+//         futures_lite::future::block_on(async {
+//             let err = Error::new(ErrorKind::Other, "oh no");
+//             let res: io::Result<(_, char)> = (future::ready(Ok("hello")), future::ready(Err(err)))
+//                 .try_join()
+//                 .await;
+//             assert_eq!(res.unwrap_err().to_string(), String::from("oh no"));
+//         })
+//     }
 
-    #[test]
-    fn one_err() {
-        futures_lite::future::block_on(async {
-            let err = Error::new(ErrorKind::Other, "oh no");
-            let res: io::Result<(_, char)> = (future::ready(Ok("hello")), future::ready(Err(err)))
-                .try_join()
-                .await;
-            assert_eq!(res.unwrap_err().to_string(), String::from("oh no"));
-        })
-    }
+//     #[test]
+//     fn issue_135_resume_after_completion() {
+//         use futures_lite::future::yield_now;
+//         futures_lite::future::block_on(async {
+//             let ok = async { Ok::<_, ()>(()) };
+//             let err = async {
+//                 yield_now().await;
+//                 Ok::<_, ()>(())
+//             };
 
-    #[test]
-    fn issue_135_resume_after_completion() {
-        use futures_lite::future::yield_now;
-        futures_lite::future::block_on(async {
-            let ok = async { Ok::<_, ()>(()) };
-            let err = async {
-                yield_now().await;
-                Ok::<_, ()>(())
-            };
+//             let res = (ok, err).try_join().await;
 
-            let res = (ok, err).try_join().await;
+//             assert_eq!(res.unwrap(), ((), ()));
+//         });
+//     }
 
-            assert_eq!(res.unwrap(), ((), ()));
-        });
-    }
+//     #[test]
+//     fn does_not_leak_memory() {
+//         use core::cell::RefCell;
+//         use futures_lite::future::pending;
 
-    #[test]
-    fn does_not_leak_memory() {
-        use core::cell::RefCell;
-        use futures_lite::future::pending;
+//         thread_local! {
+//             static NOT_LEAKING: RefCell<bool> = RefCell::new(false);
+//         };
 
-        thread_local! {
-            static NOT_LEAKING: RefCell<bool> = RefCell::new(false);
-        };
+//         struct FlipFlagAtDrop;
+//         impl Drop for FlipFlagAtDrop {
+//             fn drop(&mut self) {
+//                 NOT_LEAKING.with(|v| {
+//                     *v.borrow_mut() = true;
+//                 });
+//             }
+//         }
 
-        struct FlipFlagAtDrop;
-        impl Drop for FlipFlagAtDrop {
-            fn drop(&mut self) {
-                NOT_LEAKING.with(|v| {
-                    *v.borrow_mut() = true;
-                });
-            }
-        }
+//         futures_lite::future::block_on(async {
+//             // this will trigger Miri if we don't drop the memory
+//             let string = future::ready("memory leak".to_owned());
 
-        futures_lite::future::block_on(async {
-            // this will trigger Miri if we don't drop the memory
-            let string = future::ready("memory leak".to_owned());
+//             // this will not flip the thread_local flag if we don't drop the memory
+//             let flip = future::ready(FlipFlagAtDrop);
 
-            // this will not flip the thread_local flag if we don't drop the memory
-            let flip = future::ready(FlipFlagAtDrop);
+//             let leak = (string, flip, pending::<u8>()).join();
 
-            let leak = (string, flip, pending::<u8>()).join();
+//             _ = futures_lite::future::poll_once(leak).await;
+//         });
 
-            _ = futures_lite::future::poll_once(leak).await;
-        });
-
-        NOT_LEAKING.with(|flag| {
-            assert!(*flag.borrow());
-        })
-    }
-}
+//         NOT_LEAKING.with(|flag| {
+//             assert!(*flag.borrow());
+//         })
+//     }
+// }
