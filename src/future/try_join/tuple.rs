@@ -191,7 +191,10 @@ macro_rules! impl_try_join_tuple {
         #[allow(unused_mut)]
         #[allow(unused_parens)]
         #[allow(unused_variables)]
-        impl<$($F: Future, $T,)+ Err> Future for $StructName<$($F, $T,)+ Err> {
+        impl<$($F: Future, $T,)+ Err> Future for $StructName<$($F, $T,)+ Err>
+        where $(
+            $F: Future<Output = Result<$T, Err>>
+        )+ {
             type Output = Result<($($F::Output,)+), Err>;
 
             fn poll(
@@ -268,14 +271,16 @@ macro_rules! impl_try_join_tuple {
         )+ {
             type Output = ($($T,)+);
             type Error = Err;
-            type Future = $StructName<$($F, $T,)+ Err>;
+            type Future = $StructName<$($F::IntoFuture, $T,)+ Err>;
 
             fn try_join(self) -> Self::Future {
                 let ($($F,)+): ($($F,)+) = self;
                 $StructName {
-                    futures: $mod_name::Futures {$($F: ManuallyDrop::new($F.into_future()),)+},
+                    futures: $mod_name::Futures {$(
+                        $F: ManuallyDrop::new($F.into_future()),
+                    )+},
                     state: PollArray::new(),
-                    outputs: ($(MaybeUninit::<$F::Output>::uninit(),)+),
+                    outputs: ($(MaybeUninit::<$T>::uninit(),)+),
                     wakers: WakerArray::new(),
                     completed: 0,
                     _phantom: PhantomData,
