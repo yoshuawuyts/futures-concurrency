@@ -362,38 +362,38 @@ mod test {
         });
     }
 
-    // #[test]
-    // fn does_not_leak_memory() {
-    //     use core::cell::RefCell;
-    //     use futures_lite::future::pending;
+    #[test]
+    fn does_not_leak_memory() {
+        use core::cell::RefCell;
+        use futures_lite::future::pending;
 
-    //     thread_local! {
-    //         static NOT_LEAKING: RefCell<bool> = RefCell::new(false);
-    //     };
+        thread_local! {
+            static NOT_LEAKING: RefCell<bool> = RefCell::new(false);
+        };
 
-    //     struct FlipFlagAtDrop;
-    //     impl Drop for FlipFlagAtDrop {
-    //         fn drop(&mut self) {
-    //             NOT_LEAKING.with(|v| {
-    //                 *v.borrow_mut() = true;
-    //             });
-    //         }
-    //     }
+        struct FlipFlagAtDrop;
+        impl Drop for FlipFlagAtDrop {
+            fn drop(&mut self) {
+                NOT_LEAKING.with(|v| {
+                    *v.borrow_mut() = true;
+                });
+            }
+        }
 
-    //     futures_lite::future::block_on(async {
-    //         // this will trigger Miri if we don't drop the memory
-    //         let string = future::ready("memory leak".to_owned());
+        futures_lite::future::block_on(async {
+            // this will trigger Miri if we don't drop the memory
+            let string = future::ready(io::Result::Ok("memory leak".to_owned()));
 
-    //         // this will not flip the thread_local flag if we don't drop the memory
-    //         let flip = future::ready(FlipFlagAtDrop);
+            // this will not flip the thread_local flag if we don't drop the memory
+            let flip = future::ready(io::Result::Ok(FlipFlagAtDrop));
 
-    //         let leak = (string, flip, pending::<u8>()).try_join();
+            let leak = (string, flip, pending::<io::Result<u8>>()).try_join();
 
-    //         _ = futures_lite::future::poll_once(leak).await;
-    //     });
+            _ = futures_lite::future::poll_once(leak).await;
+        });
 
-    //     NOT_LEAKING.with(|flag| {
-    //         assert!(*flag.borrow());
-    //     })
-    // }
+        NOT_LEAKING.with(|flag| {
+            assert!(*flag.borrow());
+        })
+    }
 }
