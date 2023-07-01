@@ -178,11 +178,10 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::utils::DummyWaker;
+    use crate::utils::dummy_waker;
 
     use std::future;
     use std::future::Future;
-    use std::sync::Arc;
     use std::task::Context;
 
     #[test]
@@ -199,7 +198,7 @@ mod test {
         assert_eq!(format!("{:?}", fut), "[Pending, Pending]");
         let mut fut = Pin::new(&mut fut);
 
-        let waker = Arc::new(DummyWaker()).into();
+        let waker = dummy_waker();
         let mut cx = Context::from_waker(&waker);
         let _ = fut.as_mut().poll(&mut cx);
         assert_eq!(format!("{:?}", fut), "[Consumed, Consumed]");

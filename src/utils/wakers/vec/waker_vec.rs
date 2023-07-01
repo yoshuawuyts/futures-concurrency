@@ -1,31 +1,66 @@
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::task::Waker;
+use core::task::Waker;
+use std::sync::{Arc, Mutex, Weak};
 
-use super::{InlineWakerVec, ReadinessVec};
+use super::{
+    super::shared_arc::{waker_from_redirect_position, SharedArcContent},
+    ReadinessVec,
+};
 
-/// A collection of wakers which delegate to an in-line waker.
+/// A collection of wakers sharing the same allocation.
 pub(crate) struct WakerVec {
     wakers: Vec<Waker>,
-    readiness: Arc<Mutex<ReadinessVec>>,
+    inner: Arc<WakerVecInner>,
+}
+
+/// See [super::super::shared_arc] for how this works.
+struct WakerVecInner {
+    redirect: Vec<*const Self>,
+    readiness: Mutex<ReadinessVec>,
 }
 
 impl WakerVec {
     /// Create a new instance of `WakerVec`.
     pub(crate) fn new(len: usize) -> Self {
-        let readiness = Arc::new(Mutex::new(ReadinessVec::new(len)));
+        let inner = Arc::new_cyclic(|w| {
+            // `Weak::as_ptr` on a live Weak gives the same thing as `Arc::into_raw`.
+            let raw = Weak::as_ptr(w);
+            WakerVecInner {
+                readiness: Mutex::new(ReadinessVec::new(len)),
+                redirect: vec![raw; len],
+            }
+        });
+
+        // Now the redirect vec is complete. Time to create the actual Wakers.
         let wakers = (0..len)
-            .map(|i| Arc::new(InlineWakerVec::new(i, readiness.clone())).into())
+            .map(|i| unsafe { waker_from_redirect_position(Arc::clone(&inner), i) })
             .collect();
-        Self { wakers, readiness }
+
+        Self { inner, wakers }
     }
 
     pub(crate) fn get(&self, index: usize) -> Option<&Waker> {
         self.wakers.get(index)
     }
 
-    /// Access the `Readiness`.
     pub(crate) fn readiness(&self) -> &Mutex<ReadinessVec> {
-        self.readiness.as_ref()
+        &self.inner.readiness
+    }
+}
+
+#[deny(unsafe_op_in_unsafe_fn)]
+unsafe impl SharedArcContent for WakerVecInner {
+    fn get_redirect_slice(&self) -> &[*const Self] {
+        &self.redirect
+    }
+
+    fn wake_index(&self, index: usize) {
+        let mut readiness = self.readiness.lock().unwrap();
+        if !readiness.set_ready(index) {
+            readiness
+                .parent_waker()
+                .as_ref()
+                .expect("`parent_waker` not available from `Readiness`. Did you forget to call `Readiness::set_waker`?")
+                .wake_by_ref();
+        }
     }
 }
