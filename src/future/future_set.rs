@@ -1,19 +1,23 @@
 use futures_core::Stream;
 use pin_project::pin_project;
 use slab::Slab;
+use std::error;
 use std::fmt::{self, Debug};
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::task::Poll;
 
 /// A handle to a dynamic set of futures.
+///
+/// See [`FutureSet`] for more.
+#[derive(Clone)]
 #[pin_project]
 pub struct FutureSetHandle<T> {
     #[pin]
     futures: Arc<RwLock<Slab<Pin<Box<dyn Future<Output = T> + 'static>>>>>,
-    active: Arc<AtomicBool>,
+    is_active: Arc<AtomicBool>,
 }
 
 impl<T: Debug> Debug for FutureSetHandle<T> {
@@ -34,21 +38,45 @@ impl<T> FutureSetHandle<T> {
     }
 
     /// Insert a new future into the set.
-    pub fn insert<Fut>(&self, fut: Fut)
+    pub fn insert<Fut>(&self, fut: Fut) -> Result<(), InsertError>
     where
         Fut: Future<Output = T> + 'static,
     {
+        if !self.is_active.load(Ordering::SeqCst) {
+            return Err(InsertError { _sealed: () });
+        }
         self.futures.write().unwrap().insert(Box::pin(fut));
+        Ok(())
+    }
+}
+/// An error returned from [`FutureSetHandle::insert()`].
+///
+/// Received because the underlying `FutureSet` no longer exists.
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub struct InsertError {
+    _sealed: (),
+}
+
+impl error::Error for InsertError {}
+
+impl Debug for InsertError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "InsertError(..)")
+    }
+}
+impl fmt::Display for InsertError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "inserting on a `FutureSet` which no longer exists")
     }
 }
 
 /// A dynamic set of futures.
 #[must_use = "`FutureSet` does nothing if not iterated over"]
-#[pin_project]
+#[pin_project(PinnedDrop)]
 pub struct FutureSet<T> {
     #[pin]
     futures: Arc<RwLock<Slab<Pin<Box<dyn Future<Output = T> + 'static>>>>>,
-    active: Arc<AtomicBool>,
+    is_active: Arc<AtomicBool>,
 }
 
 impl<T: Debug> Debug for FutureSet<T> {
@@ -66,7 +94,7 @@ impl<T> FutureSet<T> {
     /// Create a new instance of `FutureSet` with a given capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            active: Arc::new(AtomicBool::new(false)),
+            is_active: Arc::new(AtomicBool::new(false)),
             futures: Arc::new(RwLock::new(Slab::with_capacity(capacity))),
         }
     }
@@ -93,7 +121,7 @@ impl<T> FutureSet<T> {
     pub fn handle(&self) -> FutureSetHandle<T> {
         FutureSetHandle {
             futures: self.futures.clone(),
-            active: self.active.clone(),
+            is_active: self.is_active.clone(),
         }
     }
 }
@@ -124,5 +152,13 @@ impl<T> Stream for FutureSet<T> {
             };
         }
         Poll::Pending
+    }
+}
+
+#[pin_project::pinned_drop]
+impl<T> PinnedDrop for FutureSet<T> {
+    fn drop(self: Pin<&mut Self>) {
+        let this = self.project();
+        this.is_active.store(true, Ordering::SeqCst);
     }
 }
