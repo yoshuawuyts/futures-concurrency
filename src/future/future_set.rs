@@ -9,6 +9,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::task::Poll;
 
+/// Futures actively being polled.
+type Futures<T> = Arc<RwLock<Slab<Pin<Box<dyn Future<Output = T> + 'static>>>>>;
+
 /// A handle to a dynamic set of futures.
 ///
 /// This is returned by calling the [`handle`][`FutureSet::handle`] method on [`FutureSet`].
@@ -16,7 +19,7 @@ use std::task::Poll;
 #[pin_project]
 pub struct FutureSetHandle<T> {
     #[pin]
-    futures: Arc<RwLock<Slab<Pin<Box<dyn Future<Output = T> + 'static>>>>>,
+    futures: Futures<T>,
     is_active: Arc<AtomicBool>,
 }
 
@@ -35,7 +38,7 @@ impl<T> FutureSetHandle<T> {
     /// use futures_concurrency::future::FutureSet;
     ///
     /// let set = FutureSet::with_capacity(2);
-    /// let handle = set.handle();
+    /// let mut handle = set.handle();
     ///
     /// assert_eq!(handle.len(), 0);
     /// handle.insert(async { 12 }).unwrap();
@@ -53,7 +56,7 @@ impl<T> FutureSetHandle<T> {
     /// use futures_concurrency::future::FutureSet;
     ///
     /// let set = FutureSet::with_capacity(2);
-    /// let handle = set.handle();
+    /// let mut handle = set.handle();
     /// assert!(handle.is_empty());
     /// handle.insert(async { 12 }).unwrap();
     /// assert!(!handle.is_empty());
@@ -70,10 +73,10 @@ impl<T> FutureSetHandle<T> {
     /// use futures_concurrency::future::FutureSet;
     ///
     /// let set = FutureSet::with_capacity(2);
-    /// let handle = set.handle();
+    /// let mut handle = set.handle();
     /// handle.insert(async { 12 }).unwrap();
     /// ```
-    pub fn insert<Fut>(&self, fut: Fut) -> Result<(), InsertError>
+    pub fn insert<Fut>(&mut self, fut: Fut) -> Result<(), InsertError>
     where
         Fut: Future<Output = T> + 'static,
     {
@@ -126,10 +129,11 @@ impl fmt::Display for InsertError {
 /// # });
 /// ```
 #[must_use = "`FutureSet` does nothing if not iterated over"]
+#[derive(Default)]
 #[pin_project(PinnedDrop)]
 pub struct FutureSet<T> {
     #[pin]
-    futures: Arc<RwLock<Slab<Pin<Box<dyn Future<Output = T> + 'static>>>>>,
+    futures: Futures<T>,
     is_active: Arc<AtomicBool>,
 }
 
@@ -178,7 +182,7 @@ impl<T> FutureSet<T> {
     /// ```rust
     /// use futures_concurrency::future::FutureSet;
     ///
-    /// let set = FutureSet::with_capacity(2);
+    /// let mut set = FutureSet::with_capacity(2);
     /// assert_eq!(set.len(), 0);
     /// set.insert(async { 12 });
     /// assert_eq!(set.len(), 1);
@@ -194,7 +198,7 @@ impl<T> FutureSet<T> {
     /// ```rust
     /// use futures_concurrency::future::FutureSet;
     ///
-    /// let set = FutureSet::with_capacity(2);
+    /// let mut set = FutureSet::with_capacity(2);
     /// assert!(set.is_empty());
     /// set.insert(async { 12 });
     /// assert!(!set.is_empty());
@@ -210,10 +214,10 @@ impl<T> FutureSet<T> {
     /// ```rust
     /// use futures_concurrency::future::FutureSet;
     ///
-    /// let set = FutureSet::with_capacity(2);
+    /// let mut set = FutureSet::with_capacity(2);
     /// set.insert(async { 12 });
     /// ```
-    pub fn insert<Fut>(&self, fut: Fut)
+    pub fn insert<Fut>(&mut self, fut: Fut)
     where
         Fut: Future<Output = T> + 'static,
     {
@@ -228,7 +232,7 @@ impl<T> FutureSet<T> {
     /// use futures_concurrency::future::FutureSet;
     ///
     /// let set = FutureSet::with_capacity(2);
-    /// let handle = set.handle();
+    /// let mut handle = set.handle();
     /// handle.insert(async { 12 }).unwrap();
     /// ```
     pub fn handle(&self) -> FutureSetHandle<T> {
@@ -302,7 +306,7 @@ mod test {
     fn handle_works() {
         futures_lite::future::block_on(async {
             let mut set = FutureSet::new();
-            let handle = set.handle();
+            let mut handle = set.handle();
             set.insert(async { 1 + 1 });
             handle.insert(async { 2 + 2 }).unwrap();
 
@@ -318,7 +322,7 @@ mod test {
     fn handle_errors_if_dropped() {
         futures_lite::future::block_on(async {
             let set = FutureSet::new();
-            let handle = set.handle();
+            let mut handle = set.handle();
             drop(set);
             assert!(handle.insert(async {}).is_err());
         });
