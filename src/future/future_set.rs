@@ -11,7 +11,7 @@ use std::task::Poll;
 
 /// A handle to a dynamic set of futures.
 ///
-/// See [`FutureSet`] for more.
+/// This is returned by calling the [`handle`][`FutureSet::handle`] method on [`FutureSet`].
 #[derive(Clone)]
 #[pin_project]
 pub struct FutureSetHandle<T> {
