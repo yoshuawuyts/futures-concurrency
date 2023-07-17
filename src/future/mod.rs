@@ -68,7 +68,7 @@
 //! - `future::RaceOk`: wait for the first _successful_ future in the set to
 //! complete, or return an `Err` if *no* futures complete successfully.
 //!
-pub use future_set::{FutureSet, FutureSetHandle};
+pub use future_set::FutureSet;
 pub use futures_ext::FutureExt;
 pub use join::Join;
 pub use race::Race;

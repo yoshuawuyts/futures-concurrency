@@ -1,112 +1,10 @@
 use futures_core::Stream;
 use pin_project::pin_project;
 use slab::Slab;
-use std::error;
 use std::fmt::{self, Debug};
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, RwLock};
 use std::task::Poll;
-
-/// Futures actively being polled.
-type Futures<T> = Arc<RwLock<Slab<Pin<Box<dyn Future<Output = T> + 'static>>>>>;
-
-/// A handle to a dynamic set of futures.
-///
-/// This is returned by calling the [`handle`][`FutureSet::handle`] method on [`FutureSet`].
-#[derive(Clone)]
-#[pin_project]
-pub struct FutureSetHandle<T> {
-    #[pin]
-    futures: Futures<T>,
-    is_active: Arc<AtomicBool>,
-}
-
-impl<T: Debug> Debug for FutureSetHandle<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FutureSet").field("slab", &"[..]").finish()
-    }
-}
-
-impl<T> FutureSetHandle<T> {
-    /// Return the number of futures currently active in the set.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use futures_concurrency::future::FutureSet;
-    ///
-    /// let set = FutureSet::with_capacity(2);
-    /// let mut handle = set.handle();
-    ///
-    /// assert_eq!(handle.len(), 0);
-    /// handle.insert(async { 12 }).unwrap();
-    /// assert_eq!(handle.len(), 1);
-    /// ```
-    pub fn len(&self) -> usize {
-        self.futures.read().unwrap().len()
-    }
-
-    /// Returns true if there are no futures currently active in the set.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use futures_concurrency::future::FutureSet;
-    ///
-    /// let set = FutureSet::with_capacity(2);
-    /// let mut handle = set.handle();
-    /// assert!(handle.is_empty());
-    /// handle.insert(async { 12 }).unwrap();
-    /// assert!(!handle.is_empty());
-    /// ```
-    pub fn is_empty(&self) -> bool {
-        self.futures.read().unwrap().is_empty()
-    }
-
-    /// Insert a new future into the set.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use futures_concurrency::future::FutureSet;
-    ///
-    /// let set = FutureSet::with_capacity(2);
-    /// let mut handle = set.handle();
-    /// handle.insert(async { 12 }).unwrap();
-    /// ```
-    pub fn insert<Fut>(&mut self, fut: Fut) -> Result<(), InsertError>
-    where
-        Fut: Future<Output = T> + 'static,
-    {
-        if !self.is_active.load(Ordering::SeqCst) {
-            return Err(InsertError { _sealed: () });
-        }
-        self.futures.write().unwrap().insert(Box::pin(fut));
-        Ok(())
-    }
-}
-/// An error returned from [`FutureSetHandle::insert()`].
-///
-/// Received because the underlying `FutureSet` no longer exists.
-#[derive(PartialEq, Eq, Clone, Copy)]
-pub struct InsertError {
-    _sealed: (),
-}
-
-impl error::Error for InsertError {}
-
-impl Debug for InsertError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "InsertError(..)")
-    }
-}
-impl fmt::Display for InsertError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "inserting on a `FutureSet` which no longer exists")
-    }
-}
 
 /// A dynamic set of futures.
 ///
@@ -130,11 +28,10 @@ impl fmt::Display for InsertError {
 /// ```
 #[must_use = "`FutureSet` does nothing if not iterated over"]
 #[derive(Default)]
-#[pin_project(PinnedDrop)]
+#[pin_project]
 pub struct FutureSet<T> {
     #[pin]
-    futures: Futures<T>,
-    is_active: Arc<AtomicBool>,
+    futures: Slab<Pin<Box<dyn Future<Output = T> + 'static>>>,
 }
 
 impl<T: Debug> Debug for FutureSet<T> {
@@ -170,8 +67,7 @@ impl<T> FutureSet<T> {
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            is_active: Arc::new(AtomicBool::new(true)),
-            futures: Arc::new(RwLock::new(Slab::with_capacity(capacity))),
+            futures: Slab::with_capacity(capacity),
         }
     }
 
@@ -188,7 +84,7 @@ impl<T> FutureSet<T> {
     /// assert_eq!(set.len(), 1);
     /// ```
     pub fn len(&self) -> usize {
-        self.futures.read().unwrap().len()
+        self.futures.len()
     }
 
     /// Returns true if there are no futures currently active in the set.
@@ -204,7 +100,7 @@ impl<T> FutureSet<T> {
     /// assert!(!set.is_empty());
     /// ```
     pub fn is_empty(&self) -> bool {
-        self.futures.read().unwrap().is_empty()
+        self.futures.is_empty()
     }
 
     /// Insert a new future into the set.
@@ -221,25 +117,7 @@ impl<T> FutureSet<T> {
     where
         Fut: Future<Output = T> + 'static,
     {
-        self.futures.write().unwrap().insert(Box::pin(fut));
-    }
-
-    /// Obtain a handle to the set which can be used to insert more futures into the set.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use futures_concurrency::future::FutureSet;
-    ///
-    /// let set = FutureSet::with_capacity(2);
-    /// let mut handle = set.handle();
-    /// handle.insert(async { 12 }).unwrap();
-    /// ```
-    pub fn handle(&self) -> FutureSetHandle<T> {
-        FutureSetHandle {
-            futures: self.futures.clone(),
-            is_active: self.is_active.clone(),
-        }
+        self.futures.insert(Box::pin(fut));
     }
 }
 
@@ -251,7 +129,7 @@ impl<T> Stream for FutureSet<T> {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
         let this = self.project();
-        let mut futures = this.futures.write().unwrap();
+        let mut futures = this.futures;
 
         // Short-circuit if we have no futures to iterate over
         if futures.is_empty() {
@@ -272,17 +150,9 @@ impl<T> Stream for FutureSet<T> {
     }
 }
 
-#[pin_project::pinned_drop]
-impl<T> PinnedDrop for FutureSet<T> {
-    fn drop(self: Pin<&mut Self>) {
-        let this = self.project();
-        this.is_active.store(false, Ordering::SeqCst);
-    }
-}
-
 #[cfg(test)]
 mod test {
-    use super::*;
+    use super::FutureSet;
     use futures_lite::prelude::*;
 
     #[test]
@@ -302,29 +172,34 @@ mod test {
         });
     }
 
-    #[test]
-    fn handle_works() {
-        futures_lite::future::block_on(async {
-            let mut set = FutureSet::new();
-            let mut handle = set.handle();
-            set.insert(async { 1 + 1 });
-            handle.insert(async { 2 + 2 }).unwrap();
+    // #[test]
+    // fn concurrent_channel() {
+    //     enum Message<T> {
+    //         Future(Pin<Box<dyn Future<Output = T> + 'static>>),
+    //         Output(T),
+    //     }
+    //     futures_lite::future::block_on(async {
+    //         let mut set = FutureSet::new();
 
-            let mut out = 0;
-            while let Some(num) = set.next().await {
-                out += num;
-            }
-            assert_eq!(out, 6);
-        });
-    }
+    //         let (sender, receiver) = async_channel::bounded(1);
+    //         sender.try_send(async { 2 + 2 }).unwrap();
+    //         let receiver = receiver.map(|t| Message::Future(Box::pin(t)));
 
-    #[test]
-    fn handle_errors_if_dropped() {
-        futures_lite::future::block_on(async {
-            let set = FutureSet::new();
-            let mut handle = set.handle();
-            drop(set);
-            assert!(handle.insert(async {}).is_err());
-        });
-    }
+    //         set.insert(async { Message::Output(1 + 1) });
+    //         let mut stream = (set, receiver).merge();
+
+    //         let mut out = 0;
+    //         while let Some(msg) = stream.next().await {
+    //             match msg {
+    //                 Message::Future(fut) => stream.0.insert(async move {
+    //                     let output = fut.await;
+    //                     Message::Output(output)
+    //                 }),
+    //                 Message::Output(num) => out += num,
+    //             }
+    //         }
+
+    //         assert_eq!(out, 6);
+    //     });
+    // }
 }
