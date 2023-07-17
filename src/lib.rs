@@ -12,7 +12,7 @@
 //! eventually may become the futures concurrency methods provided by the
 //! stdlib. See the [`future`] and [`stream`] submodules for more.
 //!
-//! # Operations
+//! # Static Concurrency
 //!
 //! This library provides the following operations on arrays, vecs, and tuples:
 //!
@@ -23,6 +23,13 @@
 //! - [`stream::Chain`]: Takes multiple streams and creates a new stream over all in sequence.
 //! - [`stream::Merge`]: Combines multiple streams into a single stream of all their outputs.
 //! - [`stream::Zip`]: ‘Zips up’ multiple streams into a single stream of pairs.
+//!
+//! # Dynamic Concurrency
+//!
+//! The following structures and operations are provided for operating on
+//! varying sets of futures and streams:
+//!
+//! - [`future::FutureSet`]: A dynamic set of futures which can be concurrently awaited.
 //!
 //! # Examples
 //!

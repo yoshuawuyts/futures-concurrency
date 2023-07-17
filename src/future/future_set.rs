@@ -28,16 +28,51 @@ impl<T: Debug> Debug for FutureSetHandle<T> {
 
 impl<T> FutureSetHandle<T> {
     /// Return the number of futures currently active in the set.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use futures_concurrency::future::FutureSet;
+    ///
+    /// let set = FutureSet::with_capacity(2);
+    /// let handle = set.handle();
+    ///
+    /// assert_eq!(handle.len(), 0);
+    /// handle.insert(async { 12 }).unwrap();
+    /// assert_eq!(handle.len(), 1);
+    /// ```
     pub fn len(&self) -> usize {
         self.futures.read().unwrap().len()
     }
 
     /// Returns true if there are no futures currently active in the set.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use futures_concurrency::future::FutureSet;
+    ///
+    /// let set = FutureSet::with_capacity(2);
+    /// let handle = set.handle();
+    /// assert!(handle.is_empty());
+    /// handle.insert(async { 12 }).unwrap();
+    /// assert!(!handle.is_empty());
+    /// ```
     pub fn is_empty(&self) -> bool {
         self.futures.read().unwrap().is_empty()
     }
 
     /// Insert a new future into the set.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use futures_concurrency::future::FutureSet;
+    ///
+    /// let set = FutureSet::with_capacity(2);
+    /// let handle = set.handle();
+    /// handle.insert(async { 12 }).unwrap();
+    /// ```
     pub fn insert<Fut>(&self, fut: Fut) -> Result<(), InsertError>
     where
         Fut: Future<Output = T> + 'static,
@@ -71,6 +106,25 @@ impl fmt::Display for InsertError {
 }
 
 /// A dynamic set of futures.
+///
+/// # Example
+///
+/// ```rust
+/// use futures_concurrency::future::FutureSet;
+/// use futures_lite::StreamExt;
+///
+/// # futures_lite::future::block_on(async {
+/// let mut set = FutureSet::new();
+/// set.insert(async { 5 });
+/// set.insert(async { 7 });
+///
+/// let mut out = 0;
+/// while let Some(num) = set.next().await {
+///     out += num;
+/// }
+/// assert_eq!(out, 12);
+/// # });
+/// ```
 #[must_use = "`FutureSet` does nothing if not iterated over"]
 #[pin_project(PinnedDrop)]
 pub struct FutureSet<T> {
@@ -87,29 +141,78 @@ impl<T: Debug> Debug for FutureSet<T> {
 
 impl<T> FutureSet<T> {
     /// Create a new instance of `FutureSet`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use futures_concurrency::future::FutureSet;
+    ///
+    /// let set = FutureSet::new();
+    /// # let set: FutureSet<usize> = set;
+    /// ```
     pub fn new() -> Self {
         Self::with_capacity(0)
     }
 
     /// Create a new instance of `FutureSet` with a given capacity.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use futures_concurrency::future::FutureSet;
+    ///
+    /// let set = FutureSet::with_capacity(2);
+    /// # let set: FutureSet<usize> = set;
+    /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            is_active: Arc::new(AtomicBool::new(false)),
+            is_active: Arc::new(AtomicBool::new(true)),
             futures: Arc::new(RwLock::new(Slab::with_capacity(capacity))),
         }
     }
 
     /// Return the number of futures currently active in the set.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use futures_concurrency::future::FutureSet;
+    ///
+    /// let set = FutureSet::with_capacity(2);
+    /// assert_eq!(set.len(), 0);
+    /// set.insert(async { 12 });
+    /// assert_eq!(set.len(), 1);
+    /// ```
     pub fn len(&self) -> usize {
         self.futures.read().unwrap().len()
     }
 
     /// Returns true if there are no futures currently active in the set.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use futures_concurrency::future::FutureSet;
+    ///
+    /// let set = FutureSet::with_capacity(2);
+    /// assert!(set.is_empty());
+    /// set.insert(async { 12 });
+    /// assert!(!set.is_empty());
+    /// ```
     pub fn is_empty(&self) -> bool {
         self.futures.read().unwrap().is_empty()
     }
 
     /// Insert a new future into the set.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use futures_concurrency::future::FutureSet;
+    ///
+    /// let set = FutureSet::with_capacity(2);
+    /// set.insert(async { 12 });
+    /// ```
     pub fn insert<Fut>(&self, fut: Fut)
     where
         Fut: Future<Output = T> + 'static,
@@ -118,6 +221,16 @@ impl<T> FutureSet<T> {
     }
 
     /// Obtain a handle to the set which can be used to insert more futures into the set.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use futures_concurrency::future::FutureSet;
+    ///
+    /// let set = FutureSet::with_capacity(2);
+    /// let handle = set.handle();
+    /// handle.insert(async { 12 }).unwrap();
+    /// ```
     pub fn handle(&self) -> FutureSetHandle<T> {
         FutureSetHandle {
             futures: self.futures.clone(),
@@ -159,6 +272,55 @@ impl<T> Stream for FutureSet<T> {
 impl<T> PinnedDrop for FutureSet<T> {
     fn drop(self: Pin<&mut Self>) {
         let this = self.project();
-        this.is_active.store(true, Ordering::SeqCst);
+        this.is_active.store(false, Ordering::SeqCst);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use futures_lite::prelude::*;
+
+    #[test]
+    fn smoke() {
+        futures_lite::future::block_on(async {
+            let mut set = FutureSet::new();
+            set.insert(async { 1 + 1 });
+            set.insert(async { 2 + 2 });
+
+            let mut out = 0;
+            while let Some(num) = set.next().await {
+                out += num;
+            }
+            assert_eq!(out, 6);
+            assert_eq!(set.len(), 0);
+            assert!(set.is_empty());
+        });
+    }
+
+    #[test]
+    fn handle_works() {
+        futures_lite::future::block_on(async {
+            let mut set = FutureSet::new();
+            let handle = set.handle();
+            set.insert(async { 1 + 1 });
+            handle.insert(async { 2 + 2 }).unwrap();
+
+            let mut out = 0;
+            while let Some(num) = set.next().await {
+                out += num;
+            }
+            assert_eq!(out, 6);
+        });
+    }
+
+    #[test]
+    fn handle_errors_if_dropped() {
+        futures_lite::future::block_on(async {
+            let set = FutureSet::new();
+            let handle = set.handle();
+            drop(set);
+            assert!(handle.insert(async {}).is_err());
+        });
     }
 }
