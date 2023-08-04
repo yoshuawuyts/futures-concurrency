@@ -1,8 +1,7 @@
-use futures_core::Stream;
-use pin_project::pin_project;
+use async_iterator::LendingIterator;
 use slab::Slab;
 use std::fmt::{self, Debug};
-use std::future::Future;
+use std::future::{self, Future};
 use std::pin::Pin;
 use std::task::Poll;
 
@@ -12,6 +11,7 @@ use std::task::Poll;
 ///
 /// ```rust
 /// use futures_concurrency::future::FutureSet;
+/// use async_iterator::LendingIterator;
 /// use futures_lite::StreamExt;
 ///
 /// # futures_lite::future::block_on(async {
@@ -28,9 +28,7 @@ use std::task::Poll;
 /// ```
 #[must_use = "`FutureSet` does nothing if not iterated over"]
 #[derive(Default)]
-#[pin_project]
 pub struct FutureSet<T> {
-    #[pin]
     futures: Slab<Pin<Box<dyn Future<Output = T> + 'static>>>,
 }
 
@@ -121,39 +119,40 @@ impl<T> FutureSet<T> {
     }
 }
 
-impl<T> Stream for FutureSet<T> {
-    type Item = T;
+impl<T> LendingIterator for FutureSet<T> {
+    type Item<'a> = (T, &'a mut FutureSet<T>)
+    where
+        Self: 'a;
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        let this = self.project();
-        let mut futures = this.futures;
-
-        // Short-circuit if we have no futures to iterate over
-        if futures.is_empty() {
-            return Poll::Ready(None);
-        }
-
-        for (index, future) in futures.iter_mut() {
-            match Pin::new(future).poll(cx) {
-                std::task::Poll::Ready(item) => {
-                    // A future resolved. Remove it from the set, and return its value.
-                    futures.remove(index);
-                    return Poll::Ready(Some(item));
-                }
-                std::task::Poll::Pending => continue,
-            };
-        }
-        Poll::Pending
+    async fn next(&mut self) -> Option<Self::Item<'_>> {
+        let item = future::poll_fn(|cx| -> Poll<Option<T>> {
+            // Short-circuit if we have no futures to iterate over
+            if self.futures.is_empty() {
+                return Poll::Ready(None);
+            }
+            for (index, future) in self.futures.iter_mut() {
+                match Pin::new(future).poll(cx) {
+                    std::task::Poll::Ready(item) => {
+                        // A future resolved. Remove it from the set, and return its value.
+                        self.futures.remove(index);
+                        return Poll::Ready(Some(item));
+                    }
+                    std::task::Poll::Pending => continue,
+                };
+            }
+            Poll::Pending
+        })
+        .await?;
+        Some((item, self))
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::FutureSet;
+    use async_iterator::LendingIterator;
     use futures_lite::prelude::*;
+    use std::pin::Pin;
 
     #[test]
     fn smoke() {
@@ -163,7 +162,7 @@ mod test {
             set.insert(async { 2 + 2 });
 
             let mut out = 0;
-            while let Some(num) = set.next().await {
+            while let Some((num, _set)) = set.next().await {
                 out += num;
             }
             assert_eq!(out, 6);
@@ -172,34 +171,39 @@ mod test {
         });
     }
 
-    // #[test]
-    // fn concurrent_channel() {
-    //     enum Message<T> {
-    //         Future(Pin<Box<dyn Future<Output = T> + 'static>>),
-    //         Output(T),
-    //     }
-    //     futures_lite::future::block_on(async {
-    //         let mut set = FutureSet::new();
+    // Wait for a future which resolves to a number, and a channel which
+    // receives a new future. When the future is received, we put it inside the
+    // set to resolve to a number.
+    #[test]
+    fn concurrent_channel() {
+        enum Message<T> {
+            Future(Pin<Box<dyn Future<Output = T> + 'static>>),
+            Output(T),
+        }
+        futures_lite::future::block_on(async {
+            let mut set = FutureSet::new();
 
-    //         let (sender, receiver) = async_channel::bounded(1);
-    //         sender.try_send(async { 2 + 2 }).unwrap();
-    //         let receiver = receiver.map(|t| Message::Future(Box::pin(t)));
+            let (sender, receiver) = async_channel::bounded(1);
+            sender.try_send(async { 2 + 2 }).unwrap();
 
-    //         set.insert(async { Message::Output(1 + 1) });
-    //         let mut stream = (set, receiver).merge();
+            set.insert(async { Message::Output(1 + 1) });
+            set.insert(async move {
+                let fut = receiver.recv().await.unwrap();
+                Message::Future(Box::pin(fut))
+            });
 
-    //         let mut out = 0;
-    //         while let Some(msg) = stream.next().await {
-    //             match msg {
-    //                 Message::Future(fut) => stream.0.insert(async move {
-    //                     let output = fut.await;
-    //                     Message::Output(output)
-    //                 }),
-    //                 Message::Output(num) => out += num,
-    //             }
-    //         }
+            let mut out = 0;
+            while let Some((msg, set)) = set.next().await {
+                match msg {
+                    Message::Future(fut) => set.insert(async move {
+                        let output = fut.await;
+                        Message::Output(output)
+                    }),
+                    Message::Output(num) => out += num,
+                }
+            }
 
-    //         assert_eq!(out, 6);
-    //     });
-    // }
+            assert_eq!(out, 6);
+        });
+    }
 }
