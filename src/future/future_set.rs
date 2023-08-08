@@ -20,7 +20,7 @@ use std::task::Poll;
 /// set.insert(async { 7 });
 ///
 /// let mut out = 0;
-/// while let Some(num) = set.next().await {
+/// while let Some((num, _)) = set.next().await {
 ///     out += num;
 /// }
 /// assert_eq!(out, 12);
@@ -29,7 +29,7 @@ use std::task::Poll;
 #[must_use = "`FutureSet` does nothing if not iterated over"]
 #[derive(Default)]
 pub struct FutureSet<T> {
-    futures: Slab<Pin<Box<dyn Future<Output = T> + 'static>>>,
+    futures: Slab<Pin<Box<dyn Future<Output = T>>>>,
 }
 
 impl<T: Debug> Debug for FutureSet<T> {
