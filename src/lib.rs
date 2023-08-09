@@ -68,7 +68,6 @@
 #![deny(missing_debug_implementations, nonstandard_style)]
 #![warn(missing_docs)]
 #![allow(non_snake_case)]
-#![feature(async_fn_in_trait)]
 
 mod utils;
 
