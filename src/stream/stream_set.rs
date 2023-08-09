@@ -28,34 +28,34 @@ pub struct StreamSet<S> {
 
 impl<T: Debug> Debug for StreamSet<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FutureSet").field("slab", &"[..]").finish()
+        f.debug_struct("StreamSet").field("slab", &"[..]").finish()
     }
 }
 
 impl<S> StreamSet<S> {
-    /// Create a new instance of `FutureSet`.
+    /// Create a new instance of `StreamSet`.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use futures_concurrency::future::FutureSet;
+    /// use futures_concurrency::stream::StreamSet;
     ///
-    /// let set = FutureSet::new();
-    /// # let set: FutureSet<usize> = set;
+    /// let set = StreamSet::new();
+    /// # let set: StreamSet<usize> = set;
     /// ```
     pub fn new() -> Self {
         Self::with_capacity(0)
     }
 
-    /// Create a new instance of `FutureSet` with a given capacity.
+    /// Create a new instance of `StreamSet` with a given capacity.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use futures_concurrency::future::FutureSet;
+    /// use futures_concurrency::stream::StreamSet;
     ///
-    /// let set = FutureSet::with_capacity(2);
-    /// # let set: FutureSet<usize> = set;
+    /// let set = StreamSet::with_capacity(2);
+    /// # let set: StreamSet<usize> = set;
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -68,11 +68,12 @@ impl<S> StreamSet<S> {
     /// # Example
     ///
     /// ```rust
-    /// use futures_concurrency::future::FutureSet;
+    /// use futures_concurrency::stream::StreamSet;
+    /// use futures_lite::stream;
     ///
-    /// let mut set = FutureSet::with_capacity(2);
+    /// let mut set = StreamSet::with_capacity(2);
     /// assert_eq!(set.len(), 0);
-    /// set.insert(async { 12 });
+    /// set.insert(stream::once(async { 12 }));
     /// assert_eq!(set.len(), 1);
     /// ```
     pub fn len(&self) -> usize {
@@ -84,11 +85,12 @@ impl<S> StreamSet<S> {
     /// # Example
     ///
     /// ```rust
-    /// use futures_concurrency::future::FutureSet;
+    /// use futures_concurrency::stream::StreamSet;
+    /// use futures_lite::stream;
     ///
-    /// let mut set = FutureSet::with_capacity(2);
+    /// let mut set = StreamSet::with_capacity(2);
     /// assert!(set.is_empty());
-    /// set.insert(async { 12 });
+    /// set.insert(stream::once(async { 12 }));
     /// assert!(!set.is_empty());
     /// ```
     pub fn is_empty(&self) -> bool {
@@ -100,10 +102,11 @@ impl<S> StreamSet<S> {
     /// # Example
     ///
     /// ```rust
-    /// use futures_concurrency::future::FutureSet;
+    /// use futures_concurrency::stream::StreamSet;
+    /// use futures_lite::stream;
     ///
-    /// let mut set = FutureSet::with_capacity(2);
-    /// set.insert(async { 12 });
+    /// let mut set = StreamSet::with_capacity(2);
+    /// set.insert(stream::once(async { 12 }));
     /// ```
     pub fn insert(&mut self, stream: S)
     where
