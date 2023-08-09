@@ -5,6 +5,8 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::Poll;
 
+use crate::utils::iter_pin_mut_slab;
+
 /// A dynamic set of futures.
 ///
 /// # Example
@@ -12,11 +14,12 @@ use std::task::Poll;
 /// ```rust
 /// use futures_concurrency::future::FutureSet;
 /// use futures_lite::StreamExt;
+/// use std::future;
 ///
 /// # futures_lite::future::block_on(async {
 /// let mut set = FutureSet::new();
-/// set.insert(async { 5 });
-/// set.insert(async { 7 });
+/// set.insert(future::ready(5));
+/// set.insert(future::ready(7));
 ///
 /// let mut out = 0;
 /// while let Some(num) = set.next().await {
@@ -28,18 +31,18 @@ use std::task::Poll;
 #[must_use = "`FutureSet` does nothing if not iterated over"]
 #[derive(Default)]
 #[pin_project::pin_project]
-pub struct FutureSet<T> {
+pub struct FutureSet<Fut> {
     #[pin]
-    futures: Slab<Pin<Box<dyn Future<Output = T>>>>,
+    futures: Slab<Fut>,
 }
 
-impl<T: Debug> Debug for FutureSet<T> {
+impl<Fut: Debug> Debug for FutureSet<Fut> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FutureSet").field("slab", &"[..]").finish()
     }
 }
 
-impl<T> FutureSet<T> {
+impl<Fut> FutureSet<Fut> {
     /// Create a new instance of `FutureSet`.
     ///
     /// # Example
@@ -112,36 +115,44 @@ impl<T> FutureSet<T> {
     /// let mut set = FutureSet::with_capacity(2);
     /// set.insert(async { 12 });
     /// ```
-    pub fn insert<Fut>(&mut self, fut: Fut)
-    where
-        Fut: Future<Output = T> + 'static,
-    {
-        self.futures.insert(Box::pin(fut));
+    pub fn insert(&mut self, fut: Fut) {
+        self.futures.insert(fut);
     }
 }
-impl<T> Stream for FutureSet<T> {
-    type Item = T;
+impl<Fut: Future> Stream for FutureSet<Fut> {
+    type Item = <Fut as Future>::Output;
 
     fn poll_next(
         self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
+
         // Short-circuit if we have no futures to iterate over
         if this.futures.is_empty() {
             return Poll::Ready(None);
         }
-        for (index, future) in this.futures.iter_mut() {
-            match Pin::new(future).poll(cx) {
+
+        let mut ret = Poll::Pending;
+        let mut remove_idx = None;
+        for (index, future) in iter_pin_mut_slab(this.futures.as_mut()) {
+            match future.poll(cx) {
                 std::task::Poll::Ready(item) => {
                     // A future resolved. Remove it from the set, and return its value.
-                    this.futures.remove(index);
-                    return Poll::Ready(Some(item));
+                    ret = Poll::Ready(Some(item));
+                    remove_idx = Some(index);
+                    break;
                 }
                 std::task::Poll::Pending => continue,
             };
         }
-        Poll::Pending
+        if let Some(idx) = remove_idx {
+            // SAFETY: we're accessing the internal `futures` store
+            // only to drop the future.
+            let futures = unsafe { this.futures.as_mut().get_unchecked_mut() };
+            futures.remove(idx);
+        }
+        ret
     }
 }
 
@@ -150,14 +161,14 @@ mod test {
     use super::FutureSet;
     // use async_iterator::LendingIterator;
     use futures_lite::prelude::*;
-    // use std::pin::Pin;
+    use std::pin::Pin;
 
     #[test]
     fn smoke() {
         futures_lite::future::block_on(async {
-            let mut set = FutureSet::new();
-            set.insert(async { 1 + 1 });
-            set.insert(async { 2 + 2 });
+            let mut set: FutureSet<Pin<Box<dyn Future<Output = usize>>>> = FutureSet::new();
+            set.insert(Box::pin(async { 1 + 1 }));
+            set.insert(Box::pin(async { 2 + 2 }));
 
             let mut out = 0;
             while let Some(num) = set.next().await {
