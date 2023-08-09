@@ -51,10 +51,12 @@ pub use chain::Chain;
 pub use into_stream::IntoStream;
 pub use merge::Merge;
 pub use stream_ext::StreamExt;
+pub use stream_set::StreamSet;
 pub use zip::Zip;
 
 pub(crate) mod chain;
 mod into_stream;
 pub(crate) mod merge;
 mod stream_ext;
+mod stream_set;
 pub(crate) mod zip;
