@@ -131,7 +131,7 @@ impl<S> StreamSet<S> {
     {
         for i in 0..self.streams.len() {
             if self.streams[i].borrow() == k {
-                Some(self.streams.remove(i));
+                self.streams.remove(i);
                 return true;
             }
         }
