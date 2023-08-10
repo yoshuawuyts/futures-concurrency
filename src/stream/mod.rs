@@ -51,12 +51,15 @@ pub use chain::Chain;
 pub use into_stream::IntoStream;
 pub use merge::Merge;
 pub use stream_ext::StreamExt;
+#[doc(inline)]
 pub use stream_group::StreamGroup;
 pub use zip::Zip;
+
+/// A growable group of streams which act as a single unit.
+pub mod stream_group;
 
 pub(crate) mod chain;
 mod into_stream;
 pub(crate) mod merge;
 mod stream_ext;
-mod stream_group;
 pub(crate) mod zip;

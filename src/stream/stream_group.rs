@@ -1,12 +1,18 @@
 use futures_core::Stream;
 use slab::Slab;
 use std::fmt::{self, Debug};
+use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::Poll;
 
 use crate::utils::iter_pin_mut_slab;
 
 /// A growable group of streams which act as a single unit.
+///
+/// In order go mutate the group during iteration, the stream should be
+/// combined with a mechanism such as
+/// [`lend_mut`](https://docs.rs/async-iterator/latest/async_iterator/trait.Iterator.html#method.lend_mut).
+/// This is not yet provided by the `futures-concurrency` crate.
 ///
 /// # Example
 ///
@@ -20,7 +26,7 @@ use crate::utils::iter_pin_mut_slab;
 /// group.insert(stream::once(4));
 ///
 /// let mut out = 0;
-/// while let Some((_key, num)) = group.next().await {
+/// while let Some(num) = group.next().await {
 ///     out += num;
 /// }
 /// assert_eq!(out, 6);
@@ -144,24 +150,62 @@ impl<S> StreamGroup<S> {
     /// # })
     /// ```
     pub fn remove(&mut self, key: Key) -> bool {
-        match self.streams.try_remove(key.0) {
-            Some(_) => true,
-            None => false,
-        }
+        self.streams.try_remove(key.0).is_some()
+    }
+
+    /// Returns `true` if the `StreamGroup` contains a value for the specified key.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use futures_lite::stream;
+    /// use futures_concurrency::stream::StreamGroup;
+    ///
+    /// # futures_lite::future::block_on(async {
+    /// let mut group = StreamGroup::new();
+    /// let key = group.insert(stream::once(4));
+    /// assert!(group.contains_key(key));
+    /// group.remove(key);
+    /// assert!(!group.contains_key(key));
+    /// # })
+    /// ```
+    pub fn contains_key(&mut self, key: Key) -> bool {
+        self.streams.contains(key.0)
     }
 }
 
-/// A key used to index into the `StreamGroup` type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Key(usize);
+impl<S: Stream> StreamGroup<S> {
+    /// Create a stream which also yields the key of each item.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use futures_concurrency::stream::StreamGroup;
+    /// use futures_lite::{stream, StreamExt};
+    ///
+    /// # futures_lite::future::block_on(async {
+    /// let mut group = StreamGroup::new();
+    /// group.insert(stream::once(2));
+    /// group.insert(stream::once(4));
+    ///
+    /// let mut out = 0;
+    /// let mut group = group.keyed();
+    /// while let Some((_key, num)) = group.next().await {
+    ///     out += num;
+    /// }
+    /// assert_eq!(out, 6);
+    /// # });
+    /// ```
+    pub fn keyed(self) -> Keyed<S> {
+        Keyed { group: self }
+    }
+}
 
-impl<S: Stream> Stream for StreamGroup<S> {
-    type Item = (Key, <S as Stream>::Item);
-
-    fn poll_next(
+impl<S: Stream> StreamGroup<S> {
+    fn poll_next_inner(
         self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    ) -> Poll<Option<(Key, <S as Stream>::Item)>> {
         let mut this = self.project();
 
         // Short-circuit if we have no streams to iterate over
@@ -210,6 +254,60 @@ impl<S: Stream> Stream for StreamGroup<S> {
     }
 }
 
+impl<S: Stream> Stream for StreamGroup<S> {
+    type Item = <S as Stream>::Item;
+
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        // let this = self.project();
+        match self.poll_next_inner(cx) {
+            Poll::Ready(Some((_key, item))) => Poll::Ready(Some(item)),
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+/// A key used to index into the `StreamGroup` type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Key(usize);
+
+/// Iterate over items in the stream group with their associated keys.
+#[derive(Debug)]
+#[pin_project::pin_project]
+pub struct Keyed<S: Stream> {
+    #[pin]
+    group: StreamGroup<S>,
+}
+
+impl<S: Stream> Deref for Keyed<S> {
+    type Target = StreamGroup<S>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.group
+    }
+}
+
+impl<S: Stream> DerefMut for Keyed<S> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.group
+    }
+}
+
+impl<S: Stream> Stream for Keyed<S> {
+    type Item = (Key, <S as Stream>::Item);
+
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        this.group.as_mut().poll_next_inner(cx)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::StreamGroup;
@@ -223,7 +321,7 @@ mod test {
             group.insert(stream::once(4));
 
             let mut out = 0;
-            while let Some((_key, num)) = group.next().await {
+            while let Some(num) = group.next().await {
                 out += num;
             }
             assert_eq!(out, 6);
