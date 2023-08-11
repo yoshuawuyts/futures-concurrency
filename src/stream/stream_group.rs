@@ -1,11 +1,13 @@
 use futures_core::Stream;
 use slab::Slab;
+use smallvec::{smallvec, SmallVec};
+use std::collections::BTreeSet;
 use std::fmt::{self, Debug};
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use crate::utils::{iter_pin_mut_slab, PollState, PollVec, WakerVec};
+use crate::utils::{PollState, PollVec, WakerVec};
 
 /// A growable group of streams which act as a single unit.
 ///
@@ -40,6 +42,8 @@ pub struct StreamGroup<S> {
     streams: Slab<S>,
     wakers: WakerVec,
     states: PollVec,
+    keys: BTreeSet<usize>,
+    key_removal_queue: SmallVec<[usize; 10]>,
 }
 
 impl<T: Debug> Debug for StreamGroup<T> {
@@ -80,6 +84,8 @@ impl<S> StreamGroup<S> {
             streams: Slab::with_capacity(capacity),
             wakers: WakerVec::new(capacity),
             states: PollVec::new(capacity),
+            keys: BTreeSet::new(),
+            key_removal_queue: smallvec![],
         }
     }
 
@@ -149,6 +155,7 @@ impl<S> StreamGroup<S> {
         S: Stream,
     {
         let index = self.streams.insert(stream);
+        self.keys.insert(index);
         let key = Key(index);
 
         // If our slab allocated more space we need to
@@ -181,7 +188,12 @@ impl<S> StreamGroup<S> {
     /// # })
     /// ```
     pub fn remove(&mut self, key: Key) -> bool {
-        self.streams.try_remove(key.0).is_some()
+        let is_present = self.keys.remove(&key.0);
+        if is_present {
+            self.states[key.0].set_none();
+            self.streams.remove(key.0);
+        }
+        is_present
     }
 
     /// Returns `true` if the `StreamGroup` contains a value for the specified key.
@@ -201,7 +213,7 @@ impl<S> StreamGroup<S> {
     /// # })
     /// ```
     pub fn contains_key(&mut self, key: Key) -> bool {
-        self.streams.contains(key.0)
+        self.keys.contains(&key.0)
     }
 }
 
@@ -258,13 +270,21 @@ impl<S: Stream> StreamGroup<S> {
         let stream_count = this.streams.len();
         let states = this.states;
 
-        for (index, stream) in iter_pin_mut_slab(this.streams.as_mut()) {
+        // SAFETY: We unpin the stream set so we can later individually access
+        // single streams. Either to read from them or to drop them.
+        let streams = unsafe { this.streams.as_mut().get_unchecked_mut() };
+
+        for index in this.keys.iter().cloned() {
             if states[index].is_pending() && readiness.clear_ready(index) {
                 // unlock readiness so we don't deadlock when polling
                 drop(readiness);
 
                 // Obtain the intermediate waker.
                 let mut cx = Context::from_waker(this.wakers.get(index).unwrap());
+
+                // SAFETY: this stream here is a projection from the streams
+                // vec, which we're reading from.
+                let stream = unsafe { Pin::new_unchecked(&mut streams[index]) };
                 match stream.poll_next(&mut cx) {
                     Poll::Ready(Some(item)) => {
                         // Set the return type for the function
@@ -279,9 +299,14 @@ impl<S: Stream> StreamGroup<S> {
                         break;
                     }
                     Poll::Ready(None) => {
-                        // The stream ended, remove the item.
-                        states[index] = PollState::Consumed;
+                        // A stream has ended, make note of that
                         done_count += 1;
+
+                        // Remove all associated data about the stream.
+                        // The only data we can't remove directly is the key entry.
+                        states[index] = PollState::None;
+                        streams.remove(index);
+                        this.key_removal_queue.push(index);
                     }
                     // Keep looping if there is nothing for us to do
                     Poll::Pending => {}
@@ -292,18 +317,13 @@ impl<S: Stream> StreamGroup<S> {
             }
         }
 
-        // Remove all indexes we just flagged as ready for removal
-        for (index, state) in states.iter_mut().enumerate() {
-            if state.is_consumed() {
-                // Reset the state back to pending so we can reuse the state
-                // slot for a next future.
-                state.set_none();
-
-                // SAFETY: we're accessing the internal `streams` store
-                // only to drop the stream.
-                let streams = unsafe { this.streams.as_mut().get_unchecked_mut() };
-                streams.remove(index);
+        // Now that we're no longer borrowing `this.keys` we can loop over
+        // which items we need to remove
+        if !this.key_removal_queue.is_empty() {
+            for key in this.key_removal_queue.iter() {
+                this.keys.remove(key);
             }
+            this.key_removal_queue.clear();
         }
 
         // If all streams turned up with `Poll::Ready(None)` our
@@ -335,11 +355,7 @@ impl<S: Stream> FromIterator<S> for StreamGroup<S> {
     fn from_iter<T: IntoIterator<Item = S>>(iter: T) -> Self {
         let iter = iter.into_iter();
         let len = iter.size_hint().1.unwrap_or_default();
-        let mut this = Self {
-            streams: Slab::with_capacity(len),
-            wakers: WakerVec::new(len),
-            states: PollVec::new(len),
-        };
+        let mut this = Self::with_capacity(len);
         for stream in iter {
             this.insert(stream);
         }
