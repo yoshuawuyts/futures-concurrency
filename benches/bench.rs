@@ -11,13 +11,16 @@ mod merge {
     use futures_lite::future::block_on;
     use futures_lite::prelude::*;
 
+    use crate::utils::{make_select_all, make_stream_group};
+
     use super::utils::{streams_array, streams_tuple, streams_vec};
 
     criterion_group!(
         merge_benches,
         vec_merge_bench,
         array_merge_bench,
-        tuple_merge_bench
+        tuple_merge_bench,
+        stream_set_bench
     );
 
     fn vec_merge_bench(c: &mut Criterion) {
@@ -53,11 +56,56 @@ mod merge {
         });
     }
 
+    fn stream_set_bench(c: &mut Criterion) {
+        c.bench_function("stream_group::StreamGroup 10", |b| {
+            b.to_async(FuturesExecutor)
+                .iter(|| stream_group(black_box(10)))
+        });
+        c.bench_function("stream_group::StreamGroup 100", |b| {
+            b.to_async(FuturesExecutor)
+                .iter(|| stream_group(black_box(100)))
+        });
+        c.bench_function("stream_group::StreamGroup 1000", |b| {
+            b.to_async(FuturesExecutor)
+                .iter(|| stream_group(black_box(1000)))
+        });
+        c.bench_function("stream_group::futures_rs::SelectAll 10", |b| {
+            b.to_async(FuturesExecutor)
+                .iter(|| select_all(black_box(10)))
+        });
+        c.bench_function("stream_group::futures_rs::SelectAll 100", |b| {
+            b.to_async(FuturesExecutor)
+                .iter(|| select_all(black_box(100)))
+        });
+        c.bench_function("stream_group::futures_rs::SelectAll 1000", |b| {
+            b.to_async(FuturesExecutor)
+                .iter(|| select_all(black_box(1000)))
+        });
+    }
+
     async fn vec_merge(max: usize) {
         let mut counter = 0;
         let streams = streams_vec(max);
         let mut s = streams.merge();
         while s.next().await.is_some() {
+            counter += 1;
+        }
+        assert_eq!(counter, max);
+    }
+
+    async fn stream_group(max: usize) {
+        let mut counter = 0;
+        let mut group = make_stream_group(max);
+        while group.next().await.is_some() {
+            counter += 1;
+        }
+        assert_eq!(counter, max);
+    }
+
+    async fn select_all(max: usize) {
+        let mut counter = 0;
+        let mut group = make_select_all(max);
+        while group.next().await.is_some() {
             counter += 1;
         }
         assert_eq!(counter, max);

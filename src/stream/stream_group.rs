@@ -346,6 +346,22 @@ impl<S: Stream> Stream for StreamGroup<S> {
     }
 }
 
+impl<S: Stream> FromIterator<S> for StreamGroup<S> {
+    fn from_iter<T: IntoIterator<Item = S>>(iter: T) -> Self {
+        let iter = iter.into_iter();
+        let len = iter.size_hint().1.unwrap_or_default();
+        let mut this = Self {
+            streams: Slab::with_capacity(len),
+            wakers: WakerVec::new(len),
+            states: PollVec::new(len),
+        };
+        for stream in iter {
+            this.insert(stream);
+        }
+        this
+    }
+}
+
 /// A key used to index into the `StreamGroup` type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Key(usize);

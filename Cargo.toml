@@ -13,6 +13,9 @@ authors = [
     "Yoshua Wuyts <yoshuawuyts@gmail.com>"
 ]
 
+[profile.bench]
+debug = true
+
 [lib]
 bench = false
 
