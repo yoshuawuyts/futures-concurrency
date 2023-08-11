@@ -9,7 +9,7 @@ pub(crate) enum PollState {
     /// read.
     Ready,
     /// The underlying future or stream has finished yielding data and all data
-    /// has been read. We can now stop reasoning about it.
+    /// has been read.
     Consumed,
 }
 
@@ -28,17 +28,23 @@ impl PollState {
         matches!(self, Self::Ready)
     }
 
+    /// Returns `true` if the poll state is [`Consumed`][Self::Consumed].
+    #[must_use]
+    #[inline]
+    pub(crate) fn is_consumed(&self) -> bool {
+        matches!(self, Self::Consumed)
+    }
+
     /// Sets the poll state to [`Ready`][Self::Ready].
     #[inline]
     pub(crate) fn set_ready(&mut self) {
         *self = PollState::Ready;
     }
 
-    /// Returns `true` if the poll state is [`Consumed`][Self::Consumed].
-    #[must_use]
+    /// Sets the poll state to [`Ready`][Self::Pending].
     #[inline]
-    pub(crate) fn is_consumed(&self) -> bool {
-        matches!(self, Self::Consumed)
+    pub(crate) fn set_pending(&mut self) {
+        *self = PollState::Pending;
     }
 
     /// Sets the poll state to [`Consumed`][Self::Consumed].

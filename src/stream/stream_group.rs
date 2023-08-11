@@ -3,9 +3,9 @@ use slab::Slab;
 use std::fmt::{self, Debug};
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
-use std::task::Poll;
+use std::task::{Context, Poll};
 
-use crate::utils::iter_pin_mut_slab;
+use crate::utils::{iter_pin_mut_slab, PollState, PollVec, WakerVec};
 
 /// A growable group of streams which act as a single unit.
 ///
@@ -38,6 +38,8 @@ use crate::utils::iter_pin_mut_slab;
 pub struct StreamGroup<S> {
     #[pin]
     streams: Slab<S>,
+    wakers: WakerVec,
+    states: PollVec,
 }
 
 impl<T: Debug> Debug for StreamGroup<T> {
@@ -76,6 +78,8 @@ impl<S> StreamGroup<S> {
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             streams: Slab::with_capacity(capacity),
+            wakers: WakerVec::new(capacity),
+            states: PollVec::new(capacity),
         }
     }
 
@@ -94,6 +98,22 @@ impl<S> StreamGroup<S> {
     /// ```
     pub fn len(&self) -> usize {
         self.streams.len()
+    }
+
+    /// Return the capacity of the `StreamGroup`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use futures_concurrency::stream::StreamGroup;
+    /// use futures_lite::stream;
+    ///
+    /// let group = StreamGroup::with_capacity(2);
+    /// assert_eq!(group.capacity(), 2);
+    /// # let group: StreamGroup<usize> = group;
+    /// ```
+    pub fn capacity(&self) -> usize {
+        self.streams.capacity()
     }
 
     /// Returns true if there are no futures currently active in the group.
@@ -129,7 +149,15 @@ impl<S> StreamGroup<S> {
         S: Stream,
     {
         let index = self.streams.insert(stream);
-        Key(index)
+        let key = Key(index);
+
+        // If our slab allocated more space we need to
+        // update our tracking structures along with it.
+        let max_len = self.capacity().max(index);
+        self.wakers.resize(max_len);
+        self.states.resize(max_len);
+
+        key
     }
 
     /// Removes a stream from the group. Returns whether the value was present in
@@ -213,40 +241,64 @@ impl<S: Stream> StreamGroup<S> {
             return Poll::Ready(None);
         }
 
+        // Set the top-level waker and check readiness
+        let mut readiness = this.wakers.readiness().lock().unwrap();
+        readiness.set_waker(cx.waker());
+        if !readiness.any_ready() {
+            // Nothing is ready yet
+            return Poll::Pending;
+        }
+
         // NOTE(yosh): lol, this is so bad
         // we should replace this with a proper `Wakergroup`
-        let mut remove_idx = vec![];
         let mut ret = Poll::Pending;
-        let total = this.streams.len();
-        let mut empty = 0;
+        let stream_count = this.streams.len();
+        let mut done_count = 0;
+
+        let states = this.states;
 
         for (index, stream) in iter_pin_mut_slab(this.streams.as_mut()) {
-            match stream.poll_next(cx) {
-                Poll::Ready(Some(item)) => {
-                    ret = Poll::Ready(Some((Key(index), item)));
-                    break;
-                }
-                Poll::Ready(None) => {
-                    // The stream ended, remove the item.
-                    remove_idx.push(index);
-                    empty += 1;
-                    continue;
-                }
-                Poll::Pending => continue,
-            };
+            if states[index].is_pending() && readiness.clear_ready(index) {
+                // unlock readiness so we don't deadlock when polling
+                drop(readiness);
+
+                // Obtain the intermediate waker.
+                let mut cx = Context::from_waker(this.wakers.get(index).unwrap());
+                match stream.poll_next(&mut cx) {
+                    Poll::Ready(Some(item)) => {
+                        ret = Poll::Ready(Some((Key(index), item)));
+                        break;
+                    }
+                    Poll::Ready(None) => {
+                        // The stream ended, remove the item.
+                        states[index] = PollState::Consumed;
+                        done_count += 1;
+                    }
+                    Poll::Pending => {}
+                };
+
+                // Lock readiness so we can use it again
+                readiness = this.wakers.readiness().lock().unwrap();
+            }
         }
 
         // Remove all indexes we just flagged as ready for removal
-        for idx in remove_idx {
-            // SAFETY: we're accessing the internal `streams` store
-            // only to drop the stream.
-            let streams = unsafe { this.streams.as_mut().get_unchecked_mut() };
-            streams.remove(idx);
+        for (index, state) in states.iter_mut().enumerate() {
+            if state.is_consumed() {
+                // Reset the state back to pending so we can reuse the state
+                // slot for a next future.
+                state.set_unused();
+
+                // SAFETY: we're accessing the internal `streams` store
+                // only to drop the stream.
+                let streams = unsafe { this.streams.as_mut().get_unchecked_mut() };
+                streams.remove(index);
+            }
         }
 
         // If all streams turned up with `Poll::Ready(None)` our
         // stream should return that
-        if empty == total {
+        if done_count == stream_count {
             ret = Poll::Ready(None);
         }
 

@@ -1,3 +1,4 @@
+use smallvec::{smallvec, SmallVec};
 use std::ops::{Deref, DerefMut};
 
 use super::PollState;
@@ -5,7 +6,7 @@ use super::PollState;
 /// The maximum number of entries that `PollStates` can store without
 /// dynamic memory allocation.
 ///
-/// The `Boxed` variant is the minimum size the data structure can have.
+/// The heap variant is the minimum size the data structure can have.
 /// It consists of a boxed slice (=2 usizes) and space for the enum
 /// tag (another usize because of padding), so 3 usizes.
 /// The inline variant then consists of `3 * size_of(usize) - 2` entries.
@@ -25,28 +26,12 @@ use super::PollState;
 /// ```
 const MAX_INLINE_ENTRIES: usize = std::mem::size_of::<usize>() * 3 - 2;
 
-pub(crate) enum PollVec {
-    Inline(u8, [PollState; MAX_INLINE_ENTRIES]),
-    Boxed(Box<[PollState]>),
-}
+#[derive(Default)]
+pub(crate) struct PollVec(SmallVec<[PollState; MAX_INLINE_ENTRIES]>);
 
 impl PollVec {
     pub(crate) fn new(len: usize) -> Self {
-        assert!(MAX_INLINE_ENTRIES <= u8::MAX as usize);
-
-        if len <= MAX_INLINE_ENTRIES {
-            Self::Inline(len as u8, Default::default())
-        } else {
-            // Make sure that we don't reallocate the vec's memory
-            // during `Vec::into_boxed_slice()`.
-            let mut states = Vec::new();
-            debug_assert_eq!(states.capacity(), 0);
-            states.reserve_exact(len);
-            debug_assert_eq!(states.capacity(), len);
-            states.resize(len, PollState::default());
-            debug_assert_eq!(states.capacity(), len);
-            Self::Boxed(states.into_boxed_slice())
-        }
+        Self(smallvec![PollState::default(); len])
     }
 
     /// Get an iterator of indexes of all items which are "ready".
@@ -67,25 +52,34 @@ impl PollVec {
             .filter(|(_, state)| state.is_pending())
             .map(|(i, _)| i)
     }
+
+    /// Get an iterator of indexes of all items which are "consumed".
+    #[allow(unused)]
+    pub(crate) fn consumed_indexes(&self) -> impl Iterator<Item = usize> + '_ {
+        self.iter()
+            .cloned()
+            .enumerate()
+            .filter(|(_, state)| state.is_consumed())
+            .map(|(i, _)| i)
+    }
+
+    /// Resize the `PollVec`
+    pub(crate) fn resize(&mut self, len: usize) {
+        self.0.resize_with(len, || PollState::default())
+    }
 }
 
 impl Deref for PollVec {
     type Target = [PollState];
 
     fn deref(&self) -> &Self::Target {
-        match self {
-            PollVec::Inline(len, states) => &states[..*len as usize],
-            Self::Boxed(states) => &states[..],
-        }
+        &self.0
     }
 }
 
 impl DerefMut for PollVec {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        match self {
-            PollVec::Inline(len, states) => &mut states[..*len as usize],
-            Self::Boxed(states) => &mut states[..],
-        }
+        &mut self.0
     }
 }
 
@@ -95,9 +89,10 @@ mod tests {
 
     #[test]
     fn type_size() {
+        // PollVec is three words plus two bits
         assert_eq!(
             std::mem::size_of::<PollVec>(),
-            std::mem::size_of::<usize>() * 3
+            std::mem::size_of::<usize>() * 4
         );
     }
 

@@ -4,7 +4,7 @@ use std::task::Waker;
 #[derive(Debug)]
 pub(crate) struct ReadinessArray<const N: usize> {
     count: usize,
-    ready: [bool; N],
+    readiness_list: [bool; N],
     parent_waker: Option<Waker>,
 }
 
@@ -13,16 +13,16 @@ impl<const N: usize> ReadinessArray<N> {
     pub(crate) fn new() -> Self {
         Self {
             count: N,
-            ready: [true; N], // TODO: use a bitarray instead
+            readiness_list: [true; N], // TODO: use a bitarray instead
             parent_waker: None,
         }
     }
 
     /// Returns the old ready state for this id
     pub(crate) fn set_ready(&mut self, id: usize) -> bool {
-        if !self.ready[id] {
+        if !self.readiness_list[id] {
             self.count += 1;
-            self.ready[id] = true;
+            self.readiness_list[id] = true;
 
             false
         } else {
@@ -32,15 +32,15 @@ impl<const N: usize> ReadinessArray<N> {
 
     /// Set all markers to ready.
     pub(crate) fn set_all_ready(&mut self) {
-        self.ready.fill(true);
+        self.readiness_list.fill(true);
         self.count = N;
     }
 
     /// Returns whether the task id was previously ready
     pub(crate) fn clear_ready(&mut self, id: usize) -> bool {
-        if self.ready[id] {
+        if self.readiness_list[id] {
             self.count -= 1;
-            self.ready[id] = false;
+            self.readiness_list[id] = false;
 
             true
         } else {

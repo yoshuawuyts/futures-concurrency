@@ -10,6 +10,12 @@ pub(crate) struct WakerVec {
     readiness: Arc<Mutex<ReadinessVec>>,
 }
 
+impl Default for WakerVec {
+    fn default() -> Self {
+        Self::new(0)
+    }
+}
+
 impl WakerVec {
     /// Create a new instance of `WakerVec`.
     pub(crate) fn new(len: usize) -> Self {
@@ -27,5 +33,21 @@ impl WakerVec {
     /// Access the `Readiness`.
     pub(crate) fn readiness(&self) -> &Mutex<ReadinessVec> {
         self.readiness.as_ref()
+    }
+
+    /// Resize the `WakerVec` to the new size.
+    pub(crate) fn resize(&mut self, len: usize) {
+        // If we grow the vec we'll need to extend beyond the current index.
+        // Which means the first position is the current length, and every position
+        // beyond that is incremented by 1.
+        let mut index = self.wakers.len();
+        self.wakers.resize_with(len, || {
+            let ret = Arc::new(InlineWakerVec::new(index, self.readiness.clone())).into();
+            index += 1;
+            ret
+        });
+
+        let mut readiness = self.readiness.lock().unwrap();
+        readiness.resize(len);
     }
 }
