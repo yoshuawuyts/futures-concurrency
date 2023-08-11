@@ -37,7 +37,7 @@ where
             streams,
             indexer: Indexer::new(N),
             wakers: WakerArray::new(),
-            state: PollArray::new(),
+            state: PollArray::new_pending(),
             complete: 0,
             done: false,
         }

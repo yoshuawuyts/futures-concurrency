@@ -175,7 +175,7 @@ macro_rules! impl_merge_tuple {
                     streams: $mod_name::Streams { $($F: $F.into_stream()),+ },
                     indexer: utils::Indexer::new(utils::tuple_len!($($F,)*)),
                     wakers: WakerArray::new(),
-                    state: PollArray::new(),
+                    state: PollArray::new_pending(),
                     completed: 0,
                 }
             }

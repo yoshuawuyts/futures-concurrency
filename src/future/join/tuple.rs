@@ -267,7 +267,7 @@ macro_rules! impl_join_tuple {
                 let ($($F,)+): ($($F,)+) = self;
                 $StructName {
                     futures: $mod_name::Futures {$($F: ManuallyDrop::new($F.into_future()),)+},
-                    state: PollArray::new(),
+                    state: PollArray::new_pending(),
                     outputs: ($(MaybeUninit::<$F::Output>::uninit(),)+),
                     wakers: WakerArray::new(),
                     completed: 0,

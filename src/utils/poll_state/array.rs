@@ -7,9 +7,18 @@ pub(crate) struct PollArray<const N: usize> {
 }
 
 impl<const N: usize> PollArray<N> {
+    /// Create a new `PollArray` with all state marked as `None`
+    #[allow(unused)]
     pub(crate) fn new() -> Self {
         Self {
-            state: [PollState::default(); N],
+            state: [PollState::None; N],
+        }
+    }
+
+    /// Create a new `PollArray` with all state marked as `Pending`
+    pub(crate) fn new_pending() -> Self {
+        Self {
+            state: [PollState::Pending; N],
         }
     }
 
@@ -23,6 +32,19 @@ impl<const N: usize> PollArray<N> {
             );
             state.set_consumed();
         })
+    }
+
+    /// Mark all items as "pending"
+    #[inline]
+    pub(crate) fn set_all_pending(&mut self) {
+        self.fill(PollState::Pending);
+    }
+
+    /// Mark all items as "none"
+    #[inline]
+    #[allow(unused)]
+    pub(crate) fn set_all_none(&mut self) {
+        self.fill(PollState::None);
     }
 
     /// Get an iterator of indexes of all items which are "ready".

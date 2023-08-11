@@ -50,7 +50,7 @@ where
             pending: N,
             items: OutputArray::uninit(),
             wakers: WakerArray::new(),
-            state: PollArray::new(),
+            state: PollArray::new_pending(),
             futures: FutureArray::new(futures),
         }
     }

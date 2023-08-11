@@ -36,7 +36,7 @@ where
         let len = streams.len();
         Self {
             wakers: WakerVec::new(len),
-            state: PollVec::new(len),
+            state: PollVec::new_pending(len),
             indexer: Indexer::new(len),
             streams,
             complete: 0,

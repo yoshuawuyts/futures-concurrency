@@ -72,7 +72,7 @@ macro_rules! impl_race_ok_tuple {
                     done: false,
                     indexer: utils::Indexer::new($StructName),
                     errors: array::from_fn(|_| MaybeUninit::uninit()),
-                    errors_states: PollArray::new(),
+                    errors_states: PollArray::new_pending(),
                     $($F: $F.into_future()),*
                 }
             }

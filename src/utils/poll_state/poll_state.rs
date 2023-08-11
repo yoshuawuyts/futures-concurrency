@@ -1,9 +1,10 @@
 /// Enumerate the current poll state.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub(crate) enum PollState {
-    /// Polling the underlying future or stream.
-    #[default]
+    /// No associated future or stream.
+    None,
+    /// Polling the associated future or stream.
     Pending,
     /// Data has been written to the output structure, and is now ready to be
     /// read.
@@ -14,6 +15,14 @@ pub(crate) enum PollState {
 }
 
 impl PollState {
+    /// Returns `true` if the metadata is [`None`][Self::None].
+    #[must_use]
+    #[inline]
+    #[allow(unused)]
+    pub(crate) fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
     /// Returns `true` if the metadata is [`Pending`][Self::Pending].
     #[must_use]
     #[inline]
@@ -35,6 +44,12 @@ impl PollState {
         matches!(self, Self::Consumed)
     }
 
+    /// Sets the poll state to [`None`][Self::None].
+    #[inline]
+    pub(crate) fn set_none(&mut self) {
+        *self = PollState::None;
+    }
+
     /// Sets the poll state to [`Ready`][Self::Ready].
     #[inline]
     pub(crate) fn set_ready(&mut self) {
@@ -43,6 +58,7 @@ impl PollState {
 
     /// Sets the poll state to [`Ready`][Self::Pending].
     #[inline]
+    #[allow(unused)]
     pub(crate) fn set_pending(&mut self) {
         *self = PollState::Pending;
     }

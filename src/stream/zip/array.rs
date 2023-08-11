@@ -1,6 +1,6 @@
 use super::Zip as ZipTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, PollArray, PollState, WakerArray};
+use crate::utils::{self, PollArray, WakerArray};
 
 use core::array;
 use core::fmt;
@@ -40,7 +40,7 @@ where
         Self {
             streams,
             output: array::from_fn(|_| MaybeUninit::uninit()),
-            state: PollArray::new(),
+            state: PollArray::new_pending(),
             wakers: WakerArray::new(),
             done: false,
         }
@@ -96,7 +96,7 @@ where
                         // Reset the future's state.
                         readiness = this.wakers.readiness().lock().unwrap();
                         readiness.set_all_ready();
-                        this.state.fill_with(PollState::default);
+                        this.state.set_all_pending();
 
                         // Take the output
                         //

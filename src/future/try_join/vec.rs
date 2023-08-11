@@ -51,7 +51,7 @@ where
             pending: len,
             items: OutputVec::uninit(len),
             wakers: WakerVec::new(len),
-            state: PollVec::new(len),
+            state: PollVec::new_pending(len),
             futures: FutureVec::new(futures),
         }
     }

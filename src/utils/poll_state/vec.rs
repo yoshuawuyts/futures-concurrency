@@ -31,7 +31,11 @@ pub(crate) struct PollVec(SmallVec<[PollState; MAX_INLINE_ENTRIES]>);
 
 impl PollVec {
     pub(crate) fn new(len: usize) -> Self {
-        Self(smallvec![PollState::default(); len])
+        Self(smallvec![PollState::None; len])
+    }
+
+    pub(crate) fn new_pending(len: usize) -> Self {
+        Self(smallvec![PollState::Pending; len])
     }
 
     /// Get an iterator of indexes of all items which are "ready".
@@ -63,9 +67,15 @@ impl PollVec {
             .map(|(i, _)| i)
     }
 
+    /// Mark all items as "none"
+    #[inline]
+    pub(crate) fn set_all_none(&mut self) {
+        self.0.fill(PollState::None);
+    }
+
     /// Resize the `PollVec`
     pub(crate) fn resize(&mut self, len: usize) {
-        self.0.resize_with(len, || PollState::default())
+        self.0.resize_with(len, || PollState::None)
     }
 }
 
@@ -99,6 +109,6 @@ mod tests {
     #[test]
     fn boxed_does_not_allocate_twice() {
         // Make sure the debug_assertions in PollStates::new() don't fail.
-        let _ = PollVec::new(MAX_INLINE_ENTRIES + 10);
+        let _ = PollVec::new_pending(MAX_INLINE_ENTRIES + 10);
     }
 }

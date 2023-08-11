@@ -289,7 +289,7 @@ macro_rules! impl_try_join_tuple {
                     futures: $mod_name::Futures {$(
                         $F: ManuallyDrop::new($F.into_future()),
                     )+},
-                    state: PollArray::new(),
+                    state: PollArray::new_pending(),
                     outputs: ($(MaybeUninit::<$T>::uninit(),)+),
                     wakers: WakerArray::new(),
                     completed: 0,

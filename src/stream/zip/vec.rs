@@ -1,6 +1,6 @@
 use super::Zip as ZipTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, PollState, WakerVec};
+use crate::utils::{self, PollVec, WakerVec};
 
 use core::fmt;
 use core::mem::MaybeUninit;
@@ -27,7 +27,7 @@ where
     streams: Vec<S>,
     output: Vec<MaybeUninit<<S as Stream>::Item>>,
     wakers: WakerVec,
-    state: Vec<PollState>,
+    state: PollVec,
     done: bool,
     len: usize,
 }
@@ -43,7 +43,7 @@ where
             streams,
             wakers: WakerVec::new(len),
             output: (0..len).map(|_| MaybeUninit::uninit()).collect(),
-            state: (0..len).map(|_| PollState::default()).collect(),
+            state: PollVec::new_pending(len),
             done: false,
         }
     }
@@ -98,7 +98,7 @@ where
                         // Reset the future's state.
                         readiness = this.wakers.readiness().lock().unwrap();
                         readiness.set_all_ready();
-                        this.state.fill_with(PollState::default);
+                        this.state.set_all_none();
 
                         // Take the output
                         //
