@@ -157,6 +157,9 @@ impl<S> StreamGroup<S> {
         self.wakers.resize(max_len);
         self.states.resize(max_len);
 
+        // Set the corresponding state
+        self.states[index].set_pending();
+
         key
     }
 
@@ -249,12 +252,10 @@ impl<S: Stream> StreamGroup<S> {
             return Poll::Pending;
         }
 
-        // NOTE(yosh): lol, this is so bad
-        // we should replace this with a proper `Wakergroup`
+        // Setup our stream state
         let mut ret = Poll::Pending;
-        let stream_count = this.streams.len();
         let mut done_count = 0;
-
+        let stream_count = this.streams.len();
         let states = this.states;
 
         for (index, stream) in iter_pin_mut_slab(this.streams.as_mut()) {
@@ -266,7 +267,15 @@ impl<S: Stream> StreamGroup<S> {
                 let mut cx = Context::from_waker(this.wakers.get(index).unwrap());
                 match stream.poll_next(&mut cx) {
                     Poll::Ready(Some(item)) => {
+                        // Set the return type for the function
                         ret = Poll::Ready(Some((Key(index), item)));
+
+                        // We just obtained an item from this index, make sure
+                        // we check it again on a next iteration
+                        states[index] = PollState::Pending;
+                        let mut readiness = this.wakers.readiness().lock().unwrap();
+                        readiness.set_ready(index);
+
                         break;
                     }
                     Poll::Ready(None) => {
@@ -274,6 +283,7 @@ impl<S: Stream> StreamGroup<S> {
                         states[index] = PollState::Consumed;
                         done_count += 1;
                     }
+                    // Keep looping if there is nothing for us to do
                     Poll::Pending => {}
                 };
 
@@ -282,6 +292,21 @@ impl<S: Stream> StreamGroup<S> {
             }
         }
 
+        // Remove all indexes we just flagged as ready for removal
+        for (index, state) in states.iter_mut().enumerate() {
+            if state.is_consumed() {
+                // Reset the state back to pending so we can reuse the state
+                // slot for a next future.
+                state.set_none();
+
+                // SAFETY: we're accessing the internal `streams` store
+                // only to drop the stream.
+                let streams = unsafe { this.streams.as_mut().get_unchecked_mut() };
+                streams.remove(index);
+            }
+        }
+
+        // Clear all indexes which just yielded an item
         // Remove all indexes we just flagged as ready for removal
         for (index, state) in states.iter_mut().enumerate() {
             if state.is_consumed() {
@@ -313,7 +338,6 @@ impl<S: Stream> Stream for StreamGroup<S> {
         self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        // let this = self.project();
         match self.poll_next_inner(cx) {
             Poll::Ready(Some((_key, item))) => Poll::Ready(Some(item)),
             Poll::Ready(None) => Poll::Ready(None),
@@ -360,25 +384,25 @@ impl<S: Stream> Stream for Keyed<S> {
     }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use super::StreamGroup;
-//     use futures_lite::{prelude::*, stream};
+#[cfg(test)]
+mod test {
+    use super::StreamGroup;
+    use futures_lite::{prelude::*, stream};
 
-//     #[test]
-//     fn smoke() {
-//         futures_lite::future::block_on(async {
-//             let mut group = StreamGroup::new();
-//             group.insert(stream::once(2));
-//             group.insert(stream::once(4));
+    #[test]
+    fn smoke() {
+        futures_lite::future::block_on(async {
+            let mut group = StreamGroup::new();
+            group.insert(stream::once(2));
+            group.insert(stream::once(4));
 
-//             let mut out = 0;
-//             while let Some(num) = group.next().await {
-//                 out += num;
-//             }
-//             assert_eq!(out, 6);
-//             assert_eq!(group.len(), 0);
-//             assert!(group.is_empty());
-//         });
-//     }
-// }
+            let mut out = 0;
+            while let Some(num) = group.next().await {
+                out += num;
+            }
+            assert_eq!(out, 6);
+            assert_eq!(group.len(), 0);
+            assert!(group.is_empty());
+        });
+    }
+}

@@ -98,7 +98,7 @@ where
                         // Reset the future's state.
                         readiness = this.wakers.readiness().lock().unwrap();
                         readiness.set_all_ready();
-                        this.state.set_all_none();
+                        this.state.set_all_pending();
 
                         // Take the output
                         //

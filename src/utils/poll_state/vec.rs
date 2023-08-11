@@ -67,8 +67,15 @@ impl PollVec {
             .map(|(i, _)| i)
     }
 
+    /// Mark all items as "pending"
+    #[inline]
+    pub(crate) fn set_all_pending(&mut self) {
+        self.0.fill(PollState::Pending);
+    }
+
     /// Mark all items as "none"
     #[inline]
+    #[allow(unused)]
     pub(crate) fn set_all_none(&mut self) {
         self.0.fill(PollState::None);
     }
