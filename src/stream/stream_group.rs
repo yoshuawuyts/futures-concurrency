@@ -306,21 +306,6 @@ impl<S: Stream> StreamGroup<S> {
             }
         }
 
-        // Clear all indexes which just yielded an item
-        // Remove all indexes we just flagged as ready for removal
-        for (index, state) in states.iter_mut().enumerate() {
-            if state.is_consumed() {
-                // Reset the state back to pending so we can reuse the state
-                // slot for a next future.
-                state.set_none();
-
-                // SAFETY: we're accessing the internal `streams` store
-                // only to drop the stream.
-                let streams = unsafe { this.streams.as_mut().get_unchecked_mut() };
-                streams.remove(index);
-            }
-        }
-
         // If all streams turned up with `Poll::Ready(None)` our
         // stream should return that
         if done_count == stream_count {
