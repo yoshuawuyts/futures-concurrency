@@ -30,7 +30,6 @@ futures-core = "0.3"
 pin-project = "1.0.8"
 slab = "0.4.8"
 smallvec = "1.11.0"
-tinyvec = { version = "1.6.0", features = ["alloc"] }
 
 [dev-dependencies]
 futures = "0.3.25"
