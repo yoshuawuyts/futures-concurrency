@@ -235,7 +235,7 @@ impl<S: Stream> StreamGroup<S> {
 impl<S: Stream> StreamGroup<S> {
     fn poll_next_inner(
         self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
+        cx: &std::task::Context<'_>,
     ) -> Poll<Option<(Key, <S as Stream>::Item)>> {
         let mut this = self.project();
 
