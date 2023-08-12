@@ -2,7 +2,70 @@
 
 mod utils;
 
-criterion::criterion_main!(merge::merge_benches, join::join_benches, race::race_benches);
+// #[global_allocator]
+// static ALLOC: dhat::Alloc = dhat::Alloc;
+
+fn main() {
+    // let _profiler = dhat::Profiler::new_heap();
+    criterion::criterion_main!(
+        merge::merge_benches,
+        join::join_benches,
+        race::race_benches,
+        stream_group::stream_group_benches
+    );
+    main()
+}
+
+mod stream_group {
+    use criterion::async_executor::FuturesExecutor;
+    use criterion::{black_box, criterion_group, BatchSize, BenchmarkId, Criterion};
+    use futures::stream::SelectAll;
+    use futures_concurrency::stream::StreamGroup;
+    use futures_lite::prelude::*;
+
+    use crate::utils::{make_select_all, make_stream_group};
+    criterion_group! {
+        name = stream_group_benches;
+        // This can be any expression that returns a `Criterion` object.
+        config = Criterion::default();
+        targets = stream_set_bench
+    }
+
+    fn stream_set_bench(c: &mut Criterion) {
+        let mut group = c.benchmark_group("stream_group");
+        for i in [10, 100, 1000].iter() {
+            group.bench_with_input(BenchmarkId::new("StreamGroup", i), i, |b, i| {
+                let setup = || make_stream_group(*i);
+                let routine = |mut group: StreamGroup<_>| async move {
+                    let mut counter = 0;
+                    black_box({
+                        while group.next().await.is_some() {
+                            counter += 1;
+                        }
+                        assert_eq!(counter, *i);
+                    });
+                };
+                b.to_async(FuturesExecutor)
+                    .iter_batched(setup, routine, BatchSize::SmallInput)
+            });
+            group.bench_with_input(BenchmarkId::new("SelectAll", i), i, |b, i| {
+                let setup = || make_select_all(*i);
+                let routine = |mut group: SelectAll<_>| async move {
+                    let mut counter = 0;
+                    black_box({
+                        while group.next().await.is_some() {
+                            counter += 1;
+                        }
+                        assert_eq!(counter, *i);
+                    });
+                };
+                b.to_async(FuturesExecutor)
+                    .iter_batched(setup, routine, BatchSize::SmallInput)
+            });
+        }
+        group.finish();
+    }
+}
 
 mod merge {
     use criterion::async_executor::FuturesExecutor;
@@ -17,7 +80,7 @@ mod merge {
         merge_benches,
         vec_merge_bench,
         array_merge_bench,
-        tuple_merge_bench
+        tuple_merge_bench,
     );
 
     fn vec_merge_bench(c: &mut Criterion) {

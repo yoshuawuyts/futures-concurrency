@@ -36,7 +36,7 @@ where
         let len = streams.len();
         Self {
             wakers: WakerVec::new(len),
-            state: PollVec::new(len),
+            state: PollVec::new_pending(len),
             indexer: Indexer::new(len),
             streams,
             complete: 0,
@@ -73,7 +73,7 @@ where
             if !readiness.any_ready() {
                 // Nothing is ready yet
                 return Poll::Pending;
-            } else if !readiness.clear_ready(index) || this.state[index].is_consumed() {
+            } else if !readiness.clear_ready(index) || this.state[index].is_none() {
                 continue;
             }
 
@@ -92,7 +92,7 @@ where
                 }
                 Poll::Ready(None) => {
                     *this.complete += 1;
-                    this.state[index].set_consumed();
+                    this.state[index].set_none();
                     if *this.complete == this.streams.len() {
                         return Poll::Ready(None);
                     }

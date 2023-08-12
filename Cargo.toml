@@ -6,12 +6,15 @@ repository = "https://github.com/yoshuawuyts/futures-concurrency"
 documentation = "https://docs.rs/futures-concurrency"
 description = "Structured concurrency operations for async Rust"
 readme = "README.md"
-edition = "2018"
+edition = "2021"
 keywords = []
 categories = []
 authors = [
     "Yoshua Wuyts <yoshuawuyts@gmail.com>"
 ]
+
+[profile.bench]
+debug = true
 
 [lib]
 bench = false
@@ -28,6 +31,8 @@ harness = false
 bitvec = { version = "1.0.1", default-features = false, features = ["alloc"] }
 futures-core = "0.3"
 pin-project = "1.0.8"
+slab = "0.4.8"
+smallvec = "1.11.0"
 
 [dev-dependencies]
 futures = "0.3.25"

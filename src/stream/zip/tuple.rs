@@ -6,7 +6,7 @@ use core::task::{Context, Poll};
 use futures_core::Stream;
 
 use super::Zip;
-use crate::utils::{PollArray, PollState, WakerArray};
+use crate::utils::{PollArray, WakerArray};
 
 macro_rules! impl_zip_for_tuple {
     ($mod_name: ident $StructName: ident $($F: ident)+) => {
@@ -128,7 +128,7 @@ macro_rules! impl_zip_for_tuple {
                         // Reset the future's state.
                         readiness = this.wakers.readiness().lock().unwrap();
                         readiness.set_all_ready();
-                        this.state.fill_with(PollState::default);
+                        this.state.set_all_pending();
 
                         // Take the output
                         //
@@ -169,7 +169,7 @@ macro_rules! impl_zip_for_tuple {
                 Self::Stream {
                     done: false,
                     output: Default::default(),
-                    state: PollArray::new(),
+                    state: PollArray::new_pending(),
                     wakers: WakerArray::new(),
                     $($F,)+
                 }

@@ -51,7 +51,7 @@ where
             pending: len,
             items: OutputVec::uninit(len),
             wakers: WakerVec::new(len),
-            state: PollVec::new(len),
+            state: PollVec::new_pending(len),
             futures: FutureVec::new(futures),
         }
     }
@@ -148,7 +148,7 @@ where
                     state.is_ready(),
                     "Future should have reached a `Ready` state"
                 );
-                state.set_consumed();
+                state.set_none();
             }
 
             // SAFETY: we've checked with the state that all of our outputs have been

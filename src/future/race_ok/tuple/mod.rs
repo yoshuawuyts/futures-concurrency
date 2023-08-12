@@ -72,7 +72,7 @@ macro_rules! impl_race_ok_tuple {
                     done: false,
                     indexer: utils::Indexer::new($StructName),
                     errors: array::from_fn(|_| MaybeUninit::uninit()),
-                    errors_states: PollArray::new(),
+                    errors_states: PollArray::new_pending(),
                     $($F: $F.into_future()),*
                 }
             }
@@ -154,7 +154,7 @@ macro_rules! impl_race_ok_tuple {
                     .for_each(|(st, err)| {
                         // SAFETY: we've filtered down to only the `ready`/initialized data
                         unsafe { err.assume_init_drop() };
-                        st.set_consumed();
+                        st.set_none();
                     });
             }
         }

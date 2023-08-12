@@ -50,7 +50,7 @@ where
             pending: N,
             items: OutputArray::uninit(),
             wakers: WakerArray::new(),
-            state: PollArray::new(),
+            state: PollArray::new_pending(),
             futures: FutureArray::new(futures),
         }
     }
@@ -138,7 +138,7 @@ where
                     state.is_ready(),
                     "Future should have reached a `Ready` state"
                 );
-                state.set_consumed();
+                state.set_none();
             }
 
             // SAFETY: we've checked with the state that all of our outputs have been
@@ -202,6 +202,6 @@ mod test {
         let waker = Arc::new(DummyWaker()).into();
         let mut cx = Context::from_waker(&waker);
         let _ = fut.as_mut().poll(&mut cx);
-        assert_eq!(format!("{:?}", fut), "[Consumed, Consumed]");
+        assert_eq!(format!("{:?}", fut), "[None, None]");
     }
 }

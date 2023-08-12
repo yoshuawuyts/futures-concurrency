@@ -1,3 +1,4 @@
+use futures_concurrency::stream::StreamGroup;
 use futures_core::Stream;
 
 use std::cell::{Cell, RefCell};
@@ -17,6 +18,24 @@ pub fn streams_vec(len: usize) -> Vec<CountdownStream> {
         .collect();
     shuffle(&mut streams);
     streams
+}
+
+#[allow(unused)]
+pub fn make_stream_group(len: usize) -> StreamGroup<CountdownStream> {
+    let wakers = Rc::new(RefCell::new(BinaryHeap::new()));
+    let completed = Rc::new(Cell::new(0));
+    (0..len)
+        .map(|n| CountdownStream::new(n, len, wakers.clone(), completed.clone()))
+        .collect()
+}
+
+#[allow(unused)]
+pub fn make_select_all(len: usize) -> futures::stream::SelectAll<CountdownStream> {
+    let wakers = Rc::new(RefCell::new(BinaryHeap::new()));
+    let completed = Rc::new(Cell::new(0));
+    (0..len)
+        .map(|n| CountdownStream::new(n, len, wakers.clone(), completed.clone()))
+        .collect()
 }
 
 pub fn streams_array<const N: usize>() -> [CountdownStream; N] {
