@@ -23,7 +23,7 @@ macro_rules! poll_stream {
                 }
                 Poll::Ready(None) => {
                     *$this.completed += 1;
-                    $this.state[$stream_idx].set_consumed();
+                    $this.state[$stream_idx].set_none();
                     if *$this.completed == $len_streams {
                         return Poll::Ready(None);
                     }
@@ -132,7 +132,7 @@ macro_rules! impl_merge_tuple {
                     if !readiness.any_ready() {
                         // Nothing is ready yet
                         return Poll::Pending;
-                    } else if !readiness.clear_ready(index) || this.state[index].is_consumed() {
+                    } else if !readiness.clear_ready(index) || this.state[index].is_none() {
                         continue;
                     }
 

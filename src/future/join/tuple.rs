@@ -60,7 +60,7 @@ macro_rules! drop_initialized_values {
             // SAFETY: we've just filtered down to *only* the initialized values.
             // We can assume they're initialized, and this is where we drop them.
             unsafe { $output.assume_init_drop() };
-            $states[$state_idx].set_consumed();
+            $states[$state_idx].set_none();
         }
         drop_initialized_values!(@drop $($rem_outs,)* | $states, $($rem_idx,)*);
     };

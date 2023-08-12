@@ -30,7 +30,7 @@ impl<const N: usize> PollArray<N> {
                 state.is_ready(),
                 "Future should have reached a `Ready` state"
             );
-            state.set_consumed();
+            state.set_none();
         })
     }
 

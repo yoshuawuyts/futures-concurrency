@@ -154,7 +154,7 @@ macro_rules! impl_race_ok_tuple {
                     .for_each(|(st, err)| {
                         // SAFETY: we've filtered down to only the `ready`/initialized data
                         unsafe { err.assume_init_drop() };
-                        st.set_consumed();
+                        st.set_none();
                     });
             }
         }

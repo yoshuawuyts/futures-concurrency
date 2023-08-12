@@ -63,7 +63,7 @@ impl PollVec {
         self.iter()
             .cloned()
             .enumerate()
-            .filter(|(_, state)| state.is_consumed())
+            .filter(|(_, state)| state.is_none())
             .map(|(i, _)| i)
     }
 
