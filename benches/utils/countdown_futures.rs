@@ -1,3 +1,4 @@
+use futures_concurrency::future::FutureGroup;
 use futures_core::Future;
 
 use std::cell::{Cell, RefCell};
@@ -26,6 +27,24 @@ pub fn futures_array<const N: usize>() -> [CountdownFuture; N] {
         std::array::from_fn(|n| CountdownFuture::new(n, N, wakers.clone(), completed.clone()));
     shuffle(&mut futures);
     futures
+}
+
+#[allow(unused)]
+pub fn make_future_group(len: usize) -> FutureGroup<CountdownFuture> {
+    let wakers = Rc::new(RefCell::new(BinaryHeap::new()));
+    let completed = Rc::new(Cell::new(0));
+    (0..len)
+        .map(|n| CountdownFuture::new(n, len, wakers.clone(), completed.clone()))
+        .collect()
+}
+
+#[allow(unused)]
+pub fn make_futures_unordered(len: usize) -> futures::stream::FuturesUnordered<CountdownFuture> {
+    let wakers = Rc::new(RefCell::new(BinaryHeap::new()));
+    let completed = Rc::new(Cell::new(0));
+    (0..len)
+        .map(|n| CountdownFuture::new(n, len, wakers.clone(), completed.clone()))
+        .collect()
 }
 
 #[allow(unused)]

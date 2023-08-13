@@ -1,6 +1,6 @@
-use futures_core::Stream;
+use futures_core::stream::Stream;
+use futures_core::Future;
 use slab::Slab;
-use smallvec::{smallvec, SmallVec};
 use std::collections::BTreeSet;
 use std::fmt::{self, Debug};
 use std::ops::{Deref, DerefMut};
@@ -9,9 +9,9 @@ use std::task::{Context, Poll};
 
 use crate::utils::{PollState, PollVec, WakerVec};
 
-/// A growable group of streams which act as a single unit.
+/// A growable group of futures which act as a single unit.
 ///
-/// In order go mutate the group during iteration, the stream should be
+/// In order go mutate the group during iteration, the future group should be
 /// combined with a mechanism such as
 /// [`lend_mut`](https://docs.rs/async-iterator/latest/async_iterator/trait.Iterator.html#method.lend_mut).
 /// This is not yet provided by the `futures-concurrency` crate.
@@ -19,13 +19,14 @@ use crate::utils::{PollState, PollVec, WakerVec};
 /// # Example
 ///
 /// ```rust
-/// use futures_concurrency::stream::StreamGroup;
-/// use futures_lite::{stream, StreamExt};
+/// use futures_concurrency::future::FutureGroup;
+/// use futures_lite::StreamExt;
+/// use std::future;
 ///
 /// # futures_lite::future::block_on(async {
-/// let mut group = StreamGroup::new();
-/// group.insert(stream::once(2));
-/// group.insert(stream::once(4));
+/// let mut group = FutureGroup::new();
+/// group.insert(future::ready(2));
+/// group.insert(future::ready(4));
 ///
 /// let mut out = 0;
 /// while let Some(num) = group.next().await {
@@ -34,58 +35,56 @@ use crate::utils::{PollState, PollVec, WakerVec};
 /// assert_eq!(out, 6);
 /// # });
 /// ```
-#[must_use = "`StreamGroup` does nothing if not iterated over"]
+#[must_use = "`FutureGroup` does nothing if not iterated over"]
 #[derive(Default)]
 #[pin_project::pin_project]
-pub struct StreamGroup<S> {
+pub struct FutureGroup<F> {
     #[pin]
-    streams: Slab<S>,
+    futures: Slab<F>,
     wakers: WakerVec,
     states: PollVec,
     keys: BTreeSet<usize>,
-    key_removal_queue: SmallVec<[usize; 10]>,
 }
 
-impl<T: Debug> Debug for StreamGroup<T> {
+impl<T: Debug> Debug for FutureGroup<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("StreamGroup")
+        f.debug_struct("FutureGroup")
             .field("slab", &"[..]")
             .finish()
     }
 }
 
-impl<S> StreamGroup<S> {
-    /// Create a new instance of `StreamGroup`.
+impl<F> FutureGroup<F> {
+    /// Create a new instance of `FutureGroup`.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use futures_concurrency::stream::StreamGroup;
+    /// use futures_concurrency::future::FutureGroup;
     ///
-    /// let group = StreamGroup::new();
-    /// # let group: StreamGroup<usize> = group;
+    /// let group = FutureGroup::new();
+    /// # let group: FutureGroup<usize> = group;
     /// ```
     pub fn new() -> Self {
         Self::with_capacity(0)
     }
 
-    /// Create a new instance of `StreamGroup` with a given capacity.
+    /// Create a new instance of `FutureGroup` with a given capacity.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use futures_concurrency::stream::StreamGroup;
+    /// use futures_concurrency::future::FutureGroup;
     ///
-    /// let group = StreamGroup::with_capacity(2);
-    /// # let group: StreamGroup<usize> = group;
+    /// let group = FutureGroup::with_capacity(2);
+    /// # let group: FutureGroup<usize> = group;
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            streams: Slab::with_capacity(capacity),
+            futures: Slab::with_capacity(capacity),
             wakers: WakerVec::new(capacity),
             states: PollVec::new(capacity),
             keys: BTreeSet::new(),
-            key_removal_queue: smallvec![],
         }
     }
 
@@ -94,32 +93,33 @@ impl<S> StreamGroup<S> {
     /// # Example
     ///
     /// ```rust
-    /// use futures_concurrency::stream::StreamGroup;
-    /// use futures_lite::stream;
+    /// use futures_concurrency::future::FutureGroup;
+    /// use futures_lite::StreamExt;
+    /// use std::future;
     ///
-    /// let mut group = StreamGroup::with_capacity(2);
+    /// let mut group = FutureGroup::with_capacity(2);
     /// assert_eq!(group.len(), 0);
-    /// group.insert(stream::once(12));
+    /// group.insert(future::ready(12));
     /// assert_eq!(group.len(), 1);
     /// ```
     pub fn len(&self) -> usize {
-        self.streams.len()
+        self.futures.len()
     }
 
-    /// Return the capacity of the `StreamGroup`.
+    /// Return the capacity of the `FutureGroup`.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use futures_concurrency::stream::StreamGroup;
+    /// use futures_concurrency::future::FutureGroup;
     /// use futures_lite::stream;
     ///
-    /// let group = StreamGroup::with_capacity(2);
+    /// let group = FutureGroup::with_capacity(2);
     /// assert_eq!(group.capacity(), 2);
-    /// # let group: StreamGroup<usize> = group;
+    /// # let group: FutureGroup<usize> = group;
     /// ```
     pub fn capacity(&self) -> usize {
-        self.streams.capacity()
+        self.futures.capacity()
     }
 
     /// Returns true if there are no futures currently active in the group.
@@ -127,16 +127,16 @@ impl<S> StreamGroup<S> {
     /// # Example
     ///
     /// ```rust
-    /// use futures_concurrency::stream::StreamGroup;
-    /// use futures_lite::stream;
+    /// use futures_concurrency::future::FutureGroup;
+    /// use std::future;
     ///
-    /// let mut group = StreamGroup::with_capacity(2);
+    /// let mut group = FutureGroup::with_capacity(2);
     /// assert!(group.is_empty());
-    /// group.insert(stream::once(12));
+    /// group.insert(future::ready(12));
     /// assert!(!group.is_empty());
     /// ```
     pub fn is_empty(&self) -> bool {
-        self.streams.is_empty()
+        self.futures.is_empty()
     }
 
     /// Removes a stream from the group. Returns whether the value was present in
@@ -145,12 +145,12 @@ impl<S> StreamGroup<S> {
     /// # Example
     ///
     /// ```
-    /// use futures_lite::stream;
-    /// use futures_concurrency::stream::StreamGroup;
+    /// use futures_concurrency::future::FutureGroup;
+    /// use std::future;
     ///
     /// # futures_lite::future::block_on(async {
-    /// let mut group = StreamGroup::new();
-    /// let key = group.insert(stream::once(4));
+    /// let mut group = FutureGroup::new();
+    /// let key = group.insert(future::ready(4));
     /// assert_eq!(group.len(), 1);
     /// group.remove(key);
     /// assert_eq!(group.len(), 0);
@@ -160,22 +160,22 @@ impl<S> StreamGroup<S> {
         let is_present = self.keys.remove(&key.0);
         if is_present {
             self.states[key.0].set_none();
-            self.streams.remove(key.0);
+            self.futures.remove(key.0);
         }
         is_present
     }
 
-    /// Returns `true` if the `StreamGroup` contains a value for the specified key.
+    /// Returns `true` if the `FutureGroup` contains a value for the specified key.
     ///
     /// # Example
     ///
     /// ```
-    /// use futures_lite::stream;
-    /// use futures_concurrency::stream::StreamGroup;
+    /// use futures_concurrency::future::FutureGroup;
+    /// use std::future;
     ///
     /// # futures_lite::future::block_on(async {
-    /// let mut group = StreamGroup::new();
-    /// let key = group.insert(stream::once(4));
+    /// let mut group = FutureGroup::new();
+    /// let key = group.insert(future::ready(4));
     /// assert!(group.contains_key(key));
     /// group.remove(key);
     /// assert!(!group.contains_key(key));
@@ -186,23 +186,23 @@ impl<S> StreamGroup<S> {
     }
 }
 
-impl<S: Stream> StreamGroup<S> {
+impl<F: Future> FutureGroup<F> {
     /// Insert a new future into the group.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use futures_concurrency::stream::StreamGroup;
-    /// use futures_lite::stream;
+    /// use futures_concurrency::future::FutureGroup;
+    /// use std::future;
     ///
-    /// let mut group = StreamGroup::with_capacity(2);
-    /// group.insert(stream::once(12));
+    /// let mut group = FutureGroup::with_capacity(2);
+    /// group.insert(future::ready(12));
     /// ```
-    pub fn insert(&mut self, stream: S) -> Key
+    pub fn insert(&mut self, stream: F) -> Key
     where
-        S: Stream,
+        F: Future,
     {
-        let index = self.streams.insert(stream);
+        let index = self.futures.insert(stream);
         self.keys.insert(index);
         let key = Key(index);
 
@@ -223,13 +223,14 @@ impl<S: Stream> StreamGroup<S> {
     /// # Example
     ///
     /// ```rust
-    /// use futures_concurrency::stream::StreamGroup;
-    /// use futures_lite::{stream, StreamExt};
+    /// use futures_concurrency::future::FutureGroup;
+    /// use futures_lite::StreamExt;
+    /// use std::future;
     ///
     /// # futures_lite::future::block_on(async {
-    /// let mut group = StreamGroup::new();
-    /// group.insert(stream::once(2));
-    /// group.insert(stream::once(4));
+    /// let mut group = FutureGroup::new();
+    /// group.insert(future::ready(2));
+    /// group.insert(future::ready(4));
     ///
     /// let mut out = 0;
     /// let mut group = group.keyed();
@@ -239,20 +240,20 @@ impl<S: Stream> StreamGroup<S> {
     /// assert_eq!(out, 6);
     /// # });
     /// ```
-    pub fn keyed(self) -> Keyed<S> {
+    pub fn keyed(self) -> Keyed<F> {
         Keyed { group: self }
     }
 }
 
-impl<S: Stream> StreamGroup<S> {
+impl<F: Future> FutureGroup<F> {
     fn poll_next_inner(
         self: Pin<&mut Self>,
         cx: &std::task::Context<'_>,
-    ) -> Poll<Option<(Key, <S as Stream>::Item)>> {
+    ) -> Poll<Option<(Key, <F as Future>::Output)>> {
         let mut this = self.project();
 
-        // Short-circuit if we have no streams to iterate over
-        if this.streams.is_empty() {
+        // Short-circuit if we have no futures to iterate over
+        if this.futures.is_empty() {
             return Poll::Ready(None);
         }
 
@@ -264,15 +265,13 @@ impl<S: Stream> StreamGroup<S> {
             return Poll::Pending;
         }
 
-        // Setup our stream state
+        // Setup our futures state
         let mut ret = Poll::Pending;
-        let mut done_count = 0;
-        let stream_count = this.streams.len();
         let states = this.states;
 
-        // SAFETY: We unpin the stream set so we can later individually access
-        // single streams. Either to read from them or to drop them.
-        let streams = unsafe { this.streams.as_mut().get_unchecked_mut() };
+        // SAFETY: We unpin the future group so we can later individually access
+        // single futures. Either to read from them or to drop them.
+        let futures = unsafe { this.futures.as_mut().get_unchecked_mut() };
 
         for index in this.keys.iter().cloned() {
             if states[index].is_pending() && readiness.clear_ready(index) {
@@ -282,31 +281,20 @@ impl<S: Stream> StreamGroup<S> {
                 // Obtain the intermediate waker.
                 let mut cx = Context::from_waker(this.wakers.get(index).unwrap());
 
-                // SAFETY: this stream here is a projection from the streams
+                // SAFETY: this future here is a projection from the futures
                 // vec, which we're reading from.
-                let stream = unsafe { Pin::new_unchecked(&mut streams[index]) };
-                match stream.poll_next(&mut cx) {
-                    Poll::Ready(Some(item)) => {
+                let future = unsafe { Pin::new_unchecked(&mut futures[index]) };
+                match future.poll(&mut cx) {
+                    Poll::Ready(item) => {
                         // Set the return type for the function
                         ret = Poll::Ready(Some((Key(index), item)));
 
-                        // We just obtained an item from this index, make sure
-                        // we check it again on a next iteration
-                        states[index] = PollState::Pending;
-                        let mut readiness = this.wakers.readiness().lock().unwrap();
-                        readiness.set_ready(index);
-
-                        break;
-                    }
-                    Poll::Ready(None) => {
-                        // A stream has ended, make note of that
-                        done_count += 1;
-
-                        // Remove all associated data about the stream.
+                        // Remove all associated data with the future
                         // The only data we can't remove directly is the key entry.
                         states[index] = PollState::None;
-                        streams.remove(index);
-                        this.key_removal_queue.push(index);
+                        futures.remove(index);
+
+                        break;
                     }
                     // Keep looping if there is nothing for us to do
                     Poll::Pending => {}
@@ -317,27 +305,18 @@ impl<S: Stream> StreamGroup<S> {
             }
         }
 
-        // Now that we're no longer borrowing `this.keys` we can loop over
-        // which items we need to remove
-        if !this.key_removal_queue.is_empty() {
-            for key in this.key_removal_queue.iter() {
-                this.keys.remove(key);
-            }
-            this.key_removal_queue.clear();
-        }
-
-        // If all streams turned up with `Poll::Ready(None)` our
-        // stream should return that
-        if done_count == stream_count {
-            ret = Poll::Ready(None);
+        // Now that we're no longer borrowing `this.keys` we can remove
+        // the current key from the set
+        if let Poll::Ready(Some((key, _))) = ret {
+            this.keys.remove(&key.0);
         }
 
         ret
     }
 }
 
-impl<S: Stream> Stream for StreamGroup<S> {
-    type Item = <S as Stream>::Item;
+impl<F: Future> Stream for FutureGroup<F> {
+    type Item = <F as Future>::Output;
 
     fn poll_next(
         self: Pin<&mut Self>,
@@ -351,46 +330,46 @@ impl<S: Stream> Stream for StreamGroup<S> {
     }
 }
 
-impl<S: Stream> FromIterator<S> for StreamGroup<S> {
-    fn from_iter<T: IntoIterator<Item = S>>(iter: T) -> Self {
+impl<F: Future> FromIterator<F> for FutureGroup<F> {
+    fn from_iter<T: IntoIterator<Item = F>>(iter: T) -> Self {
         let iter = iter.into_iter();
         let len = iter.size_hint().1.unwrap_or_default();
         let mut this = Self::with_capacity(len);
-        for stream in iter {
-            this.insert(stream);
+        for future in iter {
+            this.insert(future);
         }
         this
     }
 }
 
-/// A key used to index into the `StreamGroup` type.
+/// A key used to index into the `FutureGroup` type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Key(usize);
 
-/// Iterate over items in the stream group with their associated keys.
+/// Iterate over items in the futures group with their associated keys.
 #[derive(Debug)]
 #[pin_project::pin_project]
-pub struct Keyed<S: Stream> {
+pub struct Keyed<F: Future> {
     #[pin]
-    group: StreamGroup<S>,
+    group: FutureGroup<F>,
 }
 
-impl<S: Stream> Deref for Keyed<S> {
-    type Target = StreamGroup<S>;
+impl<F: Future> Deref for Keyed<F> {
+    type Target = FutureGroup<F>;
 
     fn deref(&self) -> &Self::Target {
         &self.group
     }
 }
 
-impl<S: Stream> DerefMut for Keyed<S> {
+impl<F: Future> DerefMut for Keyed<F> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.group
     }
 }
 
-impl<S: Stream> Stream for Keyed<S> {
-    type Item = (Key, <S as Stream>::Item);
+impl<F: Future> Stream for Keyed<F> {
+    type Item = (Key, <F as Future>::Output);
 
     fn poll_next(
         self: Pin<&mut Self>,
@@ -403,15 +382,16 @@ impl<S: Stream> Stream for Keyed<S> {
 
 #[cfg(test)]
 mod test {
-    use super::StreamGroup;
-    use futures_lite::{prelude::*, stream};
+    use super::FutureGroup;
+    use futures_lite::prelude::*;
+    use std::future;
 
     #[test]
     fn smoke() {
         futures_lite::future::block_on(async {
-            let mut group = StreamGroup::new();
-            group.insert(stream::once(2));
-            group.insert(stream::once(4));
+            let mut group = FutureGroup::new();
+            group.insert(future::ready(2));
+            group.insert(future::ready(4));
 
             let mut out = 0;
             while let Some(num) = group.next().await {

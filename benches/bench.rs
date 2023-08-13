@@ -11,7 +11,8 @@ fn main() {
         merge::merge_benches,
         join::join_benches,
         race::race_benches,
-        stream_group::stream_group_benches
+        stream_group::stream_group_benches,
+        future_group::future_group_benches,
     );
     main()
 }
@@ -51,6 +52,56 @@ mod stream_group {
             group.bench_with_input(BenchmarkId::new("SelectAll", i), i, |b, i| {
                 let setup = || make_select_all(*i);
                 let routine = |mut group: SelectAll<_>| async move {
+                    let mut counter = 0;
+                    black_box({
+                        while group.next().await.is_some() {
+                            counter += 1;
+                        }
+                        assert_eq!(counter, *i);
+                    });
+                };
+                b.to_async(FuturesExecutor)
+                    .iter_batched(setup, routine, BatchSize::SmallInput)
+            });
+        }
+        group.finish();
+    }
+}
+mod future_group {
+    use criterion::async_executor::FuturesExecutor;
+    use criterion::{black_box, criterion_group, BatchSize, BenchmarkId, Criterion};
+    use futures::stream::FuturesUnordered;
+    use futures_concurrency::future::FutureGroup;
+    use futures_lite::prelude::*;
+
+    use crate::utils::{make_future_group, make_futures_unordered};
+    criterion_group! {
+        name = future_group_benches;
+        // This can be any expression that returns a `Criterion` object.
+        config = Criterion::default();
+        targets = future_group_bench
+    }
+
+    fn future_group_bench(c: &mut Criterion) {
+        let mut group = c.benchmark_group("future_group");
+        for i in [10, 100, 1000].iter() {
+            group.bench_with_input(BenchmarkId::new("FutureGroup", i), i, |b, i| {
+                let setup = || make_future_group(*i);
+                let routine = |mut group: FutureGroup<_>| async move {
+                    let mut counter = 0;
+                    black_box({
+                        while group.next().await.is_some() {
+                            counter += 1;
+                        }
+                        assert_eq!(counter, *i);
+                    });
+                };
+                b.to_async(FuturesExecutor)
+                    .iter_batched(setup, routine, BatchSize::SmallInput)
+            });
+            group.bench_with_input(BenchmarkId::new("FuturesUnordered", i), i, |b, i| {
+                let setup = || make_futures_unordered(*i);
+                let routine = |mut group: FuturesUnordered<_>| async move {
                     let mut counter = 0;
                     black_box({
                         while group.next().await.is_some() {

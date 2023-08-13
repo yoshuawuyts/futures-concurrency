@@ -68,11 +68,16 @@
 //! - `future::RaceOk`: wait for the first _successful_ future in the set to
 //! complete, or return an `Err` if *no* futures complete successfully.
 //!
+#[doc(inline)]
+pub use future_group::FutureGroup;
 pub use futures_ext::FutureExt;
 pub use join::Join;
 pub use race::Race;
 pub use race_ok::RaceOk;
 pub use try_join::TryJoin;
+
+/// A growable group of futures which act as a single unit.
+pub mod future_group;
 
 mod futures_ext;
 pub(crate) mod join;
