@@ -139,37 +139,6 @@ impl<S> StreamGroup<S> {
         self.streams.is_empty()
     }
 
-    /// Insert a new future into the group.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use futures_concurrency::stream::StreamGroup;
-    /// use futures_lite::stream;
-    ///
-    /// let mut group = StreamGroup::with_capacity(2);
-    /// group.insert(stream::once(12));
-    /// ```
-    pub fn insert(&mut self, stream: S) -> Key
-    where
-        S: Stream,
-    {
-        let index = self.streams.insert(stream);
-        self.keys.insert(index);
-        let key = Key(index);
-
-        // If our slab allocated more space we need to
-        // update our tracking structures along with it.
-        let max_len = self.capacity().max(index);
-        self.wakers.resize(max_len);
-        self.states.resize(max_len);
-
-        // Set the corresponding state
-        self.states[index].set_pending();
-
-        key
-    }
-
     /// Removes a stream from the group. Returns whether the value was present in
     /// the group.
     ///
@@ -218,6 +187,37 @@ impl<S> StreamGroup<S> {
 }
 
 impl<S: Stream> StreamGroup<S> {
+    /// Insert a new future into the group.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use futures_concurrency::stream::StreamGroup;
+    /// use futures_lite::stream;
+    ///
+    /// let mut group = StreamGroup::with_capacity(2);
+    /// group.insert(stream::once(12));
+    /// ```
+    pub fn insert(&mut self, stream: S) -> Key
+    where
+        S: Stream,
+    {
+        let index = self.streams.insert(stream);
+        self.keys.insert(index);
+        let key = Key(index);
+
+        // If our slab allocated more space we need to
+        // update our tracking structures along with it.
+        let max_len = self.capacity().max(index);
+        self.wakers.resize(max_len);
+        self.states.resize(max_len);
+
+        // Set the corresponding state
+        self.states[index].set_pending();
+
+        key
+    }
+
     /// Create a stream which also yields the key of each item.
     ///
     /// # Example

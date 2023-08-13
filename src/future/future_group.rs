@@ -139,37 +139,6 @@ impl<F> FutureGroup<F> {
         self.futures.is_empty()
     }
 
-    /// Insert a new future into the group.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use futures_concurrency::future::FutureGroup;
-    /// use std::future;
-    ///
-    /// let mut group = FutureGroup::with_capacity(2);
-    /// group.insert(future::ready(12));
-    /// ```
-    pub fn insert(&mut self, stream: F) -> Key
-    where
-        F: Future,
-    {
-        let index = self.futures.insert(stream);
-        self.keys.insert(index);
-        let key = Key(index);
-
-        // If our slab allocated more space we need to
-        // update our tracking structures along with it.
-        let max_len = self.capacity().max(index);
-        self.wakers.resize(max_len);
-        self.states.resize(max_len);
-
-        // Set the corresponding state
-        self.states[index].set_pending();
-
-        key
-    }
-
     /// Removes a stream from the group. Returns whether the value was present in
     /// the group.
     ///
@@ -218,6 +187,37 @@ impl<F> FutureGroup<F> {
 }
 
 impl<F: Future> FutureGroup<F> {
+    /// Insert a new future into the group.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use futures_concurrency::future::FutureGroup;
+    /// use std::future;
+    ///
+    /// let mut group = FutureGroup::with_capacity(2);
+    /// group.insert(future::ready(12));
+    /// ```
+    pub fn insert(&mut self, stream: F) -> Key
+    where
+        F: Future,
+    {
+        let index = self.futures.insert(stream);
+        self.keys.insert(index);
+        let key = Key(index);
+
+        // If our slab allocated more space we need to
+        // update our tracking structures along with it.
+        let max_len = self.capacity().max(index);
+        self.wakers.resize(max_len);
+        self.states.resize(max_len);
+
+        // Set the corresponding state
+        self.states[index].set_pending();
+
+        key
+    }
+
     /// Create a stream which also yields the key of each item.
     ///
     /// # Example
