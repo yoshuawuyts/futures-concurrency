@@ -1,7 +1,6 @@
 use futures_core::stream::Stream;
 use futures_core::Future;
 use slab::Slab;
-use smallvec::{smallvec, SmallVec};
 use std::collections::BTreeSet;
 use std::fmt::{self, Debug};
 use std::ops::{Deref, DerefMut};
@@ -45,7 +44,6 @@ pub struct FutureGroup<F> {
     wakers: WakerVec,
     states: PollVec,
     keys: BTreeSet<usize>,
-    key_removal_queue: SmallVec<[usize; 10]>,
 }
 
 impl<T: Debug> Debug for FutureGroup<T> {
@@ -87,7 +85,6 @@ impl<F> FutureGroup<F> {
             wakers: WakerVec::new(capacity),
             states: PollVec::new(capacity),
             keys: BTreeSet::new(),
-            key_removal_queue: smallvec![],
         }
     }
 
