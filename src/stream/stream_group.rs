@@ -11,12 +11,9 @@ use crate::utils::{PollState, PollVec, WakerVec};
 
 /// A growable group of streams which act as a single unit.
 ///
-/// In order go mutate the group during iteration, the stream should be
-/// combined with a mechanism such as
-/// [`lend_mut`](https://docs.rs/async-iterator/latest/async_iterator/trait.Iterator.html#method.lend_mut).
-/// This is not yet provided by the `futures-concurrency` crate.
-///
 /// # Example
+///
+/// **Basic example**
 ///
 /// ```rust
 /// use futures_concurrency::stream::StreamGroup;
@@ -32,6 +29,31 @@ use crate::utils::{PollState, PollVec, WakerVec};
 ///     out += num;
 /// }
 /// assert_eq!(out, 6);
+/// # });
+/// ```
+///
+/// **Update the group on every iteration**
+///
+/// ```rust
+/// use futures_concurrency::stream::StreamGroup;
+/// use lending_stream::prelude::*;
+/// use futures_lite::stream;
+///
+/// # futures_lite::future::block_on(async {
+/// let mut group = StreamGroup::new();
+/// group.insert(stream::once(4));
+
+/// let mut index = 3;
+/// let mut out = 0;
+/// let mut group = group.lend_mut();
+/// while let Some((group, num)) = group.next().await {
+///     if index != 0 {
+///         group.insert(stream::once(index));
+///         index -= 1;
+///     }
+///     out += num;
+/// }
+/// assert_eq!(out, 10);
 /// # });
 /// ```
 #[must_use = "`StreamGroup` does nothing if not iterated over"]
@@ -214,6 +236,8 @@ impl<S: Stream> StreamGroup<S> {
 
         // Set the corresponding state
         self.states[index].set_pending();
+        let mut readiness = self.wakers.readiness().lock().unwrap();
+        readiness.set_ready(index);
 
         key
     }

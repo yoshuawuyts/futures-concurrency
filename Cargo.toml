@@ -35,9 +35,10 @@ slab = "0.4.8"
 smallvec = "1.11.0"
 
 [dev-dependencies]
+async-std = { version = "1.12.0", features = ["attributes"] }
+criterion = { version = "0.3", features = ["async", "async_futures", "html_reports"] }
 futures = "0.3.25"
 futures-lite = "1.12.0"
-criterion = { version = "0.3", features = ["async", "async_futures", "html_reports"] }
-async-std = { version = "1.12.0", features = ["attributes"] }
 futures-time = "3.0.0"
+lending-stream = "1.0.0"
 rand = "0.8.5"
