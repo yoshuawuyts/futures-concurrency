@@ -11,12 +11,9 @@ use crate::utils::{PollState, PollVec, WakerVec};
 
 /// A growable group of streams which act as a single unit.
 ///
-/// In order go mutate the group during iteration, the stream should be
-/// combined with a mechanism such as
-/// [`lend_mut`](https://docs.rs/async-iterator/latest/async_iterator/trait.Iterator.html#method.lend_mut).
-/// This is not yet provided by the `futures-concurrency` crate.
-///
 /// # Example
+///
+/// **Basic example**
 ///
 /// ```rust
 /// use futures_concurrency::stream::StreamGroup;
