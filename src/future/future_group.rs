@@ -214,6 +214,8 @@ impl<F: Future> FutureGroup<F> {
 
         // Set the corresponding state
         self.states[index].set_pending();
+        let mut readiness = self.wakers.readiness().lock().unwrap();
+        readiness.set_ready(index);
 
         key
     }
