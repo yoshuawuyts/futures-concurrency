@@ -95,7 +95,7 @@ where
 
         let mut readiness = this.wakers.readiness().lock().unwrap();
         readiness.set_waker(cx.waker());
-        if !readiness.any_ready() {
+        if *this.pending != 0 && !readiness.any_ready() {
             // Nothing is ready yet
             return Poll::Pending;
         }
@@ -198,6 +198,15 @@ mod test {
                 .await;
             assert_eq!(res.unwrap(), ["hello", "world"]);
         })
+    }
+
+    #[test]
+    fn empty() {
+        futures_lite::future::block_on(async {
+            let data: [future::Ready<io::Result<()>>; 0] = [];
+            let res = data.try_join().await;
+            assert_eq!(res.unwrap(), []);
+        });
     }
 
     #[test]
