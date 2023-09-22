@@ -230,7 +230,7 @@ macro_rules! impl_join_tuple {
                             unsafe { ($($F.assume_init(),)+) }
                         };
 
-                        this.state.set_all_completed();
+                        this.state.set_all_none();
 
                         return Poll::Ready(out);
                     }

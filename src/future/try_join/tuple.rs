@@ -33,7 +33,7 @@ macro_rules! unsafe_poll {
                     .map_unchecked_mut(|t| t.deref_mut())
                     .poll(&mut $cx)
             } {
-                $this.state[$fut_idx].set_none();
+                $this.state[$fut_idx].set_ready();
                 *$this.completed += 1;
                 // SAFETY: the future state has been changed to "ready" which
                 // means we'll no longer poll the future, so it's safe to drop
@@ -248,7 +248,7 @@ macro_rules! impl_try_join_tuple {
                             unsafe { ($($F.assume_init(),)+) }
                         };
 
-                        this.state.set_all_completed();
+                        this.state.set_all_none();
                         *this.consumed = true;
 
                         return Poll::Ready(Ok(out));
