@@ -1,70 +1,32 @@
-// use futures_concurrency::prelude::*;
-// use futures_core::Stream;
-// use futures_lite::future::block_on;
-// use futures_lite::prelude::*;
-// use pin_project::pin_project;
+use futures_concurrency::future::{Join, TryJoin};
+use std::future::ready;
+use tokio::time::{sleep, Duration};
 
-// use std::cell::RefCell;
-// use std::pin::Pin;
-// use std::rc::Rc;
-// use std::task::{Context, Poll};
+async fn process(iter: impl IntoIterator<Item = &i32>, fail: bool) -> Result<Vec<i32>, Vec<()>> {
+    if fail {
+        return Err(vec![]);
+    } else {
+        sleep(Duration::from_secs(5)).await;
+    }
 
-// pub(crate) fn merge_test(max: usize) {
-//     block_on(async {
-//         let counter = Rc::new(RefCell::new(max));
-//         let futures: Vec<_> = (1..=max)
-//             .rev()
-//             .map(|n| Countdown::new(n, counter.clone()))
-//             .collect();
-//         let mut s = futures.merge();
+    Ok(iter
+        .into_iter()
+        .map(|i| ready(*i))
+        .collect::<Vec<_>>()
+        .join()
+        .await)
+}
 
-//         let mut counter = 0;
-//         while let Some(_) = s.next().await {
-//             counter += 1;
-//         }
-//         assert_eq!(counter, max);
-//     })
-// }
+#[tokio::test]
+async fn test() -> Result<(), Vec<()>> {
+    let v = (0..10).collect::<Vec<_>>();
 
-// /// A future which will _eventually_ be ready, but needs to be polled N times before it is.
-// #[pin_project]
-// struct Countdown {
-//     success_count: Rc<RefCell<usize>>,
-//     target_count: usize,
-//     done: bool,
-// }
+    (
+        process(v.iter().take(5), true),
+        process(v.iter().take(0), false),
+    )
+        .try_join()
+        .await?;
 
-// impl Countdown {
-//     fn new(count: usize, success_count: Rc<RefCell<usize>>) -> Self {
-//         Self {
-//             success_count,
-//             target_count: count,
-//             done: false,
-//         }
-//     }
-// }
-// impl Stream for Countdown {
-//     type Item = ();
-
-//     fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-//         let this = self.project();
-//         if *this.done {
-//             Poll::Ready(None)
-//         } else if *this.success_count.borrow() == *this.target_count {
-//             *this.success_count.borrow_mut() -= 1;
-//             *this.done = true;
-//             Poll::Ready(Some(()))
-//         } else {
-//             Poll::Pending
-//         }
-//     }
-// }
-
-// #[cfg(test)]
-// mod test {
-//     use super::*;
-//     #[test]
-//     fn smoke() {
-//         merge_test(4);
-//     }
-// }
+    Ok(())
+}
