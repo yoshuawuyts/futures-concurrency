@@ -117,18 +117,32 @@ where
                         .map_unchecked_mut(|t| t.deref_mut())
                         .poll(&mut cx)
                 } {
-                    this.state[i].set_ready();
                     *this.pending -= 1;
-                    // SAFETY: the future state has been changed to "ready" which
-                    // means we'll no longer poll the future, so it's safe to drop
-                    unsafe { ManuallyDrop::drop(fut.get_unchecked_mut()) };
 
                     // Check the value, short-circuit on error.
                     match value {
-                        Ok(value) => this.items.write(i, value),
+                        Ok(value) => {
+                            this.items.write(i, value);
+
+                            // SAFETY: We're marking the state as "ready", which
+                            // means the future has been consumed, and data is
+                            // now available to be consumed. The future will no
+                            // longer be used after this point so it's safe to drop.
+                            this.state[i].set_ready();
+                            unsafe { ManuallyDrop::drop(fut.get_unchecked_mut()) };
+                        }
                         Err(err) => {
                             // The future should no longer be polled after we're done here
                             *this.consumed = true;
+
+                            // SAFETY: We're about to return the error value
+                            // from the future, and drop the entire future.
+                            // We're marking the future as consumed, and then
+                            // proceeding to drop all other futures and
+                            // initiatlized values in the destructor.
+                            this.state[i].set_none();
+                            unsafe { ManuallyDrop::drop(fut.get_unchecked_mut()) };
+
                             return Poll::Ready(Err(err));
                         }
                     }

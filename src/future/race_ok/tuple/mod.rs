@@ -122,7 +122,7 @@ macro_rules! impl_race_ok_tuple {
                 let all_completed = *this.completed == LEN;
                 if all_completed {
                     // mark all error states as consumed before we return it
-                    this.errors_states.set_all_completed();
+                    this.errors_states.set_all_none();
 
                     let mut errors = array::from_fn(|_| MaybeUninit::uninit());
                     mem::swap(&mut errors, this.errors);

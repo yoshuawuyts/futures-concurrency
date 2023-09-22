@@ -22,18 +22,6 @@ impl<const N: usize> PollArray<N> {
         }
     }
 
-    /// Mark all items as "completed"
-    #[inline]
-    pub(crate) fn set_all_completed(&mut self) {
-        self.iter_mut().for_each(|state| {
-            debug_assert!(
-                state.is_ready(),
-                "Future should have reached a `Ready` state"
-            );
-            state.set_none();
-        })
-    }
-
     /// Mark all items as "pending"
     #[inline]
     pub(crate) fn set_all_pending(&mut self) {
