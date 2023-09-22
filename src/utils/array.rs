@@ -17,6 +17,7 @@ pub(crate) unsafe fn array_assume_init<T, const N: usize>(array: [MaybeUninit<T>
     let ret = unsafe { (&array as *const _ as *const [T; N]).read() };
 
     // FIXME: required to avoid `~const Destruct` bound
+    #[allow(clippy::forget_non_drop)]
     mem::forget(array);
     ret
 }
