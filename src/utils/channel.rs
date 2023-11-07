@@ -32,7 +32,7 @@ impl<T> Stream for LocalReceiver<T> {
                 } else {
                     match &mut channel.waker {
                         Some(prev) => prev.clone_from(cx.waker()),
-                        None => channel.waker = Some(cx.waker().clone())
+                        None => channel.waker = Some(cx.waker().clone()),
                     }
                     Poll::Pending
                 }
