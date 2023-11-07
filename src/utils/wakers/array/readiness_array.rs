@@ -62,6 +62,9 @@ impl<const N: usize> ReadinessArray<N> {
     /// Set the parent `Waker`. This needs to be called at the start of every
     /// `poll` function.
     pub(crate) fn set_waker(&mut self, parent_waker: &Waker) {
-        self.parent_waker = Some(parent_waker.clone());
+        match &mut self.parent_waker {
+            Some(prev) => prev.clone_from(parent_waker),
+            None => self.parent_waker = Some(parent_waker.clone()),
+        }
     }
 }
