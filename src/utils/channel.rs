@@ -30,7 +30,10 @@ impl<T> Stream for LocalReceiver<T> {
                 if channel.closed {
                     Poll::Ready(None)
                 } else {
-                    channel.waker = Some(cx.waker().clone());
+                    match &mut channel.waker {
+                        Some(prev) => prev.clone_from(cx.waker()),
+                        None => channel.waker = Some(cx.waker().clone())
+                    }
                     Poll::Pending
                 }
             }
