@@ -3,9 +3,9 @@ use crate::stream::IntoStream;
 use crate::utils::{self, Indexer, PollArray, WakerArray};
 
 use core::fmt;
+use core::pin::Pin;
+use core::task::{Context, Poll};
 use futures_core::Stream;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 /// A stream that merges multiple streams into a single stream.
 ///
@@ -62,7 +62,7 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
-        let mut readiness = this.wakers.readiness().lock().unwrap();
+        let mut readiness = this.wakers.readiness();
         readiness.set_waker(cx.waker());
 
         // Iterate over our streams one-by-one. If a stream yields a value,
@@ -86,7 +86,7 @@ where
             match stream.poll_next(&mut cx) {
                 Poll::Ready(Some(item)) => {
                     // Mark ourselves as ready again because we need to poll for the next item.
-                    this.wakers.readiness().lock().unwrap().set_ready(index);
+                    this.wakers.readiness().set_ready(index);
                     return Poll::Ready(Some(item));
                 }
                 Poll::Ready(None) => {
@@ -100,7 +100,7 @@ where
             }
 
             // Lock readiness so we can use it again
-            readiness = this.wakers.readiness().lock().unwrap();
+            readiness = this.wakers.readiness();
         }
 
         Poll::Pending
@@ -121,18 +121,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
-    use std::rc::Rc;
-
     use super::*;
-    use crate::utils::channel::local_channel;
-    use futures::executor::LocalPool;
-    use futures::task::LocalSpawnExt;
     use futures_lite::future::block_on;
     use futures_lite::prelude::*;
     use futures_lite::stream;
-
-    use crate::future::join::Join;
 
     #[test]
     fn merge_array_4() {
@@ -170,7 +162,16 @@ mod tests {
     ///
     /// The purpose of this test is to make sure we have the waking logic working.
     #[test]
+    #[cfg(feature = "alloc")]
     fn merge_channels() {
+        use alloc::rc::Rc;
+        use core::cell::RefCell;
+        use futures::executor::LocalPool;
+        use futures::task::LocalSpawnExt;
+
+        use crate::future::join::Join;
+        use crate::utils::channel::local_channel;
+
         let mut pool = LocalPool::new();
 
         let done = Rc::new(RefCell::new(false));

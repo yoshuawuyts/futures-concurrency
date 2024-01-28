@@ -4,6 +4,8 @@
 //! path. This meant that when we returned, the destructor assumed a value was
 //! initialized when it wasn't, causing it to dereference uninitialized memory.
 
+#![cfg(feature = "alloc")]
+
 use futures_concurrency::prelude::*;
 use futures_core::Future;
 use std::{future::ready, pin::Pin};

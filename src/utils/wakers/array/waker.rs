@@ -1,5 +1,6 @@
-use std::sync::{Arc, Mutex};
-use std::task::Wake;
+use alloc::sync::Arc;
+use alloc::task::Wake;
+use std::sync::Mutex;
 
 use super::ReadinessArray;
 
@@ -18,12 +19,11 @@ impl<const N: usize> InlineWakerArray<N> {
 }
 
 impl<const N: usize> Wake for InlineWakerArray<N> {
-    fn wake(self: std::sync::Arc<Self>) {
+    fn wake(self: Arc<Self>) {
         let mut readiness = self.readiness.lock().unwrap();
         if !readiness.set_ready(self.id) {
             readiness
                 .parent_waker()
-                .as_mut()
                 .expect("`parent_waker` not available from `Readiness`. Did you forget to call `Readiness::set_waker`?")
                 .wake_by_ref()
         }

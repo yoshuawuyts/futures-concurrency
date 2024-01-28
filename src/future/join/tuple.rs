@@ -3,11 +3,10 @@ use crate::utils::{PollArray, WakerArray};
 
 use core::fmt::{self, Debug};
 use core::future::{Future, IntoFuture};
-use core::mem::MaybeUninit;
+use core::mem::{ManuallyDrop, MaybeUninit};
+use core::ops::DerefMut;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use std::mem::ManuallyDrop;
-use std::ops::DerefMut;
 
 use pin_project::{pin_project, pinned_drop};
 
@@ -136,7 +135,7 @@ macro_rules! impl_join_tuple {
     };
     ($mod_name:ident $StructName:ident $($F:ident)+) => {
         mod $mod_name {
-            use std::mem::ManuallyDrop;
+            use core::mem::ManuallyDrop;
 
             #[pin_project::pin_project]
             pub(super) struct Futures<$($F,)+> {$(
@@ -199,7 +198,7 @@ macro_rules! impl_join_tuple {
 
                 let mut futures = this.futures.project();
 
-                let mut readiness = this.wakers.readiness().lock().unwrap();
+                let mut readiness = this.wakers.readiness();
                 readiness.set_waker(cx.waker());
 
                 for index in 0..LEN {
@@ -234,7 +233,7 @@ macro_rules! impl_join_tuple {
 
                         return Poll::Ready(out);
                     }
-                    readiness = this.wakers.readiness().lock().unwrap();
+                    readiness = this.wakers.readiness();
                 }
 
                 Poll::Pending
@@ -294,7 +293,7 @@ impl_join_tuple! { join12 Join12 A B C D E F G H I J K L }
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::future;
+    use core::future;
 
     #[test]
     #[allow(clippy::unit_cmp)]
@@ -332,6 +331,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn does_not_leak_memory() {
         use core::cell::RefCell;
         use futures_lite::future::pending;

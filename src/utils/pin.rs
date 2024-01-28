@@ -1,3 +1,5 @@
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 use core::pin::Pin;
 use core::slice::SliceIndex;
 
@@ -12,6 +14,7 @@ pub(crate) fn iter_pin_mut<T>(slice: Pin<&mut [T]>) -> impl Iterator<Item = Pin<
 }
 
 // From: `futures_rs::join_all!` -- https://github.com/rust-lang/futures-rs/blob/b48eb2e9a9485ef7388edc2f177094a27e08e28b/futures-util/src/future/join_all.rs#L18-L23
+#[cfg(feature = "alloc")]
 pub(crate) fn iter_pin_mut_vec<T>(slice: Pin<&mut Vec<T>>) -> impl Iterator<Item = Pin<&mut T>> {
     // SAFETY: `std` _could_ make this unsound if it were to decide Pin's
     // invariants aren't required to transmit through slices. Otherwise this has
@@ -44,6 +47,7 @@ where
 // slices.
 //
 // From: https://github.com/rust-lang/rust/pull/78370/files
+#[cfg(feature = "alloc")]
 pub(crate) fn get_pin_mut_from_vec<T, I>(
     slice: Pin<&mut Vec<T>>,
     index: I,

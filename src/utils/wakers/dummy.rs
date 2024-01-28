@@ -1,4 +1,5 @@
-use std::{sync::Arc, task::Wake};
+use alloc::sync::Arc;
+use alloc::task::Wake;
 
 pub(crate) struct DummyWaker();
 impl Wake for DummyWaker {

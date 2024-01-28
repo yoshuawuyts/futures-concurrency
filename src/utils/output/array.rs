@@ -1,4 +1,4 @@
-use std::{
+use core::{
     array,
     mem::{self, MaybeUninit},
 };

@@ -102,13 +102,12 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::future;
-    use std::io::{Error, ErrorKind};
+    use core::future;
 
     #[test]
     fn all_ok() {
         futures_lite::future::block_on(async {
-            let res: Result<&str, AggregateError<Error, 2>> =
+            let res: Result<&str, AggregateError<(), 2>> =
                 [future::ready(Ok("hello")), future::ready(Ok("world"))]
                     .race_ok()
                     .await;
@@ -119,9 +118,8 @@ mod test {
     #[test]
     fn one_err() {
         futures_lite::future::block_on(async {
-            let err = Error::new(ErrorKind::Other, "oh no");
-            let res: Result<&str, AggregateError<Error, 2>> =
-                [future::ready(Ok("hello")), future::ready(Err(err))]
+            let res: Result<&str, AggregateError<_, 2>> =
+                [future::ready(Ok("hello")), future::ready(Err("oh no"))]
                     .race_ok()
                     .await;
             assert_eq!(res.unwrap(), "hello");
@@ -131,15 +129,13 @@ mod test {
     #[test]
     fn all_err() {
         futures_lite::future::block_on(async {
-            let err1 = Error::new(ErrorKind::Other, "oops");
-            let err2 = Error::new(ErrorKind::Other, "oh no");
-            let res: Result<&str, AggregateError<Error, 2>> =
-                [future::ready(Err(err1)), future::ready(Err(err2))]
+            let res: Result<&str, AggregateError<_, 2>> =
+                [future::ready(Err("oops")), future::ready(Err("oh no"))]
                     .race_ok()
                     .await;
             let errs = res.unwrap_err();
-            assert_eq!(errs[0].to_string(), "oops");
-            assert_eq!(errs[1].to_string(), "oh no");
+            assert_eq!(errs[0], "oops");
+            assert_eq!(errs[1], "oh no");
         });
     }
 }

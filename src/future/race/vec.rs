@@ -2,6 +2,7 @@ use crate::utils::{self, Indexer};
 
 use super::Race as RaceTrait;
 
+use alloc::vec::Vec;
 use core::fmt;
 use core::future::{Future, IntoFuture};
 use core::pin::Pin;
@@ -81,7 +82,8 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::future;
+    use alloc::vec;
+    use core::future;
 
     // NOTE: we should probably poll in random order.
     #[test]

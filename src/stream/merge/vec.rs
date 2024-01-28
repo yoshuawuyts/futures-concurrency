@@ -2,10 +2,11 @@ use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
 use crate::utils::{self, Indexer, PollVec, WakerVec};
 
+use alloc::vec::Vec;
 use core::fmt;
+use core::pin::Pin;
+use core::task::{Context, Poll};
 use futures_core::Stream;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 /// A stream that merges multiple streams into a single stream.
 ///
@@ -63,7 +64,7 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
-        let mut readiness = this.wakers.readiness().lock().unwrap();
+        let mut readiness = this.wakers.readiness();
         readiness.set_waker(cx.waker());
 
         // Iterate over our streams one-by-one. If a stream yields a value,
@@ -87,7 +88,7 @@ where
             match stream.poll_next(&mut cx) {
                 Poll::Ready(Some(item)) => {
                     // Mark ourselves as ready again because we need to poll for the next item.
-                    this.wakers.readiness().lock().unwrap().set_ready(index);
+                    this.wakers.readiness().set_ready(index);
                     return Poll::Ready(Some(item));
                 }
                 Poll::Ready(None) => {
@@ -101,7 +102,7 @@ where
             }
 
             // Lock readiness so we can use it again
-            readiness = this.wakers.readiness().lock().unwrap();
+            readiness = this.wakers.readiness();
         }
 
         Poll::Pending
@@ -122,8 +123,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
-    use std::rc::Rc;
+    use alloc::rc::Rc;
+    use alloc::vec;
+    use core::cell::RefCell;
 
     use super::*;
     use crate::utils::channel::local_channel;

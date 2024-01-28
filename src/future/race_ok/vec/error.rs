@@ -1,8 +1,9 @@
+use alloc::vec::Vec;
 use core::fmt;
+use core::ops::Deref;
+use core::ops::DerefMut;
+#[cfg(feature = "std")]
 use std::error::Error;
-use std::ops::Deref;
-use std::ops::DerefMut;
-use std::vec::Vec;
 
 /// A collection of errors.
 #[repr(transparent)]
@@ -16,24 +17,19 @@ impl<E> AggregateError<E> {
     }
 }
 
-impl<E: Error> fmt::Debug for AggregateError<E> {
+impl<E: fmt::Display> fmt::Debug for AggregateError<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{self}:")?;
 
         for (i, err) in self.inner.iter().enumerate() {
             writeln!(f, "- Error {}: {err}", i + 1)?;
-            let mut source = err.source();
-            while let Some(err) = source {
-                writeln!(f, "  ↳ Caused by: {err}")?;
-                source = err.source();
-            }
         }
 
         Ok(())
     }
 }
 
-impl<E: Error> fmt::Display for AggregateError<E> {
+impl<E: fmt::Display> fmt::Display for AggregateError<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} errors occurred", self.inner.len())
     }
@@ -53,4 +49,5 @@ impl<E> DerefMut for AggregateError<E> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<E: Error> Error for AggregateError<E> {}

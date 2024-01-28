@@ -1,5 +1,5 @@
+use core::ops::{Deref, DerefMut};
 use smallvec::{smallvec, SmallVec};
-use std::ops::{Deref, DerefMut};
 
 use super::PollState;
 
@@ -24,7 +24,7 @@ use super::PollState;
 ///    len                          ^^^^^
 ///                                 Inline
 /// ```
-const MAX_INLINE_ENTRIES: usize = std::mem::size_of::<usize>() * 3 - 2;
+const MAX_INLINE_ENTRIES: usize = core::mem::size_of::<usize>() * 3 - 2;
 
 #[derive(Default)]
 pub(crate) struct PollVec(SmallVec<[PollState; MAX_INLINE_ENTRIES]>);
@@ -108,8 +108,8 @@ mod tests {
     fn type_size() {
         // PollVec is three words plus two bits
         assert_eq!(
-            std::mem::size_of::<PollVec>(),
-            std::mem::size_of::<usize>() * 4
+            core::mem::size_of::<PollVec>(),
+            core::mem::size_of::<usize>() * 4
         );
     }
 

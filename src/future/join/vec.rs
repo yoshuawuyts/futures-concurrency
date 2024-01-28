@@ -1,13 +1,13 @@
 use super::Join as JoinTrait;
 use crate::utils::{FutureVec, OutputVec, PollVec, WakerVec};
 
+use alloc::vec::Vec;
 use core::fmt;
 use core::future::{Future, IntoFuture};
+use core::mem::ManuallyDrop;
+use core::ops::DerefMut;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use std::mem::ManuallyDrop;
-use std::ops::DerefMut;
-use std::vec::Vec;
 
 use pin_project::{pin_project, pinned_drop};
 
@@ -85,7 +85,7 @@ where
             "Futures must not be polled after completing"
         );
 
-        let mut readiness = this.wakers.readiness().lock().unwrap();
+        let mut readiness = this.wakers.readiness();
         readiness.set_waker(cx.waker());
         if *this.pending != 0 && !readiness.any_ready() {
             // Nothing is ready yet
@@ -119,7 +119,7 @@ where
                 }
 
                 // Lock readiness so we can use it again
-                readiness = this.wakers.readiness().lock().unwrap();
+                readiness = this.wakers.readiness();
             }
         }
 
@@ -174,10 +174,12 @@ mod test {
     use super::*;
     use crate::utils::DummyWaker;
 
-    use std::future;
-    use std::future::Future;
-    use std::sync::Arc;
-    use std::task::Context;
+    use alloc::format;
+    use alloc::sync::Arc;
+    use alloc::vec;
+    use core::future;
+    use core::future::Future;
+    use core::task::Context;
 
     #[test]
     fn smoke() {

@@ -3,9 +3,9 @@ use crate::stream::IntoStream;
 use crate::utils::{self, PollArray, WakerArray};
 
 use core::fmt;
+use core::pin::Pin;
+use core::task::{Context, Poll};
 use futures_core::Stream;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 macro_rules! poll_stream {
     ($stream_idx:tt, $iteration:ident, $this:ident, $streams:ident . $stream_member:ident, $cx:ident, $len_streams:ident) => {
@@ -13,12 +13,7 @@ macro_rules! poll_stream {
             match unsafe { Pin::new_unchecked(&mut $streams.$stream_member) }.poll_next(&mut $cx) {
                 Poll::Ready(Some(item)) => {
                     // Mark ourselves as ready again because we need to poll for the next item.
-                    $this
-                        .wakers
-                        .readiness()
-                        .lock()
-                        .unwrap()
-                        .set_ready($stream_idx);
+                    $this.wakers.readiness().set_ready($stream_idx);
                     return Poll::Ready(Some(item));
                 }
                 Poll::Ready(None) => {
@@ -118,7 +113,7 @@ macro_rules! impl_merge_tuple {
             fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
                 let this = self.project();
 
-                let mut readiness = this.wakers.readiness().lock().unwrap();
+                let mut readiness = this.wakers.readiness();
                 readiness.set_waker(cx.waker());
 
                 const LEN: u8 = $mod_name::LEN as u8;
@@ -155,7 +150,7 @@ macro_rules! impl_merge_tuple {
                     )+
 
                     // Lock readiness so we can use it again
-                    readiness = this.wakers.readiness().lock().unwrap();
+                    readiness = this.wakers.readiness();
                 }
 
                 Poll::Pending
@@ -200,7 +195,6 @@ impl_merge_tuple! { merge12 Merge12 A B C D E F G H I J K L }
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::task::LocalSpawnExt;
     use futures_lite::future::block_on;
     use futures_lite::prelude::*;
     use futures_lite::stream;
@@ -284,11 +278,13 @@ mod tests {
     ///
     /// The purpose of this test is to make sure we have the waking logic working.
     #[test]
+    #[cfg(feature = "alloc")]
     fn merge_channels() {
-        use std::cell::RefCell;
-        use std::rc::Rc;
+        use alloc::rc::Rc;
+        use core::cell::RefCell;
 
         use futures::executor::LocalPool;
+        use futures::task::LocalSpawnExt;
 
         use crate::future::Join;
         use crate::utils::channel::local_channel;

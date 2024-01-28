@@ -80,7 +80,7 @@ macro_rules! impl_zip_for_tuple {
 
                 assert!(!*this.done, "Stream should not be polled after completion");
 
-                let mut readiness = this.wakers.readiness().lock().unwrap();
+                let mut readiness = this.wakers.readiness();
                 readiness.set_waker(cx.waker());
 
                 for index in 0..LEN {
@@ -126,7 +126,7 @@ macro_rules! impl_zip_for_tuple {
 
                     if all_ready {
                         // Reset the future's state.
-                        readiness = this.wakers.readiness().lock().unwrap();
+                        readiness = this.wakers.readiness();
                         readiness.set_all_ready();
                         this.state.set_all_pending();
 
@@ -147,7 +147,7 @@ macro_rules! impl_zip_for_tuple {
                     }
 
                     // Lock readiness so we can use it again
-                    readiness = this.wakers.readiness().lock().unwrap();
+                    readiness = this.wakers.readiness();
                 }
 
                 Poll::Pending

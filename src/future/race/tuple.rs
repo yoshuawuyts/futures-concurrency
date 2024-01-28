@@ -106,7 +106,7 @@ impl_race_tuple! { Race12 A B C D E F G H I J K L }
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::future;
+    use core::future;
 
     #[test]
     fn race_1() {

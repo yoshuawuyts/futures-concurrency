@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use core::fmt;
 use core::pin::Pin;
 use core::task::{Context, Poll};
@@ -80,6 +81,7 @@ impl<S: Stream> ChainTrait for Vec<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
     use futures_lite::future::block_on;
     use futures_lite::prelude::*;
     use futures_lite::stream;

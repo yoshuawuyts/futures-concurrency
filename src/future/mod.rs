@@ -69,6 +69,7 @@
 //! complete, or return an `Err` if *no* futures complete successfully.
 //!
 #[doc(inline)]
+#[cfg(feature = "alloc")]
 pub use future_group::FutureGroup;
 pub use futures_ext::FutureExt;
 pub use join::Join;
@@ -77,6 +78,7 @@ pub use race_ok::RaceOk;
 pub use try_join::TryJoin;
 
 /// A growable group of futures which act as a single unit.
+#[cfg(feature = "alloc")]
 pub mod future_group;
 
 mod futures_ext;

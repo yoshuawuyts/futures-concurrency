@@ -2,6 +2,7 @@ use core::future::Future;
 
 pub(crate) mod array;
 pub(crate) mod tuple;
+#[cfg(feature = "alloc")]
 pub(crate) mod vec;
 
 /// Wait for all futures to complete.

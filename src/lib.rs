@@ -61,6 +61,10 @@
 #![deny(missing_debug_implementations, nonstandard_style)]
 #![warn(missing_docs)]
 #![allow(non_snake_case)]
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
 
 mod utils;
 
@@ -95,6 +99,7 @@ pub mod array {
 
 /// Helper functions and types for contiguous growable array type with heap-allocated contents,
 /// written `Vec<T>`.
+#[cfg(feature = "alloc")]
 pub mod vec {
     pub use crate::future::join::vec::Join;
     pub use crate::future::race::vec::Race;

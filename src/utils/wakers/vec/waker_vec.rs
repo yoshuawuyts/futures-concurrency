@@ -1,6 +1,7 @@
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::task::Waker;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::task::Waker;
+use std::sync::{Mutex, MutexGuard};
 
 use super::{InlineWakerVec, ReadinessVec};
 
@@ -31,8 +32,8 @@ impl WakerVec {
     }
 
     /// Access the `Readiness`.
-    pub(crate) fn readiness(&self) -> &Mutex<ReadinessVec> {
-        self.readiness.as_ref()
+    pub(crate) fn readiness(&self) -> MutexGuard<'_, ReadinessVec> {
+        self.readiness.lock().unwrap()
     }
 
     /// Resize the `WakerVec` to the new size.

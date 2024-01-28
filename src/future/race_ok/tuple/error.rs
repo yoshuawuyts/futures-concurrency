@@ -1,5 +1,6 @@
 use core::fmt;
 use core::ops::{Deref, DerefMut};
+#[cfg(feature = "std")]
 use std::error::Error;
 
 /// A collection of errors.
@@ -14,6 +15,7 @@ impl<E, const N: usize> AggregateError<E, N> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<E: Error, const N: usize> fmt::Debug for AggregateError<E, N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{self}:")?;
@@ -31,7 +33,28 @@ impl<E: Error, const N: usize> fmt::Debug for AggregateError<E, N> {
     }
 }
 
+#[cfg(not(feature = "std"))]
+impl<E: fmt::Display, const N: usize> fmt::Debug for AggregateError<E, N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "{self}:")?;
+
+        for (i, err) in self.inner.iter().enumerate() {
+            writeln!(f, "- Error {}: {err}", i + 1)?;
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "std")]
 impl<E: Error, const N: usize> fmt::Display for AggregateError<E, N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} errors occured", self.inner.len())
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl<E: fmt::Display, const N: usize> fmt::Display for AggregateError<E, N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} errors occured", self.inner.len())
     }
@@ -51,4 +74,5 @@ impl<E, const N: usize> DerefMut for AggregateError<E, N> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<E: Error, const N: usize> std::error::Error for AggregateError<E, N> {}

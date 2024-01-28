@@ -1,4 +1,4 @@
-use std::mem::{self, MaybeUninit};
+use core::mem::{self, MaybeUninit};
 
 /// Extracts the values from an array of `MaybeUninit` containers.
 ///
