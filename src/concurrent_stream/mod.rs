@@ -1,4 +1,17 @@
 //! Concurrent execution of streams
+//!
+//! Pitch: we don't want to ever work with a `Stream<Item = impl Future>` for
+//! concurrency; what we really want is a `ConcurrentAsyncIterator` trait which
+//! does all the right things for us.
+//!
+//! # todos
+//!
+//! - [x] base function impl based on `StreamGroup`
+//! - [ ] write integration tests to validate the impl
+//! - [ ] split it out into its own trait, and `for_each` into its own method
+//! - [ ] split `limit` out into its own method
+//! - [ ] implement a `map` method
+//! - [ ] implement a `collect` method
 
 use crate::future::{FutureGroup, Race};
 use futures_lite::{Stream, StreamExt};
