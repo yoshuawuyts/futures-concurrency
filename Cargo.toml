@@ -9,9 +9,7 @@ readme = "README.md"
 edition = "2021"
 keywords = []
 categories = []
-authors = [
-    "Yoshua Wuyts <yoshuawuyts@gmail.com>"
-]
+authors = ["Yoshua Wuyts <yoshuawuyts@gmail.com>"]
 
 [profile.bench]
 debug = true
@@ -33,17 +31,21 @@ std = ["alloc"]
 alloc = ["bitvec/alloc", "dep:slab", "dep:smallvec"]
 
 [dependencies]
-bitvec = { version = "1.0.1", default-features = false }
+bitvec = { version = "1.0.1", default-features = false, features = ["alloc"] }
 futures-core = { version = "0.3", default-features = false }
+futures-lite = "1.12.0"
 pin-project = "1.0.8"
 slab = { version = "0.4.8", optional = true }
 smallvec = { version = "1.11.0", optional = true }
 
 [dev-dependencies]
 async-std = { version = "1.12.0", features = ["attributes"] }
-criterion = { version = "0.3", features = ["async", "async_futures", "html_reports"] }
+criterion = { version = "0.3", features = [
+    "async",
+    "async_futures",
+    "html_reports",
+] }
 futures = "0.3.25"
-futures-lite = "1.12.0"
 futures-time = "3.0.0"
 lending-stream = "1.0.0"
 rand = "0.8.5"

@@ -83,6 +83,7 @@ pub mod prelude {
     pub use super::stream::Zip as _;
 }
 
+pub mod concurrent_stream;
 pub mod future;
 pub mod stream;
 
