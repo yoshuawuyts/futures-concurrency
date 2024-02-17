@@ -13,17 +13,21 @@ use std::sync::Arc;
 ///
 /// This implementation does not suffer from the "concurrent iterator" issue,
 /// because it will always make forward progress.
-pub async fn concurrent_for_each<I, F, Fut>(stream: I, f: F, limit: usize)
+pub async fn concurrent_for_each<I, F, Fut>(mut stream: I, f: F, limit: usize)
 where
     I: Stream + Unpin,
     F: Fn(I::Item) -> Fut,
     Fut: Future<Output = ()>,
 {
-    let mut stream = stream.fuse();
+    let mut is_done = false;
     let count = Arc::new(AtomicUsize::new(0));
     let mut group = pin!(FutureGroup::new());
 
     loop {
+        if is_done {
+            group.next().await;
+        }
+
         // ORDERING: this is single-threaded so `Relaxed` is ok
         match count.load(Ordering::Relaxed) {
             // 1. This is our base case: there are no items in the group, so we
@@ -36,7 +40,9 @@ where
                     let fut = insert_fut(&f, item, count.clone());
                     group.as_mut().insert_pinned(fut);
                 }
-                None => return,
+                None => {
+                    return;
+                }
             },
 
             // 2. Here our group still has capacity remaining, so we want to
@@ -61,7 +67,9 @@ where
                         let fut = insert_fut(&f, item, count.clone());
                         group.as_mut().insert_pinned(fut);
                     }
-                    State::ItemReady(None) => {} // do nothing, stream is done
+                    State::ItemReady(None) => {
+                        is_done = true;
+                    }
                     State::GroupDone => {} // do nothing, group just finished an item - we get to loop again
                 }
             }
@@ -90,4 +98,44 @@ where
 enum State<T> {
     ItemReady(Option<T>),
     GroupDone,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use futures_lite::stream;
+
+    #[test]
+    fn concurrency_one() {
+        futures_lite::future::block_on(async {
+            let count = Arc::new(AtomicUsize::new(0));
+            let s = stream::repeat(1).take(2);
+            let limit = 1;
+            let map = |n| {
+                let count = count.clone();
+                async move {
+                    count.fetch_add(n, Ordering::Relaxed);
+                }
+            };
+            concurrent_for_each(s, map, limit).await;
+            assert_eq!(count.load(Ordering::Relaxed), 2);
+        });
+    }
+
+    #[test]
+    fn concurrency_three() {
+        futures_lite::future::block_on(async {
+            let count = Arc::new(AtomicUsize::new(0));
+            let s = stream::repeat(1).take(10);
+            let limit = 3;
+            let map = |n| {
+                let count = count.clone();
+                async move {
+                    count.fetch_add(n, Ordering::Relaxed);
+                }
+            };
+            concurrent_for_each(s, map, limit).await;
+            assert_eq!(count.load(Ordering::Relaxed), 10);
+        });
+    }
 }
