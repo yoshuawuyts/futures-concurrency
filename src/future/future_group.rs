@@ -1,11 +1,11 @@
+use alloc::collections::BTreeSet;
+use core::fmt::{self, Debug};
+use core::ops::{Deref, DerefMut};
+use core::pin::Pin;
+use core::task::{Context, Poll};
 use futures_core::stream::Stream;
 use futures_core::Future;
 use slab::Slab;
-use std::collections::BTreeSet;
-use std::fmt::{self, Debug};
-use std::ops::{Deref, DerefMut};
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 use crate::utils::{PollState, PollVec, WakerVec};
 
@@ -237,7 +237,7 @@ impl<F: Future> FutureGroup<F> {
 
         // Set the corresponding state
         self.states[index].set_pending();
-        let mut readiness = self.wakers.readiness().lock().unwrap();
+        let mut readiness = self.wakers.readiness();
         readiness.set_ready(index);
 
         key
@@ -273,7 +273,7 @@ impl<F: Future> FutureGroup<F> {
 impl<F: Future> FutureGroup<F> {
     fn poll_next_inner(
         self: Pin<&mut Self>,
-        cx: &std::task::Context<'_>,
+        cx: &Context<'_>,
     ) -> Poll<Option<(Key, <F as Future>::Output)>> {
         let mut this = self.project();
 
@@ -283,7 +283,7 @@ impl<F: Future> FutureGroup<F> {
         }
 
         // Set the top-level waker and check readiness
-        let mut readiness = this.wakers.readiness().lock().unwrap();
+        let mut readiness = this.wakers.readiness();
         readiness.set_waker(cx.waker());
         if !readiness.any_ready() {
             // Nothing is ready yet
@@ -326,7 +326,7 @@ impl<F: Future> FutureGroup<F> {
                 };
 
                 // Lock readiness so we can use it again
-                readiness = this.wakers.readiness().lock().unwrap();
+                readiness = this.wakers.readiness();
             }
         }
 
@@ -343,10 +343,7 @@ impl<F: Future> FutureGroup<F> {
 impl<F: Future> Stream for FutureGroup<F> {
     type Item = <F as Future>::Output;
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.poll_next_inner(cx) {
             Poll::Ready(Some((_key, item))) => Poll::Ready(Some(item)),
             Poll::Ready(None) => Poll::Ready(None),
@@ -396,10 +393,7 @@ impl<F: Future> DerefMut for Keyed<F> {
 impl<F: Future> Stream for Keyed<F> {
     type Item = (Key, <F as Future>::Output);
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
         this.group.as_mut().poll_next_inner(cx)
     }
@@ -408,8 +402,8 @@ impl<F: Future> Stream for Keyed<F> {
 #[cfg(test)]
 mod test {
     use super::FutureGroup;
+    use core::future;
     use futures_lite::prelude::*;
-    use std::future;
 
     #[test]
     fn smoke() {

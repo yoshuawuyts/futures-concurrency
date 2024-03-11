@@ -178,14 +178,11 @@ impl_race_ok_tuple! { RaceOk12 A B C D E F G H I J K L }
 mod test {
     use super::*;
     use core::future;
-    use std::error::Error;
-
-    type DynError = Box<dyn Error>;
 
     #[test]
     fn race_ok_1() {
         futures_lite::future::block_on(async {
-            let a = async { Ok::<_, DynError>("world") };
+            let a = async { Ok::<_, ()>("world") };
             let res = (a,).race_ok().await;
             assert!(matches!(res, Ok("world")));
         });
@@ -195,7 +192,7 @@ mod test {
     fn race_ok_2() {
         futures_lite::future::block_on(async {
             let a = future::pending();
-            let b = async { Ok::<_, DynError>("world") };
+            let b = async { Ok::<_, ()>("world") };
             let res = (a, b).race_ok().await;
             assert!(matches!(res, Ok("world")));
         });
@@ -205,8 +202,8 @@ mod test {
     fn race_ok_3() {
         futures_lite::future::block_on(async {
             let a = future::pending();
-            let b = async { Ok::<_, DynError>("hello") };
-            let c = async { Ok::<_, DynError>("world") };
+            let b = async { Ok::<_, ()>("hello") };
+            let c = async { Ok::<_, ()>("world") };
             let result = (a, b, c).race_ok().await;
             assert!(matches!(result, Ok("hello") | Ok("world")));
         });

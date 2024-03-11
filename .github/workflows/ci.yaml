@@ -34,6 +34,18 @@ jobs:
         command: check
         args: --all --bins --examples
 
+    - name: check no-std
+      uses: actions-rs/cargo@v1
+      with:
+        command: check
+        args: --all --no-default-features
+
+    - name: check alloc
+      uses: actions-rs/cargo@v1
+      with:
+        command: check
+        args: --all --no-default-features --features alloc
+
     - name: tests
       uses: actions-rs/cargo@v1
       with:

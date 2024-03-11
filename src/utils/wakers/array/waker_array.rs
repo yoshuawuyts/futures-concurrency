@@ -1,7 +1,7 @@
+use alloc::sync::Arc;
 use core::array;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::task::Waker;
+use core::task::Waker;
+use std::sync::{Mutex, MutexGuard};
 
 use super::{InlineWakerArray, ReadinessArray};
 
@@ -28,7 +28,7 @@ impl<const N: usize> WakerArray<N> {
     }
 
     /// Access the `Readiness`.
-    pub(crate) fn readiness(&self) -> &Mutex<ReadinessArray<N>> {
-        self.readiness.as_ref()
+    pub(crate) fn readiness(&mut self) -> MutexGuard<'_, ReadinessArray<N>> {
+        self.readiness.as_ref().lock().unwrap()
     }
 }

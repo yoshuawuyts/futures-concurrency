@@ -1,4 +1,4 @@
-use std::{
+use core::{
     mem::{self, ManuallyDrop, MaybeUninit},
     pin::Pin,
 };

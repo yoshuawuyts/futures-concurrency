@@ -2,11 +2,12 @@ use super::Zip as ZipTrait;
 use crate::stream::IntoStream;
 use crate::utils::{self, PollVec, WakerVec};
 
+use alloc::vec::Vec;
 use core::fmt;
+use core::mem;
 use core::mem::MaybeUninit;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use std::mem;
 
 use futures_core::Stream;
 use pin_project::{pin_project, pinned_drop};
@@ -69,7 +70,7 @@ where
 
         assert!(!*this.done, "Stream should not be polled after completion");
 
-        let mut readiness = this.wakers.readiness().lock().unwrap();
+        let mut readiness = this.wakers.readiness();
         readiness.set_waker(cx.waker());
         for index in 0..*this.len {
             if !readiness.any_ready() {
@@ -96,7 +97,7 @@ where
                     let all_ready = this.state.iter().all(|state| state.is_ready());
                     if all_ready {
                         // Reset the future's state.
-                        readiness = this.wakers.readiness().lock().unwrap();
+                        readiness = this.wakers.readiness();
                         readiness.set_all_ready();
                         this.state.set_all_pending();
 
@@ -120,7 +121,7 @@ where
             }
 
             // Lock readiness so we can use it again
-            readiness = this.wakers.readiness().lock().unwrap();
+            readiness = this.wakers.readiness();
         }
         Poll::Pending
     }
@@ -159,6 +160,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec;
+
     use crate::stream::Zip;
     use futures_lite::future::block_on;
     use futures_lite::prelude::*;

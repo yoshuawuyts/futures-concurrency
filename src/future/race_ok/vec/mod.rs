@@ -2,13 +2,13 @@ use super::RaceOk as RaceOkTrait;
 use crate::utils::iter_pin_mut;
 use crate::utils::MaybeDone;
 
+use alloc::boxed::Box;
+use alloc::vec::Vec;
 use core::fmt;
 use core::future::{Future, IntoFuture};
 use core::mem;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use std::boxed::Box;
-use std::vec::Vec;
 
 pub use error::AggregateError;
 
@@ -96,13 +96,13 @@ where
 mod test {
     use super::error::AggregateError;
     use super::*;
-    use std::future;
-    use std::io::{Error, ErrorKind};
+    use alloc::vec;
+    use core::future;
 
     #[test]
     fn all_ok() {
         futures_lite::future::block_on(async {
-            let res: Result<&str, AggregateError<Error>> =
+            let res: Result<&str, AggregateError<()>> =
                 vec![future::ready(Ok("hello")), future::ready(Ok("world"))]
                     .race_ok()
                     .await;
@@ -113,9 +113,8 @@ mod test {
     #[test]
     fn one_err() {
         futures_lite::future::block_on(async {
-            let err = Error::new(ErrorKind::Other, "oh no");
-            let res: Result<&str, AggregateError<Error>> =
-                vec![future::ready(Ok("hello")), future::ready(Err(err))]
+            let res: Result<&str, AggregateError<_>> =
+                vec![future::ready(Ok("hello")), future::ready(Err("oh no"))]
                     .race_ok()
                     .await;
             assert_eq!(res.unwrap(), "hello");
@@ -125,15 +124,13 @@ mod test {
     #[test]
     fn all_err() {
         futures_lite::future::block_on(async {
-            let err1 = Error::new(ErrorKind::Other, "oops");
-            let err2 = Error::new(ErrorKind::Other, "oh no");
-            let res: Result<&str, AggregateError<Error>> =
-                vec![future::ready(Err(err1)), future::ready(Err(err2))]
+            let res: Result<&str, AggregateError<_>> =
+                vec![future::ready(Err("oops")), future::ready(Err("oh no"))]
                     .race_ok()
                     .await;
             let errs = res.unwrap_err();
-            assert_eq!(errs[0].to_string(), "oops");
-            assert_eq!(errs[1].to_string(), "oh no");
+            assert_eq!(errs[0], "oops");
+            assert_eq!(errs[1], "oh no");
         });
     }
 }

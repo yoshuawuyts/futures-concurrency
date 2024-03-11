@@ -1,8 +1,7 @@
-use std::{
+use alloc::{collections::VecDeque, rc::Rc};
+use core::{
     cell::RefCell,
-    collections::VecDeque,
     pin::Pin,
-    rc::Rc,
     task::{Context, Poll, Waker},
 };
 

@@ -42,7 +42,7 @@ pub fn streams_array<const N: usize>() -> [CountdownStream; N] {
     let wakers = Rc::new(RefCell::new(BinaryHeap::new()));
     let completed = Rc::new(Cell::new(0));
     let mut streams =
-        std::array::from_fn(|n| CountdownStream::new(n, N, wakers.clone(), completed.clone()));
+        core::array::from_fn(|n| CountdownStream::new(n, N, wakers.clone(), completed.clone()));
     shuffle(&mut streams);
     streams
 }

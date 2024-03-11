@@ -1,4 +1,6 @@
-use std::mem::{self, MaybeUninit};
+use alloc::vec;
+use alloc::vec::Vec;
+use core::mem::{self, MaybeUninit};
 
 /// A contiguous vector of uninitialized data.
 pub(crate) struct OutputVec<T> {

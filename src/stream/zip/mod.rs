@@ -2,6 +2,7 @@ use futures_core::Stream;
 
 pub(crate) mod array;
 pub(crate) mod tuple;
+#[cfg(feature = "alloc")]
 pub(crate) mod vec;
 
 /// ‘Zips up’ multiple streams into a single stream of pairs.

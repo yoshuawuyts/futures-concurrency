@@ -1,7 +1,7 @@
 use crate::future::Join;
 use crate::future::Race;
+use core::future::IntoFuture;
 use futures_core::Future;
-use std::future::IntoFuture;
 
 use super::join::tuple::Join2;
 use super::race::tuple::Race2;

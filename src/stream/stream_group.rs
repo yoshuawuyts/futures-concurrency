@@ -1,11 +1,11 @@
+use alloc::collections::BTreeSet;
+use core::fmt::{self, Debug};
+use core::ops::{Deref, DerefMut};
+use core::pin::Pin;
+use core::task::{Context, Poll};
 use futures_core::Stream;
 use slab::Slab;
 use smallvec::{smallvec, SmallVec};
-use std::collections::BTreeSet;
-use std::fmt::{self, Debug};
-use std::ops::{Deref, DerefMut};
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 use crate::utils::{PollState, PollVec, WakerVec};
 
@@ -236,7 +236,7 @@ impl<S: Stream> StreamGroup<S> {
 
         // Set the corresponding state
         self.states[index].set_pending();
-        let mut readiness = self.wakers.readiness().lock().unwrap();
+        let mut readiness = self.wakers.readiness();
         readiness.set_ready(index);
 
         key
@@ -271,7 +271,7 @@ impl<S: Stream> StreamGroup<S> {
 impl<S: Stream> StreamGroup<S> {
     fn poll_next_inner(
         self: Pin<&mut Self>,
-        cx: &std::task::Context<'_>,
+        cx: &Context<'_>,
     ) -> Poll<Option<(Key, <S as Stream>::Item)>> {
         let mut this = self.project();
 
@@ -281,7 +281,7 @@ impl<S: Stream> StreamGroup<S> {
         }
 
         // Set the top-level waker and check readiness
-        let mut readiness = this.wakers.readiness().lock().unwrap();
+        let mut readiness = this.wakers.readiness();
         readiness.set_waker(cx.waker());
         if !readiness.any_ready() {
             // Nothing is ready yet
@@ -317,7 +317,7 @@ impl<S: Stream> StreamGroup<S> {
                         // We just obtained an item from this index, make sure
                         // we check it again on a next iteration
                         states[index] = PollState::Pending;
-                        let mut readiness = this.wakers.readiness().lock().unwrap();
+                        let mut readiness = this.wakers.readiness();
                         readiness.set_ready(index);
 
                         break;
@@ -337,7 +337,7 @@ impl<S: Stream> StreamGroup<S> {
                 };
 
                 // Lock readiness so we can use it again
-                readiness = this.wakers.readiness().lock().unwrap();
+                readiness = this.wakers.readiness();
             }
         }
 
@@ -363,10 +363,7 @@ impl<S: Stream> StreamGroup<S> {
 impl<S: Stream> Stream for StreamGroup<S> {
     type Item = <S as Stream>::Item;
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.poll_next_inner(cx) {
             Poll::Ready(Some((_key, item))) => Poll::Ready(Some(item)),
             Poll::Ready(None) => Poll::Ready(None),
@@ -416,10 +413,7 @@ impl<S: Stream> DerefMut for Keyed<S> {
 impl<S: Stream> Stream for Keyed<S> {
     type Item = (Key, <S as Stream>::Item);
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
         this.group.as_mut().poll_next_inner(cx)
     }

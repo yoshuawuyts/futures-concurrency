@@ -81,7 +81,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::future;
+    use core::future;
 
     // NOTE: we should probably poll in random order.
     #[test]

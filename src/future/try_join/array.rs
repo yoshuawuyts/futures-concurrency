@@ -3,10 +3,10 @@ use crate::utils::{FutureArray, OutputArray, PollArray, WakerArray};
 
 use core::fmt;
 use core::future::{Future, IntoFuture};
+use core::mem::ManuallyDrop;
+use core::ops::DerefMut;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use std::mem::ManuallyDrop;
-use std::ops::DerefMut;
 
 use pin_project::{pin_project, pinned_drop};
 
@@ -93,7 +93,7 @@ where
             "Futures must not be polled after completing"
         );
 
-        let mut readiness = this.wakers.readiness().lock().unwrap();
+        let mut readiness = this.wakers.readiness();
         readiness.set_waker(cx.waker());
         if *this.pending != 0 && !readiness.any_ready() {
             // Nothing is ready yet
@@ -148,7 +148,7 @@ where
                 }
 
                 // Lock readiness so we can use it again
-                readiness = this.wakers.readiness().lock().unwrap();
+                readiness = this.wakers.readiness();
             }
         }
 
@@ -196,13 +196,12 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::future;
-    use std::io::{self, Error, ErrorKind};
+    use core::future;
 
     #[test]
     fn all_ok() {
         futures_lite::future::block_on(async {
-            let res: io::Result<_> = [future::ready(Ok("hello")), future::ready(Ok("world"))]
+            let res: Result<_, ()> = [future::ready(Ok("hello")), future::ready(Ok("world"))]
                 .try_join()
                 .await;
             assert_eq!(res.unwrap(), ["hello", "world"]);
@@ -212,7 +211,7 @@ mod test {
     #[test]
     fn empty() {
         futures_lite::future::block_on(async {
-            let data: [future::Ready<io::Result<()>>; 0] = [];
+            let data: [future::Ready<Result<(), ()>>; 0] = [];
             let res = data.try_join().await;
             assert_eq!(res.unwrap(), []);
         });
@@ -221,11 +220,10 @@ mod test {
     #[test]
     fn one_err() {
         futures_lite::future::block_on(async {
-            let err = Error::new(ErrorKind::Other, "oh no");
-            let res: io::Result<_> = [future::ready(Ok("hello")), future::ready(Err(err))]
+            let res: Result<_, _> = [future::ready(Ok("hello")), future::ready(Err("oh no"))]
                 .try_join()
                 .await;
-            assert_eq!(res.unwrap_err().to_string(), String::from("oh no"));
+            assert_eq!(res.unwrap_err(), "oh no");
         });
     }
 }

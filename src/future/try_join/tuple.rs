@@ -3,12 +3,12 @@ use crate::utils::{PollArray, WakerArray};
 
 use core::fmt::{self, Debug};
 use core::future::{Future, IntoFuture};
+use core::marker::PhantomData;
+use core::mem::ManuallyDrop;
 use core::mem::MaybeUninit;
+use core::ops::DerefMut;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use std::marker::PhantomData;
-use std::mem::ManuallyDrop;
-use std::ops::DerefMut;
 
 use pin_project::{pin_project, pinned_drop};
 
@@ -142,7 +142,7 @@ macro_rules! impl_try_join_tuple {
         }
 
         impl Future for $StructName {
-            type Output = Result<(), std::convert::Infallible>;
+            type Output = Result<(), core::convert::Infallible>;
 
             fn poll(
                 self: Pin<&mut Self>, _cx: &mut Context<'_>
@@ -153,7 +153,7 @@ macro_rules! impl_try_join_tuple {
 
         impl TryJoinTrait for () {
             type Output = ();
-            type Error = std::convert::Infallible;
+            type Error = core::convert::Infallible;
             type Future = $StructName;
             fn try_join(self) -> Self::Future {
                 $StructName {}
@@ -164,7 +164,7 @@ macro_rules! impl_try_join_tuple {
     // `Impl TryJoin for (F..)`
     ($mod_name:ident $StructName:ident $(($F:ident $T:ident))+) => {
         mod $mod_name {
-            use std::mem::ManuallyDrop;
+            use core::mem::ManuallyDrop;
 
             #[pin_project::pin_project]
             pub(super) struct Futures<$($F,)+> {$(
@@ -231,7 +231,7 @@ macro_rules! impl_try_join_tuple {
 
                 let mut futures = this.futures.project();
 
-                let mut readiness = this.wakers.readiness().lock().unwrap();
+                let mut readiness = this.wakers.readiness();
                 readiness.set_waker(cx.waker());
 
                 for index in 0..LEN {
@@ -267,7 +267,7 @@ macro_rules! impl_try_join_tuple {
 
                         return Poll::Ready(Ok(out));
                     }
-                    readiness = this.wakers.readiness().lock().unwrap();
+                    readiness = this.wakers.readiness();
                 }
 
                 Poll::Pending
@@ -333,9 +333,8 @@ impl_try_join_tuple! { try_join_12 TryJoin12 (A ResA) (B ResB) (C ResC) (D ResD)
 mod test {
     use super::*;
 
-    use std::convert::Infallible;
-    use std::future;
-    use std::io::{self, Error, ErrorKind};
+    use core::convert::Infallible;
+    use core::future;
 
     #[test]
     fn all_ok() {
@@ -352,11 +351,10 @@ mod test {
     #[test]
     fn one_err() {
         futures_lite::future::block_on(async {
-            let err = Error::new(ErrorKind::Other, "oh no");
-            let res: io::Result<(_, char)> = (future::ready(Ok("hello")), future::ready(Err(err)))
+            let res: Result<(_, char), ()> = (future::ready(Ok("hello")), future::ready(Err(())))
                 .try_join()
                 .await;
-            assert_eq!(res.unwrap_err().to_string(), String::from("oh no"));
+            assert_eq!(res.unwrap_err(), ());
         })
     }
 
@@ -377,6 +375,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn does_not_leak_memory() {
         use core::cell::RefCell;
         use futures_lite::future::pending;
@@ -396,12 +395,12 @@ mod test {
 
         futures_lite::future::block_on(async {
             // this will trigger Miri if we don't drop the memory
-            let string = future::ready(io::Result::Ok("memory leak".to_owned()));
+            let string = future::ready(Result::Ok("memory leak".to_owned()));
 
             // this will not flip the thread_local flag if we don't drop the memory
-            let flip = future::ready(io::Result::Ok(FlipFlagAtDrop));
+            let flip = future::ready(Result::Ok(FlipFlagAtDrop));
 
-            let leak = (string, flip, pending::<io::Result<u8>>()).try_join();
+            let leak = (string, flip, pending::<Result<u8, ()>>()).try_join();
 
             _ = futures_lite::future::poll_once(leak).await;
         });
