@@ -2,11 +2,9 @@
 
 use crate::future::{FutureGroup, Race};
 use futures_lite::{Stream, StreamExt};
-use std::clone::Clone;
 use std::future::Future;
 use std::pin::pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
 
 /// Concurrently operate over the
 trait ConcurrentStream {
@@ -71,7 +69,7 @@ where
     Fut: Future<Output = ()>,
 {
     let mut is_done = false;
-    let count = Arc::new(AtomicUsize::new(0));
+    let count = AtomicUsize::new(0);
     let mut group = pin!(FutureGroup::new());
 
     loop {
@@ -88,7 +86,7 @@ where
                 Some(item) => {
                     // ORDERING: this is single-threaded so `Relaxed` is ok
                     count.fetch_add(1, Ordering::Relaxed);
-                    let fut = insert_fut(&f, item, count.clone());
+                    let fut = insert_fut(&f, item, &count);
                     group.as_mut().insert_pinned(fut);
                 }
                 None => {
@@ -115,7 +113,7 @@ where
                     State::ItemReady(Some(item)) => {
                         // ORDERING: this is single-threaded so `Relaxed` is ok
                         count.fetch_add(1, Ordering::Relaxed);
-                        let fut = insert_fut(&f, item, count.clone());
+                        let fut = insert_fut(&f, item, &count);
                         group.as_mut().insert_pinned(fut);
                     }
                     State::ItemReady(None) => {
@@ -157,7 +155,7 @@ where
     }
 }
 
-async fn insert_fut<T, F, Fut>(f: F, item: T, count: Arc<AtomicUsize>)
+async fn insert_fut<T, F, Fut>(f: F, item: T, count: &AtomicUsize)
 where
     F: Fn(T) -> Fut,
     Fut: Future<Output = ()>,
@@ -176,6 +174,7 @@ enum State<T> {
 mod test {
     use super::*;
     use futures_lite::stream;
+    use std::sync::Arc;
 
     #[test]
     fn concurrency_one() {
