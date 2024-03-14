@@ -51,7 +51,7 @@ where
 
         match this.state {
             State::Timer => match this.deadline.poll(cx) {
-                Poll::Pending => return Poll::Pending,
+                Poll::Pending => Poll::Pending,
                 Poll::Ready(_) => {
                     *this.state = State::Streaming;
                     this.stream.poll_next(cx)
