@@ -8,55 +8,27 @@ use std::pin::pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-/// Concurrently operate over the
-trait ConcurrentStream {
-    type Item;
-    async fn drive<C: Consumer<Self::Item>>(self, consumer: C) -> C::Output;
+mod map;
 
-    async fn passthrough(self) -> Passthrough<Self>
+pub use map::Map;
+
+#[allow(missing_docs)]
+pub trait ConcurrentStream {
+    type Item;
+    type Future<'a>: Future<Output = Option<Self::Item>>
+    where
+        Self: 'a;
+    fn next(&self) -> Self::Future<'_>;
+
+    /// Map this stream's output to a different type.
+    fn map<F, Fut, B>(self, f: F) -> Map<Self, F>
     where
         Self: Sized,
+        F: FnMut(Self::Item) -> Fut,
+        Fut: Future<Output = B>,
     {
-        Passthrough { inner: self }
+        Map::new(self, f)
     }
-}
-
-struct Passthrough<CS: ConcurrentStream> {
-    inner: CS,
-}
-
-impl<CS: ConcurrentStream> ConcurrentStream for Passthrough<CS> {
-    type Item = CS::Item;
-
-    async fn drive<C: Consumer<Self::Item>>(self, consumer: C) -> C::Output {
-        self.inner
-            .drive(PassthroughConsumer { inner: consumer })
-            .await
-    }
-}
-
-struct PassthroughConsumer<C> {
-    inner: C,
-}
-impl<C, Item> Consumer<Item> for PassthroughConsumer<C>
-where
-    C: Consumer<Item>,
-{
-    type Output = C::Output;
-
-    fn consume(&mut self, item: Item) {
-        self.inner.consume(item);
-    }
-
-    fn complete(self) -> Self::Output {
-        self.inner.complete()
-    }
-}
-
-trait Consumer<Item> {
-    type Output;
-    fn consume(&mut self, item: Item);
-    fn complete(self) -> Self::Output;
 }
 
 /// Concurrently map the items coming out of a sequential stream, using `limit`
@@ -133,27 +105,6 @@ where
                 group.next().await;
             }
         }
-    }
-}
-
-#[pin_project::pin_project]
-struct Source<S> {
-    #[pin]
-    iter: S,
-}
-
-impl<S> ConcurrentStream for Source<S>
-where
-    S: Stream,
-{
-    type Item = S::Item;
-
-    async fn drive<C: Consumer<Self::Item>>(self, mut consumer: C) -> C::Output {
-        let mut iter = pin!(self.iter);
-        while let Some(item) = iter.next().await {
-            consumer.consume(item);
-        }
-        consumer.complete()
     }
 }
 
