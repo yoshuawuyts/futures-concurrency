@@ -54,6 +54,7 @@ pub use stream_ext::StreamExt;
 #[doc(inline)]
 #[cfg(feature = "alloc")]
 pub use stream_group::StreamGroup;
+pub use wait_until::WaitUntil;
 pub use zip::Zip;
 
 /// A growable group of streams which act as a single unit.
@@ -64,4 +65,5 @@ pub(crate) mod chain;
 mod into_stream;
 pub(crate) mod merge;
 mod stream_ext;
+pub(crate) mod wait_until;
 pub(crate) mod zip;
