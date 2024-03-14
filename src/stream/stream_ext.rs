@@ -46,6 +46,9 @@ pub trait StreamExt: Stream {
     ///
     /// # Example
     /// ```
+    /// # #[cfg(miri)] fn main() {}
+    /// # #[cfg(not(miri))]
+    /// # fn main() {
     /// use async_io::Timer;
     /// use futures_concurrency::prelude::*;
     /// use futures_lite::{future::block_on, stream};
@@ -63,6 +66,7 @@ pub trait StreamExt: Stream {
     ///
     ///     assert!(now.elapsed() >= duration);
     /// });
+    /// # }
     /// ```
     fn wait_until<D>(self, deadline: D) -> WaitUntil<Self, D::IntoFuture>
     where
