@@ -35,6 +35,10 @@ impl<CS: ConcurrentStream> ConcurrentStream for Enumerate<CS> {
     fn concurrency_limit(&self) -> Option<std::num::NonZeroUsize> {
         self.inner.concurrency_limit()
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
 }
 
 struct EnumerateConsumer<C> {

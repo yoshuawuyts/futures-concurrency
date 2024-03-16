@@ -70,6 +70,11 @@ pub trait ConcurrentStream {
     /// How much concurrency should we apply?
     fn concurrency_limit(&self) -> Option<NonZeroUsize>;
 
+    /// How many items could we potentially end up returning?
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, None)
+    }
+
     /// Creates a stream which gives the current iteration count as well as
     /// the next value.
     ///

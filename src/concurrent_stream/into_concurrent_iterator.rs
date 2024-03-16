@@ -81,6 +81,10 @@ where
     fn concurrency_limit(&self) -> Option<std::num::NonZeroUsize> {
         None
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
 }
 
 enum State<T> {

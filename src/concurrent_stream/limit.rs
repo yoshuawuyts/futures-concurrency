@@ -29,6 +29,10 @@ impl<CS: ConcurrentStream> ConcurrentStream for Limit<CS> {
     fn concurrency_limit(&self) -> Option<std::num::NonZeroUsize> {
         self.limit
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
 }
 
 struct LimitConsumer<C> {
