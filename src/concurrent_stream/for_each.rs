@@ -55,12 +55,9 @@ where
 
     async fn send(&mut self, future: FutT) {
         // If we have no space, we're going to provide backpressure until we have space
-        while dbg!(self.count.load(Ordering::Relaxed)) >= self.limit {
+        while self.count.load(Ordering::Relaxed) >= self.limit {
             self.group.next().await;
-            dbg!();
         }
-
-        dbg!();
 
         // Space was available! - insert the item for posterity
         self.count.fetch_add(1, Ordering::Relaxed);
@@ -69,18 +66,14 @@ where
     }
 
     async fn progress(&mut self) {
-        while let Some(_) = self.group.next().await {
-            dbg!()
-        }
+        while let Some(_) = self.group.next().await {}
     }
 
     async fn finish(mut self) -> Self::Output {
         // 4. We will no longer receive any additional futures from the
         // underlying stream; wait until all the futures in the group have
         // resolved.
-        while let Some(_) = self.group.next().await {
-            dbg!()
-        }
+        while let Some(_) = self.group.next().await {}
     }
 }
 
@@ -165,6 +158,7 @@ mod test {
         futures_lite::future::block_on(async {
             let count = Arc::new(AtomicUsize::new(0));
             let limit = NonZeroUsize::new(1).unwrap();
+
             stream::repeat(1)
                 .take(2)
                 .co()
@@ -175,6 +169,7 @@ mod test {
                     }
                 })
                 .await;
+
             assert_eq!(count.load(Ordering::Relaxed), 2);
         });
     }
@@ -184,6 +179,7 @@ mod test {
         futures_lite::future::block_on(async {
             let count = Arc::new(AtomicUsize::new(0));
             let limit = NonZeroUsize::new(3).unwrap();
+
             stream::repeat(1)
                 .take(10)
                 .co()
@@ -194,6 +190,7 @@ mod test {
                     }
                 })
                 .await;
+
             assert_eq!(count.load(Ordering::Relaxed), 10);
         });
     }
