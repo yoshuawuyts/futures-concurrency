@@ -5,25 +5,25 @@ use super::Consumer;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
-use std::pin::{pin, Pin};
+use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{ready, Context, Poll};
 
 // OK: validated! - all bounds should check out
-pub(crate) struct ForEachConsumer<A, T, F, B>
+pub(crate) struct ForEachConsumer<FutT, T, F, FutB>
 where
-    A: Future<Output = T>,
-    F: Fn(T) -> B,
-    B: Future<Output = ()>,
+    FutT: Future<Output = T>,
+    F: Fn(T) -> FutB,
+    FutB: Future<Output = ()>,
 {
     // NOTE: we can remove the `Arc` here if we're willing to make this struct self-referential
     count: Arc<AtomicUsize>,
     // TODO: remove the `Pin<Box>` from this signature by requiring this struct is pinned
-    group: Pin<Box<FutureGroup<InsertFut<A, T, F, B>>>>,
+    group: Pin<Box<FutureGroup<ForEachFut<F, FutT, T, FutB>>>>,
     limit: usize,
     f: F,
-    _phantom: PhantomData<(T, B)>,
+    _phantom: PhantomData<(T, FutB)>,
 }
 
 impl<A, T, F, B> ForEachConsumer<A, T, F, B>
@@ -44,24 +44,34 @@ where
 }
 
 // OK: validated! - we push types `B` into the next consumer
-impl<A, T, F, B> Consumer<T> for ForEachConsumer<A, T, F, B>
+impl<FutT, T, F, B> Consumer<T, FutT> for ForEachConsumer<FutT, T, F, B>
 where
-    A: Future<Output = T>,
+    FutT: Future<Output = T>,
     F: Fn(T) -> B,
+    F: Clone,
     B: Future<Output = ()>,
 {
     type Output = ();
 
-    async fn send<A1: Future<Output = T>>(&mut self, future: A1) {
+    async fn send(&mut self, future: FutT) {
         // If we have no space, we're going to provide backpressure until we have space
-        while self.count.load(Ordering::Relaxed) >= self.limit {
+        while dbg!(self.count.load(Ordering::Relaxed)) >= self.limit {
             self.group.next().await;
+            dbg!();
         }
+
+        dbg!();
 
         // Space was available! - insert the item for posterity
         self.count.fetch_add(1, Ordering::Relaxed);
-        let fut = insert_fut(future, self.f, self.count.clone());
+        let fut = ForEachFut::new(self.f.clone(), future, self.count.clone());
         self.group.as_mut().insert_pinned(fut);
+    }
+
+    async fn progress(&mut self) {
+        while let Some(_) = self.group.next().await {
+            dbg!()
+        }
     }
 
     async fn finish(mut self) -> Self::Output {
@@ -74,64 +84,74 @@ where
     }
 }
 
-fn insert_fut<A, T, F, B>(input_fut: A, f: F, count: Arc<AtomicUsize>) -> InsertFut<A, T, F, B>
+/// Takes a future and maps it to another future via a closure
+#[derive(Debug)]
+pub struct ForEachFut<F, FutT, T, FutB>
 where
-    A: Future<Output = T>,
-    F: Fn(T) -> B,
-    B: Future<Output = ()>,
+    FutT: Future<Output = T>,
+    F: Fn(T) -> FutB,
+    FutB: Future<Output = ()>,
 {
-    InsertFut {
-        f,
-        input_fut,
-        count,
-        _phantom: PhantomData,
-    }
-}
-
-/// The future we're inserting into the stream
-/// TODO: once we have TAITS we can remove this entire thing
-#[pin_project::pin_project]
-struct InsertFut<A, T, F, B>
-where
-    A: Future<Output = T>,
-    F: Fn(T) -> B,
-    B: Future<Output = ()>,
-{
-    f: F,
-    #[pin]
-    input_fut: A,
+    done: bool,
     count: Arc<AtomicUsize>,
-    _phantom: PhantomData<T>,
+    f: F,
+    fut_t: Option<FutT>,
+    fut_b: Option<FutB>,
 }
 
-impl<A, T, F, B> std::fmt::Debug for InsertFut<A, T, F, B>
+impl<F, FutT, T, FutB> ForEachFut<F, FutT, T, FutB>
 where
-    A: Future<Output = T>,
-    F: Fn(T) -> B,
-    B: Future<Output = ()>,
+    FutT: Future<Output = T>,
+    F: Fn(T) -> FutB,
+    FutB: Future<Output = ()>,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("InsertFut").finish()
+    fn new(f: F, fut_t: FutT, count: Arc<AtomicUsize>) -> Self {
+        Self {
+            done: false,
+            count,
+            f,
+            fut_t: Some(fut_t),
+            fut_b: None,
+        }
     }
 }
 
-impl<A, T, F, B> Future for InsertFut<A, T, F, B>
+impl<F, FutT, T, FutB> Future for ForEachFut<F, FutT, T, FutB>
 where
-    A: Future<Output = T>,
-    F: Fn(T) -> B,
-    B: Future<Output = ()>,
+    FutT: Future<Output = T>,
+    F: Fn(T) -> FutB,
+    FutB: Future<Output = ()>,
 {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
-        ready!(this.input_fut.poll(cx));
-        // ORDERING: this is single-threaded so `Relaxed` is ok
-        this.count.fetch_sub(1, Ordering::Relaxed);
-        Poll::Ready(())
+        // SAFETY: we need to access the inner future's fields to project them
+        let this = unsafe { self.get_unchecked_mut() };
+        if this.done {
+            panic!("future has already been polled to completion once");
+        }
+
+        // Poll forward the future containing the value of `T`
+        if let Some(fut) = this.fut_t.as_mut() {
+            // SAFETY: we're pin projecting here
+            let t = ready!(unsafe { Pin::new_unchecked(fut) }.poll(cx));
+            let fut_b = (this.f)(t);
+            this.fut_t = None;
+            this.fut_b = Some(fut_b);
+        }
+
+        // Poll forward the future returned by the closure
+        if let Some(fut) = this.fut_b.as_mut() {
+            // SAFETY: we're pin projecting here
+            ready!(unsafe { Pin::new_unchecked(fut) }.poll(cx));
+            this.count.fetch_sub(1, Ordering::Relaxed);
+            this.done = true;
+            return Poll::Ready(());
+        }
+
+        unreachable!("neither future `a` nor future `b` were ready");
     }
 }
-type LocalBoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
 #[cfg(test)]
 mod test {

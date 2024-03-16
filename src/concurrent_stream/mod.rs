@@ -1,15 +1,15 @@
 //! Concurrent execution of streams
 
 mod drain;
-// mod for_each;
+mod for_each;
 mod into_concurrent_iterator;
 mod map;
 mod passthrough;
 
-// use for_each::ForEachConsumer;
+use for_each::ForEachConsumer;
 use passthrough::Passthrough;
 use std::future::Future;
-// use std::num::NonZeroUsize;
+use std::num::NonZeroUsize;
 
 pub use into_concurrent_iterator::{FromStream, IntoConcurrentStream};
 pub use map::Map;
@@ -86,16 +86,16 @@ pub trait ConcurrentStream {
         Map::new(self, f)
     }
 
-    // /// Iterate over each item concurrently
-    // async fn for_each<F, Fut>(self, limit: NonZeroUsize, f: F)
-    // where
-    //     Self: Sized,
-
-    //     F: Fn(Self::Item) -> Fut,
-    //     Fut: Future<Output = ()>,
-    // {
-    //     self.drive(ForEachConsumer::new(limit, f)).await
-    // }
+    /// Iterate over each item concurrently
+    async fn for_each<F, Fut>(self, limit: NonZeroUsize, f: F)
+    where
+        Self: Sized,
+        F: Fn(Self::Item) -> Fut,
+        F: Clone,
+        Fut: Future<Output = ()>,
+    {
+        self.drive(ForEachConsumer::new(limit, f)).await
+    }
 }
 
 #[cfg(test)]
@@ -107,8 +107,12 @@ mod test {
     #[test]
     fn drain() {
         futures_lite::future::block_on(async {
-            let s = stream::repeat(1).take(5);
-            s.co().map(|x| async move { dbg!(x) }).drain().await;
+            stream::repeat(1)
+                .take(5)
+                .co()
+                .map(|x| async move { dbg!(x) })
+                .drain()
+                .await;
         });
     }
 
