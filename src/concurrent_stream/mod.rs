@@ -3,7 +3,7 @@
 mod drain;
 // mod for_each;
 mod into_concurrent_iterator;
-// mod map;
+mod map;
 mod passthrough;
 
 // use for_each::ForEachConsumer;
@@ -11,12 +11,14 @@ use passthrough::Passthrough;
 use std::future::Future;
 // use std::num::NonZeroUsize;
 
-// pub use into_concurrent_iterator::{FromStream, IntoConcurrentStream};
-// pub use map::Map;
+pub use into_concurrent_iterator::{FromStream, IntoConcurrentStream};
+pub use map::Map;
 
 /// Describes a type which can receive data.
 ///
-/// `Item` in this context means the item that it will  repeatedly receive.
+/// # Type Generics
+/// - `Item` in this context means the item that it will  repeatedly receive.
+/// - `Future` in this context refers to the future type repeatedly submitted to it.
 #[allow(async_fn_in_trait)]
 pub trait Consumer<Item, Fut>
 where
@@ -63,23 +65,24 @@ pub trait ConcurrentStream {
         Passthrough::new(self)
     }
 
-    // /// Iterate over each item in sequence
-    // async fn drain(self)
-    // where
-    //     Self: Sized,
-    // {
-    //     self.drive(drain::Drain {}).await
-    // }
+    /// Iterate over each item in sequence
+    async fn drain(self)
+    where
+        Self: Sized,
+    {
+        self.drive(drain::Drain {}).await
+    }
 
-    // /// Convert items from one type into another
-    // fn map<F, Fut, B>(self, f: F) -> Map<Self, F, Fut, Self::Item, B>
-    // where
-    //     Self: Sized,
-    //     F: Fn(Self::Item) -> Fut,
-    //     Fut: Future<Output = B>,
-    // {
-    //     Map::new(self, f)
-    // }
+    /// Convert items from one type into another
+    fn map<F, FutB, B>(self, f: F) -> Map<Self, F, Self::Future, Self::Item, FutB, B>
+    where
+        Self: Sized,
+        F: Fn(Self::Item) -> FutB,
+        F: Clone,
+        FutB: Future<Output = B>,
+    {
+        Map::new(self, f)
+    }
 
     // /// Iterate over each item concurrently
     // async fn for_each<F, Fut>(self, limit: NonZeroUsize, f: F)
@@ -93,30 +96,30 @@ pub trait ConcurrentStream {
     // }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use super::*;
-//     use futures_lite::prelude::*;
-//     use futures_lite::stream;
+#[cfg(test)]
+mod test {
+    use super::*;
+    use futures_lite::prelude::*;
+    use futures_lite::stream;
 
-//     #[test]
-//     fn drain() {
-//         futures_lite::future::block_on(async {
-//             let s = stream::repeat(1).take(2);
-//             s.co().map(|x| async move { dbg!(x) }).drain().await;
-//         });
-//     }
+    #[test]
+    fn drain() {
+        futures_lite::future::block_on(async {
+            let s = stream::repeat(1).take(2);
+            s.co().map(|x| async move { dbg!(x) }).drain().await;
+        });
+    }
 
-//     #[test]
-//     fn for_each() {
-//         futures_lite::future::block_on(async {
-//             let s = stream::repeat(1).take(2);
-//             let limit = NonZeroUsize::new(3).unwrap();
-//             s.co()
-//                 .for_each(limit, |x| async move {
-//                     dbg!(x);
-//                 })
-//                 .await;
-//         });
-//     }
-// }
+    //     #[test]
+    //     fn for_each() {
+    //         futures_lite::future::block_on(async {
+    //             let s = stream::repeat(1).take(2);
+    //             let limit = NonZeroUsize::new(3).unwrap();
+    //             s.co()
+    //                 .for_each(limit, |x| async move {
+    //                     dbg!(x);
+    //                 })
+    //                 .await;
+    //         });
+    //     }
+}
