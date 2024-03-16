@@ -1,6 +1,7 @@
 //! Concurrent execution of streams
 
 mod drain;
+mod enumerate;
 mod for_each;
 mod into_concurrent_iterator;
 mod limit;
@@ -8,6 +9,7 @@ mod map;
 mod passthrough;
 mod try_for_each;
 
+use enumerate::Enumerate;
 use for_each::ForEachConsumer;
 use limit::Limit;
 use passthrough::Passthrough;
@@ -49,11 +51,12 @@ where
 }
 
 /// Concurrently operate over items in a stream
-#[allow(missing_docs)]
 #[allow(async_fn_in_trait)]
 pub trait ConcurrentStream {
+    /// Which item will we be yielding?
     type Item;
 
+    /// What's the type of the future containing our items?
     type Future: Future<Output = Self::Item>;
 
     /// Internal method used to define the behavior of this concurrent iterator.
@@ -66,6 +69,18 @@ pub trait ConcurrentStream {
 
     /// How much concurrency should we apply?
     fn concurrency_limit(&self) -> Option<NonZeroUsize>;
+
+    /// Creates a stream which gives the current iteration count as well as
+    /// the next value.
+    ///
+    /// The value is determined by the moment the future is created, not the
+    /// moment the future is evaluated.
+    fn enumerate(self) -> Enumerate<Self>
+    where
+        Self: Sized,
+    {
+        Enumerate::new(self)
+    }
 
     /// Obtain a simple pass-through adapter.
     fn passthrough(self) -> Passthrough<Self>
