@@ -6,12 +6,14 @@ mod into_concurrent_iterator;
 mod limit;
 mod map;
 mod passthrough;
+mod try_for_each;
 
 use for_each::ForEachConsumer;
 use limit::Limit;
 use passthrough::Passthrough;
 use std::future::Future;
 use std::num::NonZeroUsize;
+use try_for_each::TryForEachConsumer;
 
 pub use into_concurrent_iterator::{FromStream, IntoConcurrentStream};
 pub use map::Map;
@@ -110,6 +112,20 @@ pub trait ConcurrentStream {
     {
         let limit = self.concurrency_limit();
         self.drive(ForEachConsumer::new(limit, f)).await
+    }
+
+    /// Iterate over each item concurrently, short-circuit on error.
+    ///
+    /// If an error is returned this will cancel all other futures.
+    async fn try_for_each<F, Fut, E>(self, f: F) -> Result<(), E>
+    where
+        Self: Sized,
+        F: Fn(Self::Item) -> Fut,
+        F: Clone,
+        Fut: Future<Output = Result<(), E>>,
+    {
+        let limit = self.concurrency_limit();
+        self.drive(TryForEachConsumer::new(limit, f)).await
     }
 }
 
