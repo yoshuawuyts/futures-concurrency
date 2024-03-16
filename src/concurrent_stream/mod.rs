@@ -14,6 +14,8 @@ use std::future::Future;
 pub use into_concurrent_iterator::{FromStream, IntoConcurrentStream};
 pub use map::Map;
 
+use self::drain::Drain;
+
 /// Describes a type which can receive data.
 ///
 /// # Type Generics
@@ -70,7 +72,7 @@ pub trait ConcurrentStream {
     where
         Self: Sized,
     {
-        self.drive(drain::Drain {}).await
+        self.drive(Drain::new()).await
     }
 
     /// Convert items from one type into another
@@ -105,7 +107,7 @@ mod test {
     #[test]
     fn drain() {
         futures_lite::future::block_on(async {
-            let s = stream::repeat(1).take(2);
+            let s = stream::repeat(1).take(5);
             s.co().map(|x| async move { dbg!(x) }).drain().await;
         });
     }
