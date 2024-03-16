@@ -1,6 +1,6 @@
 //! Concurrent execution of streams
 
-// mod drain;
+mod drain;
 // mod for_each;
 mod into_concurrent_iterator;
 // mod map;

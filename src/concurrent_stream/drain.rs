@@ -3,14 +3,16 @@ use core::future::Future;
 
 pub(crate) struct Drain;
 
-impl<Item> Consumer<Item> for Drain {
+impl<Item, Fut> Consumer<Item, Fut> for Drain
+where
+    Fut: Future<Output = Item>,
+{
     type Output = ();
 
-    async fn send<Fut: Future>(&mut self, future: Fut) {
+    async fn send(&mut self, future: Fut) {
         future.await;
     }
 
-    async fn finish(self) -> Self::Output {
-        ()
-    }
+    async fn progress(&mut self) {}
+    async fn finish(self) -> Self::Output {}
 }
