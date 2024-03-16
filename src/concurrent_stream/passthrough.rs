@@ -14,11 +14,11 @@ impl<CS: ConcurrentStream> Passthrough<CS> {
 
 impl<CS: ConcurrentStream> ConcurrentStream for Passthrough<CS> {
     type Item = CS::Item;
+    type Future = CS::Future;
 
-    async fn drive<C, Fut>(self, consumer: C) -> C::Output
+    async fn drive<C>(self, consumer: C) -> C::Output
     where
-        Fut: Future<Output = Self::Item>,
-        C: Consumer<Self::Item, Fut>,
+        C: Consumer<Self::Item, Self::Future>,
     {
         self.inner
             .drive(PassthroughConsumer { inner: consumer })

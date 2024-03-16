@@ -1,4 +1,5 @@
 use futures_lite::{Stream, StreamExt};
+use std::future::Ready;
 use std::{future::ready, pin::pin};
 
 use super::{ConcurrentStream, Consumer};
@@ -16,10 +17,11 @@ where
     S: Stream,
 {
     type Item = S::Item;
+    type Future = Ready<Self::Item>;
 
     async fn drive<C>(self, mut consumer: C) -> C::Output
     where
-        C: Consumer<Self::Item>,
+        C: Consumer<Self::Item, Self::Future>,
     {
         let mut iter = pin!(self.iter);
         while let Some(item) = iter.next().await {

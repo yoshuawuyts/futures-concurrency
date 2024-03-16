@@ -2,7 +2,7 @@
 
 // mod drain;
 // mod for_each;
-// mod into_concurrent_iterator;
+mod into_concurrent_iterator;
 // mod map;
 mod passthrough;
 
@@ -46,14 +46,15 @@ where
 pub trait ConcurrentStream {
     type Item;
 
+    type Future: Future<Output = Self::Item>;
+
     /// Internal method used to define the behavior of this concurrent iterator.
     /// You should not need to call this directly. This method causes the
     /// iterator self to start producing items and to feed them to the consumer
     /// consumer one by one.
-    async fn drive<C, Fut>(self, consumer: C) -> C::Output
+    async fn drive<C>(self, consumer: C) -> C::Output
     where
-        C: Consumer<Self::Item, Fut>,
-        Fut: Future<Output = Self::Item>;
+        C: Consumer<Self::Item, Self::Future>;
 
     fn passthrough(self) -> Passthrough<Self>
     where
