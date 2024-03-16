@@ -73,6 +73,8 @@ impl<T: Debug> Debug for FutureGroup<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FutureGroup")
             .field("slab", &"[..]")
+            .field("len", &self.futures.len())
+            .field("capacity", &self.futures.capacity())
             .finish()
     }
 }
