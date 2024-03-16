@@ -3,23 +3,27 @@
 mod concurrent_foreach;
 mod drain;
 mod into_concurrent_iterator;
-// mod map;
+mod map;
 mod passthrough;
 
 pub use into_concurrent_iterator::{FromStream, IntoConcurrentStream};
-// pub use map::Map;
+pub use map::Map;
 use passthrough::Passthrough;
 use std::future::Future;
 
-#[allow(missing_docs)]
+/// Describes a type which can receive data.
+///
+/// `Item` in this context means the item that it will  repeatedly receive.
 #[allow(async_fn_in_trait)]
 pub trait Consumer<Item> {
+    /// What is the type of the item we're returning when completed?
     type Output;
 
-    /// Consume a single item at a time.
+    /// Send an item down to the next step in the processing queue.
     async fn send<Fut: Future<Output = Item>>(&mut self, fut: Fut);
 
-    /// The `Consumer` is done; we're ready to return the output.
+    /// We have no more data left to send to the `Consumer`; wait for its
+    /// output.
     async fn finish(self) -> Self::Output;
 }
 
@@ -29,6 +33,10 @@ pub trait Consumer<Item> {
 pub trait ConcurrentStream {
     type Item;
 
+    /// Internal method used to define the behavior of this concurrent iterator.
+    /// You should not need to call this directly. This method causes the
+    /// iterator self to start producing items and to feed them to the consumer
+    /// consumer one by one.
     async fn drive<C>(self, consumer: C) -> C::Output
     where
         C: Consumer<Self::Item>;
@@ -46,6 +54,16 @@ pub trait ConcurrentStream {
         Self: Sized,
     {
         self.drive(drain::Drain {}).await
+    }
+
+    /// Convert items from one type into another
+    fn map<F, Fut, B>(self, f: F) -> Map<Self, F, Fut, Self::Item, B>
+    where
+        Self: Sized,
+        F: Fn(Self::Item) -> Fut,
+        Fut: Future<Output = B>,
+    {
+        Map::new(self, f)
     }
 
     // /// Iterate over each item concurrently
@@ -69,7 +87,7 @@ mod test {
     fn drain() {
         futures_lite::future::block_on(async {
             let s = stream::repeat(1).take(2);
-            s.co().drain().await;
+            s.co().map(|x| async move { dbg!(x) }).drain().await;
         });
     }
 }
