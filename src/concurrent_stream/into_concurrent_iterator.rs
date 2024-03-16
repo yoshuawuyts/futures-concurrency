@@ -1,6 +1,8 @@
+use crate::concurrent_stream::ConsumerState;
 use crate::prelude::*;
 use futures_lite::{Stream, StreamExt};
 use std::future::{ready, Ready};
+
 use std::pin::pin;
 
 use super::{ConcurrentStream, Consumer};
@@ -45,15 +47,28 @@ where
 
             // Drive the consumer forward
             let b = async {
-                consumer.progress().await;
-                State::Progress
+                let control_flow = consumer.progress().await;
+                State::Progress(control_flow)
             };
 
             // If an item is available, submit it to the consumer and wait for
             // it to be ready.
-            match (a, b).race().await {
-                State::Progress => continue,
-                State::Item(Some(item)) => consumer.send(ready(item)).await,
+            match (b, a).race().await {
+                State::Progress(control_flow) => match control_flow {
+                    ConsumerState::Break => break,
+                    ConsumerState::Continue => continue,
+                    ConsumerState::Empty => match iter.next().await {
+                        Some(item) => match consumer.send(ready(item)).await {
+                            ConsumerState::Break => break,
+                            ConsumerState::Empty | ConsumerState::Continue => continue,
+                        },
+                        None => break,
+                    },
+                },
+                State::Item(Some(item)) => match consumer.send(ready(item)).await {
+                    ConsumerState::Break => break,
+                    ConsumerState::Empty | ConsumerState::Continue => continue,
+                },
                 State::Item(None) => break,
             }
         }
@@ -69,7 +84,7 @@ where
 }
 
 enum State<T> {
-    Progress,
+    Progress(super::ConsumerState),
     Item(T),
 }
 

@@ -41,12 +41,12 @@ where
 {
     type Output = C::Output;
 
-    async fn send(&mut self, future: Fut) {
-        self.inner.send(future).await;
+    async fn send(&mut self, future: Fut) -> super::ConsumerState {
+        self.inner.send(future).await
     }
 
-    async fn progress(&mut self) {
-        self.inner.progress().await;
+    async fn progress(&mut self) -> super::ConsumerState {
+        self.inner.progress().await
     }
 
     async fn finish(self) -> Self::Output {

@@ -90,17 +90,17 @@ where
 {
     type Output = C::Output;
 
-    async fn send(&mut self, future: FutT) {
+    async fn progress(&mut self) -> super::ConsumerState {
+        self.inner.progress().await
+    }
+
+    async fn send(&mut self, future: FutT) -> super::ConsumerState {
         let fut = MapFuture::new(self.f.clone(), future);
-        self.inner.send(fut).await;
+        self.inner.send(fut).await
     }
 
     async fn finish(self) -> Self::Output {
         self.inner.finish().await
-    }
-
-    async fn progress(&mut self) {
-        self.inner.progress().await
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::concurrent_stream::ConsumerState;
 use crate::future::FutureGroup;
 use futures_lite::StreamExt;
 
@@ -5,6 +6,7 @@ use super::Consumer;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
+
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -22,6 +24,7 @@ where
     // TODO: remove the `Pin<Box>` from this signature by requiring this struct is pinned
     group: Pin<Box<FutureGroup<TryForEachFut<F, FutT, T, FutB, E>>>>,
     limit: usize,
+    err: Option<E>,
     f: F,
     _phantom: PhantomData<(T, FutB)>,
 }
@@ -40,9 +43,10 @@ where
         Self {
             limit,
             f,
-            _phantom: PhantomData,
+            err: None,
             count: Arc::new(AtomicUsize::new(0)),
             group: Box::pin(FutureGroup::new()),
+            _phantom: PhantomData,
         }
     }
 }
@@ -57,24 +61,43 @@ where
 {
     type Output = Result<(), E>;
 
-    async fn send(&mut self, future: FutT) {
+    async fn send(&mut self, future: FutT) -> super::ConsumerState {
         // If we have no space, we're going to provide backpressure until we have space
         while self.count.load(Ordering::Relaxed) >= self.limit {
-            self.group.next().await;
+            match self.group.next().await {
+                Some(Ok(_)) => continue,
+                Some(Err(err)) => {
+                    self.err = Some(err);
+                    return ConsumerState::Break;
+                }
+                None => break,
+            };
         }
 
         // Space was available! - insert the item for posterity
         self.count.fetch_add(1, Ordering::Relaxed);
         let fut = TryForEachFut::new(self.f.clone(), future, self.count.clone());
         self.group.as_mut().insert_pinned(fut);
+        ConsumerState::Continue
     }
 
-    async fn progress(&mut self) {
-        while let Some(_) = self.group.next().await {}
+    async fn progress(&mut self) -> super::ConsumerState {
+        while let Some(res) = self.group.next().await {
+            if let Err(err) = res {
+                self.err = Some(err);
+                return ConsumerState::Break;
+            }
+        }
+        ConsumerState::Empty
     }
 
     async fn finish(mut self) -> Self::Output {
-        // 4. We will no longer receive any additional futures from the
+        // Return the error if we stopped iteration because of a previous error.
+        if let Some(err) = self.err {
+            return Err(err);
+        }
+
+        // We will no longer receive any additional futures from the
         // underlying stream; wait until all the futures in the group have
         // resolved.
         while let Some(res) = self.group.next().await {
@@ -158,7 +181,7 @@ mod test {
     use super::*;
     use crate::concurrent_stream::{ConcurrentStream, IntoConcurrentStream};
     use futures_lite::stream;
-    use std::sync::Arc;
+    use std::{io, sync::Arc};
 
     #[test]
     fn concurrency_one() {
@@ -201,6 +224,27 @@ mod test {
                 .unwrap();
 
             assert_eq!(count.load(Ordering::Relaxed), 10);
+        });
+    }
+
+    #[test]
+    fn short_circuits() {
+        futures_lite::future::block_on(async {
+            let count = Arc::new(AtomicUsize::new(0));
+            let output = stream::repeat(10)
+                .take(2)
+                .co()
+                .limit(NonZeroUsize::new(1))
+                .try_for_each(|n| {
+                    let count = count.clone();
+                    async move {
+                        count.fetch_add(n, Ordering::SeqCst);
+                        std::io::Result::Err(io::ErrorKind::Other.into())
+                    }
+                })
+                .await;
+
+            assert!(output.is_err());
         });
     }
 }

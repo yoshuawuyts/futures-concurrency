@@ -34,14 +34,14 @@ where
     type Output;
 
     /// Send an item down to the next step in the processing queue.
-    async fn send(&mut self, fut: Fut);
+    async fn send(&mut self, fut: Fut) -> ConsumerState;
 
     /// Make progress on the consumer while doing something else.
     ///
     /// It should always be possible to drop the future returned by this
     /// function. This is solely intended to keep work going on the `Consumer`
     /// while doing e.g. waiting for new futures from a stream.
-    async fn progress(&mut self);
+    async fn progress(&mut self) -> ConsumerState;
 
     /// We have no more data left to send to the `Consumer`; wait for its
     /// output.
@@ -129,6 +129,18 @@ pub trait ConcurrentStream {
     }
 }
 
+/// The state of the consumer, used to communicate back to the source.
+#[derive(Debug)]
+enum ConsumerState {
+    /// The consumer is done making progress, and the `finish` method should be called.
+    Break,
+    /// The consumer is ready to keep making progress.
+    Continue,
+    /// The consumer currently holds no values and should not be called until
+    /// more values have been provided to it.
+    Empty,
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -141,7 +153,9 @@ mod test {
             stream::repeat(1)
                 .take(5)
                 .co()
-                .map(|x| async move { dbg!(x) })
+                .map(|x| async move {
+                    println!("{x:?}");
+                })
                 .drain()
                 .await;
         });
@@ -154,7 +168,7 @@ mod test {
             s.co()
                 .limit(NonZeroUsize::new(3))
                 .for_each(|x| async move {
-                    dbg!(x);
+                    println!("{x:?}");
                 })
                 .await;
         });

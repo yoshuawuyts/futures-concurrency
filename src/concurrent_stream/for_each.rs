@@ -1,10 +1,11 @@
 use crate::future::FutureGroup;
 use futures_lite::StreamExt;
 
-use super::Consumer;
+use super::{Consumer, ConsumerState};
 use std::future::Future;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
+
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -57,7 +58,7 @@ where
 {
     type Output = ();
 
-    async fn send(&mut self, future: FutT) {
+    async fn send(&mut self, future: FutT) -> super::ConsumerState {
         // If we have no space, we're going to provide backpressure until we have space
         while self.count.load(Ordering::Relaxed) >= self.limit {
             self.group.next().await;
@@ -67,10 +68,13 @@ where
         self.count.fetch_add(1, Ordering::Relaxed);
         let fut = ForEachFut::new(self.f.clone(), future, self.count.clone());
         self.group.as_mut().insert_pinned(fut);
+
+        ConsumerState::Continue
     }
 
-    async fn progress(&mut self) {
+    async fn progress(&mut self) -> super::ConsumerState {
         while let Some(_) = self.group.next().await {}
+        ConsumerState::Empty
     }
 
     async fn finish(mut self) -> Self::Output {
