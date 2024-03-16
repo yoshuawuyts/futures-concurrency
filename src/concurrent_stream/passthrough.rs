@@ -15,9 +15,10 @@ impl<CS: ConcurrentStream> Passthrough<CS> {
 impl<CS: ConcurrentStream> ConcurrentStream for Passthrough<CS> {
     type Item = CS::Item;
 
-    async fn drive<C>(self, consumer: C) -> C::Output
+    async fn drive<C, Fut>(self, consumer: C) -> C::Output
     where
-        C: Consumer<Self::Item>,
+        Fut: Future<Output = Self::Item>,
+        C: Consumer<Self::Item, Fut>,
     {
         self.inner
             .drive(PassthroughConsumer { inner: consumer })
@@ -28,14 +29,19 @@ impl<CS: ConcurrentStream> ConcurrentStream for Passthrough<CS> {
 struct PassthroughConsumer<C> {
     inner: C,
 }
-impl<C, Item> Consumer<Item> for PassthroughConsumer<C>
+impl<C, Item, Fut> Consumer<Item, Fut> for PassthroughConsumer<C>
 where
-    C: Consumer<Item>,
+    Fut: Future<Output = Item>,
+    C: Consumer<Item, Fut>,
 {
     type Output = C::Output;
 
-    async fn send<Fut: Future<Output = Item>>(&mut self, future: Fut) {
+    async fn send(&mut self, future: Fut) {
         self.inner.send(future).await;
+    }
+
+    async fn progress(&mut self) {
+        self.inner.progress().await;
     }
 
     async fn finish(self) -> Self::Output {
