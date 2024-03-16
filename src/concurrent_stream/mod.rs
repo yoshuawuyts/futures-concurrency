@@ -3,10 +3,12 @@
 mod drain;
 mod for_each;
 mod into_concurrent_iterator;
+mod limit;
 mod map;
 mod passthrough;
 
 use for_each::ForEachConsumer;
+use limit::Limit;
 use passthrough::Passthrough;
 use std::future::Future;
 use std::num::NonZeroUsize;
@@ -60,6 +62,10 @@ pub trait ConcurrentStream {
     where
         C: Consumer<Self::Item, Self::Future>;
 
+    /// How much concurrency should we apply?
+    fn concurrency_limit(&self) -> Option<NonZeroUsize>;
+
+    /// Obtain a simple pass-through adapter.
     fn passthrough(self) -> Passthrough<Self>
     where
         Self: Sized,
@@ -75,6 +81,14 @@ pub trait ConcurrentStream {
         self.drive(Drain::new()).await
     }
 
+    /// Obtain a simple pass-through adapter.
+    fn limit(self, limit: Option<std::num::NonZeroUsize>) -> Limit<Self>
+    where
+        Self: Sized,
+    {
+        Limit::new(self, limit)
+    }
+
     /// Convert items from one type into another
     fn map<F, FutB, B>(self, f: F) -> Map<Self, F, Self::Future, Self::Item, FutB, B>
     where
@@ -87,13 +101,14 @@ pub trait ConcurrentStream {
     }
 
     /// Iterate over each item concurrently
-    async fn for_each<F, Fut>(self, limit: NonZeroUsize, f: F)
+    async fn for_each<F, Fut>(self, f: F)
     where
         Self: Sized,
         F: Fn(Self::Item) -> Fut,
         F: Clone,
         Fut: Future<Output = ()>,
     {
+        let limit = self.concurrency_limit();
         self.drive(ForEachConsumer::new(limit, f)).await
     }
 }
@@ -116,16 +131,16 @@ mod test {
         });
     }
 
-    //     #[test]
-    //     fn for_each() {
-    //         futures_lite::future::block_on(async {
-    //             let s = stream::repeat(1).take(2);
-    //             let limit = NonZeroUsize::new(3).unwrap();
-    //             s.co()
-    //                 .for_each(limit, |x| async move {
-    //                     dbg!(x);
-    //                 })
-    //                 .await;
-    //         });
-    //     }
+    #[test]
+    fn for_each() {
+        futures_lite::future::block_on(async {
+            let s = stream::repeat(1).take(2);
+            s.co()
+                .limit(NonZeroUsize::new(3))
+                .for_each(|x| async move {
+                    dbg!(x);
+                })
+                .await;
+        });
+    }
 }

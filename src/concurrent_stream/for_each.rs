@@ -32,9 +32,13 @@ where
     F: Fn(T) -> B,
     B: Future<Output = ()>,
 {
-    pub(crate) fn new(limit: NonZeroUsize, f: F) -> Self {
+    pub(crate) fn new(limit: Option<NonZeroUsize>, f: F) -> Self {
+        let limit = match limit {
+            Some(n) => n.get(),
+            None => usize::MAX,
+        };
         Self {
-            limit: limit.into(),
+            limit,
             f,
             _phantom: PhantomData,
             count: Arc::new(AtomicUsize::new(0)),
@@ -157,12 +161,11 @@ mod test {
     fn concurrency_one() {
         futures_lite::future::block_on(async {
             let count = Arc::new(AtomicUsize::new(0));
-            let limit = NonZeroUsize::new(1).unwrap();
-
             stream::repeat(1)
                 .take(2)
                 .co()
-                .for_each(limit, |n| {
+                .limit(NonZeroUsize::new(1))
+                .for_each(|n| {
                     let count = count.clone();
                     async move {
                         count.fetch_add(n, Ordering::Relaxed);
@@ -178,12 +181,11 @@ mod test {
     fn concurrency_three() {
         futures_lite::future::block_on(async {
             let count = Arc::new(AtomicUsize::new(0));
-            let limit = NonZeroUsize::new(3).unwrap();
-
             stream::repeat(1)
                 .take(10)
                 .co()
-                .for_each(limit, |n| {
+                .limit(NonZeroUsize::new(3))
+                .for_each(|n| {
                     let count = count.clone();
                     async move {
                         count.fetch_add(n, Ordering::Relaxed);

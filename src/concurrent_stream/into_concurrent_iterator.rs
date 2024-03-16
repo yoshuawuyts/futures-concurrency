@@ -62,6 +62,10 @@ where
         // means we're ready to wait for the consumer to finish up.
         consumer.finish().await
     }
+
+    fn concurrency_limit(&self) -> Option<std::num::NonZeroUsize> {
+        None
+    }
 }
 
 enum State<T> {

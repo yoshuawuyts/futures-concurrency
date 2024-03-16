@@ -60,6 +60,10 @@ where
         };
         self.inner.drive(consumer).await
     }
+
+    fn concurrency_limit(&self) -> Option<std::num::NonZeroUsize> {
+        self.inner.concurrency_limit()
+    }
 }
 
 // OK: validated! - all bounds should check out
