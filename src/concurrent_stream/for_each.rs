@@ -1,41 +1,42 @@
+use crate::future::FutureGroup;
 use futures_lite::StreamExt;
 
-use crate::future::FutureGroup;
-
 use super::Consumer;
-use crate::prelude::*;
 use std::future::Future;
 use std::marker::PhantomData;
-use std::pin::Pin;
+use std::num::NonZeroUsize;
+use std::pin::{pin, Pin};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{ready, Context, Poll};
 
 // OK: validated! - all bounds should check out
-pub(crate) struct ForEachConsumer<F, Fut, T>
+pub(crate) struct ForEachConsumer<A, T, F, B>
 where
-    F: Fn(T) -> Fut,
-    Fut: Future<Output = ()>,
+    A: Future<Output = T>,
+    F: Fn(T) -> B,
+    B: Future<Output = ()>,
 {
-    is_done: bool,
+    // NOTE: we can remove the `Arc` here if we're willing to make this struct self-referential
     count: Arc<AtomicUsize>,
-    group: Pin<Box<FutureGroup<InsertFut<Fut>>>>,
+    // TODO: remove the `Pin<Box>` from this signature by requiring this struct is pinned
+    group: Pin<Box<FutureGroup<InsertFut<A, T, F, B>>>>,
     limit: usize,
     f: F,
-    _phantom: PhantomData<(Fut, T)>,
+    _phantom: PhantomData<(T, B)>,
 }
 
-impl<F, Fut, T> ForEachConsumer<F, Fut, T>
+impl<A, T, F, B> ForEachConsumer<A, T, F, B>
 where
-    F: Fn(T) -> Fut,
-    Fut: Future<Output = ()>,
+    A: Future<Output = T>,
+    F: Fn(T) -> B,
+    B: Future<Output = ()>,
 {
-    pub(crate) fn new(limit: usize, f: F) -> Self {
+    pub(crate) fn new(limit: NonZeroUsize, f: F) -> Self {
         Self {
-            limit,
+            limit: limit.into(),
             f,
             _phantom: PhantomData,
-            is_done: false,
             count: Arc::new(AtomicUsize::new(0)),
             group: Box::pin(FutureGroup::new()),
         }
@@ -43,126 +44,94 @@ where
 }
 
 // OK: validated! - we push types `B` into the next consumer
-impl<F, Fut, T> Consumer<T> for ForEachConsumer<F, Fut, T>
+impl<A, T, F, B> Consumer<T> for ForEachConsumer<A, T, F, B>
 where
-    F: Fn(T) -> Fut,
-    Fut: Future<Output = ()>,
+    A: Future<Output = T>,
+    F: Fn(T) -> B,
+    B: Future<Output = ()>,
 {
     type Output = ();
 
-    async fn send<Fut2: Future<Output = T>>(&mut self, future: Fut2) {
-        if self.is_done {
+    async fn send<A1: Future<Output = T>>(&mut self, future: A1) {
+        // If we have no space, we're going to provide backpressure until we have space
+        while self.count.load(Ordering::Relaxed) >= self.limit {
             self.group.next().await;
         }
 
-        // ORDERING: this is single-threaded so `Relaxed` is ok
-        match self.count.load(Ordering::Relaxed) {
-            // 1. This is our base case: there are no items in the group, so we
-            // first have to wait for an item to become available from the
-            // stream.
-            0 => {
-                let item = future.await;
-                // ORDERING: this is single-threaded so `Relaxed` is ok
-                self.count.fetch_add(1, Ordering::Relaxed);
-                let fut = insert_fut(&self.f, item, self.count.clone());
-                self.group.as_mut().insert_pinned(fut);
-            }
-
-            // 2. Here our group still has capacity remaining, so we want to
-            // keep pulling items from the stream while also processing items
-            // currently in the group. If the group is done first, we do
-            // nothing. If the stream has another item, we put it into the
-            // group.
-            n if n <= self.limit => {
-                let a = async {
-                    let item = future.await;
-                    State::ItemReady(Some(item))
-                };
-
-                let b = async {
-                    self.group.next().await;
-                    State::GroupDone
-                };
-                match (a, b).race().await {
-                    State::ItemReady(Some(item)) => {
-                        // ORDERING: this is single-threaded so `Relaxed` is ok
-                        self.count.fetch_add(1, Ordering::Relaxed);
-                        let fut = insert_fut(&self.f, item, self.count.clone());
-                        self.group.as_mut().insert_pinned(fut);
-                    }
-                    State::ItemReady(None) => {
-                        self.is_done = true;
-                    }
-                    State::GroupDone => {} // do nothing, group just finished an item - we get to loop again
-                }
-            }
-
-            // 3. Our group has no extra capacity, and so we don't pull any
-            // additional items from the underlying stream. We have to wait for
-            // items in the group to clear up first before we can pull more
-            // items again.
-            _ => {
-                self.group.next().await;
-            }
-        }
+        // Space was available! - insert the item for posterity
+        self.count.fetch_add(1, Ordering::Relaxed);
+        let fut = insert_fut(future, self.f, self.count.clone());
+        self.group.as_mut().insert_pinned(fut);
     }
 
     async fn finish(mut self) -> Self::Output {
         // 4. We will no longer receive any additional futures from the
         // underlying stream; wait until all the futures in the group have
         // resolved.
-        dbg!(&self.group);
         while let Some(_) = self.group.next().await {
             dbg!()
         }
     }
 }
 
-fn insert_fut<T, F, Fut>(f: F, item: T, count: Arc<AtomicUsize>) -> InsertFut<Fut>
+fn insert_fut<A, T, F, B>(input_fut: A, f: F, count: Arc<AtomicUsize>) -> InsertFut<A, T, F, B>
 where
-    F: Fn(T) -> Fut,
-    Fut: Future<Output = ()>,
+    A: Future<Output = T>,
+    F: Fn(T) -> B,
+    B: Future<Output = ()>,
 {
-    let fut = (f)(item);
-    InsertFut { fut, count }
-}
-
-enum State<T> {
-    ItemReady(Option<T>),
-    GroupDone,
+    InsertFut {
+        f,
+        input_fut,
+        count,
+        _phantom: PhantomData,
+    }
 }
 
 /// The future we're inserting into the stream
+/// TODO: once we have TAITS we can remove this entire thing
 #[pin_project::pin_project]
-struct InsertFut<Fut>
+struct InsertFut<A, T, F, B>
 where
-    Fut: Future<Output = ()>,
+    A: Future<Output = T>,
+    F: Fn(T) -> B,
+    B: Future<Output = ()>,
 {
+    f: F,
     #[pin]
-    fut: Fut,
+    input_fut: A,
     count: Arc<AtomicUsize>,
+    _phantom: PhantomData<T>,
 }
 
-impl<Fut: Future<Output = ()>> std::fmt::Debug for InsertFut<Fut> {
+impl<A, T, F, B> std::fmt::Debug for InsertFut<A, T, F, B>
+where
+    A: Future<Output = T>,
+    F: Fn(T) -> B,
+    B: Future<Output = ()>,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("InsertFut").finish()
     }
 }
 
-impl<'a, Fut> Future for InsertFut<Fut>
+impl<A, T, F, B> Future for InsertFut<A, T, F, B>
 where
-    Fut: Future<Output = ()>,
+    A: Future<Output = T>,
+    F: Fn(T) -> B,
+    B: Future<Output = ()>,
 {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
-        ready!(this.fut.poll(cx));
+        ready!(this.input_fut.poll(cx));
         // ORDERING: this is single-threaded so `Relaxed` is ok
         this.count.fetch_sub(1, Ordering::Relaxed);
         Poll::Ready(())
     }
 }
+type LocalBoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
 #[cfg(test)]
 mod test {
@@ -175,7 +144,7 @@ mod test {
     fn concurrency_one() {
         futures_lite::future::block_on(async {
             let count = Arc::new(AtomicUsize::new(0));
-            let limit = 1;
+            let limit = NonZeroUsize::new(1).unwrap();
             stream::repeat(1)
                 .take(2)
                 .co()
@@ -194,7 +163,7 @@ mod test {
     fn concurrency_three() {
         futures_lite::future::block_on(async {
             let count = Arc::new(AtomicUsize::new(0));
-            let limit = 1;
+            let limit = NonZeroUsize::new(3).unwrap();
             stream::repeat(1)
                 .take(10)
                 .co()

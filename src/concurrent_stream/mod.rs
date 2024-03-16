@@ -9,7 +9,7 @@ mod passthrough;
 
 use for_each::ForEachConsumer;
 use passthrough::Passthrough;
-use std::future::Future;
+use std::{future::Future, num::NonZeroUsize};
 
 pub use into_concurrent_iterator::{FromStream, IntoConcurrentStream};
 pub use map::Map;
@@ -70,7 +70,7 @@ pub trait ConcurrentStream {
     }
 
     /// Iterate over each item concurrently
-    async fn for_each<F, Fut>(self, limit: usize, f: F)
+    async fn for_each<F, Fut>(self, limit: NonZeroUsize, f: F)
     where
         Self: Sized,
 
@@ -99,8 +99,9 @@ mod test {
     fn for_each() {
         futures_lite::future::block_on(async {
             let s = stream::repeat(1).take(2);
+            let limit = NonZeroUsize::new(3).unwrap();
             s.co()
-                .for_each(3, |x| async move {
+                .for_each(limit, |x| async move {
                     dbg!(x);
                 })
                 .await;
