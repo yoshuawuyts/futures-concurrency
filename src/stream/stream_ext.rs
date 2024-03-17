@@ -27,6 +27,7 @@ pub trait StreamExt: Stream {
         S2: IntoStream<Item = T>;
 
     /// Convert into a concurrent stream.
+    #[cfg(feature = "alloc")]
     fn co(self) -> FromStream<Self>
     where
         Self: Sized,

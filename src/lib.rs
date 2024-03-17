@@ -82,10 +82,13 @@ pub mod prelude {
     pub use super::stream::Merge as _;
     pub use super::stream::Zip as _;
 
+    #[cfg(feature = "alloc")]
     pub use super::concurrent_stream::ConcurrentStream;
 }
 
+#[cfg(feature = "alloc")]
 pub mod concurrent_stream;
+
 pub mod future;
 pub mod stream;
 

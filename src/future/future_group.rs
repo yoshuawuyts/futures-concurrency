@@ -270,7 +270,7 @@ impl<F: Future> FutureGroup<F> {
 
         // Set the corresponding state
         this.states[index].set_pending();
-        let mut readiness = this.wakers.readiness().lock().unwrap();
+        let mut readiness = this.wakers.readiness();
         readiness.set_ready(index);
 
         key
