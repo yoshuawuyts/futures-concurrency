@@ -9,6 +9,9 @@ mod poll_state;
 mod tuple;
 mod wakers;
 
+#[doc(hidden)]
+pub mod private;
+
 pub(crate) use self::futures::FutureArray;
 #[cfg(feature = "alloc")]
 pub(crate) use self::futures::FutureVec;

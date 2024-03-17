@@ -68,6 +68,9 @@ extern crate alloc;
 
 mod utils;
 
+#[doc(hidden)]
+pub use utils::private;
+
 /// The futures concurrency prelude.
 pub mod prelude {
     pub use super::future::FutureExt as _;
