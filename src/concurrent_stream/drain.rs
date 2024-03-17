@@ -1,9 +1,10 @@
-use crate::future::FutureGroup;
-use futures_lite::StreamExt;
-
 use super::{Consumer, ConsumerState};
+use crate::future::FutureGroup;
+
+use alloc::boxed::Box;
 use core::future::Future;
-use std::pin::Pin;
+use core::pin::Pin;
+use futures_lite::StreamExt;
 
 pub(crate) struct Drain<Fut: Future> {
     group: Pin<Box<FutureGroup<Fut>>>,

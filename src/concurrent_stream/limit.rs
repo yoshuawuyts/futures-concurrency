@@ -1,5 +1,6 @@
 use super::{ConcurrentStream, Consumer};
-use std::{future::Future, num::NonZeroUsize};
+use core::future::Future;
+use core::num::NonZeroUsize;
 
 /// A concurrent iterator that limits the amount of concurrency applied.
 ///
@@ -33,7 +34,7 @@ impl<CS: ConcurrentStream> ConcurrentStream for Limit<CS> {
 
     // NOTE: this is the only interesting bit in this module. When a limit is
     // set, this now starts using it.
-    fn concurrency_limit(&self) -> Option<std::num::NonZeroUsize> {
+    fn concurrency_limit(&self) -> Option<NonZeroUsize> {
         self.limit
     }
 

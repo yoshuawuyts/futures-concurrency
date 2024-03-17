@@ -1,11 +1,11 @@
+use super::{ConcurrentStream, Consumer};
 use crate::concurrent_stream::ConsumerState;
 use crate::prelude::*;
+
+use core::future::{ready, Ready};
+use core::num::NonZeroUsize;
+use core::pin::pin;
 use futures_lite::{Stream, StreamExt};
-use std::future::{ready, Ready};
-
-use std::pin::pin;
-
-use super::{ConcurrentStream, Consumer};
 
 /// A concurrent for each implementation from a `Stream`
 #[pin_project::pin_project]
@@ -84,7 +84,7 @@ where
         consumer.finish().await
     }
 
-    fn concurrency_limit(&self) -> Option<std::num::NonZeroUsize> {
+    fn concurrency_limit(&self) -> Option<NonZeroUsize> {
         None
     }
 

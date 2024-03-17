@@ -1,5 +1,6 @@
 use super::{ConcurrentStream, Consumer, ConsumerState};
-use std::future::Future;
+use core::future::Future;
+use core::num::NonZeroUsize;
 
 /// A concurrent iterator that only iterates over the first `n` iterations of `iter`.
 ///
@@ -39,7 +40,7 @@ impl<CS: ConcurrentStream> ConcurrentStream for Take<CS> {
 
     // NOTE: this is the only interesting bit in this module. When a limit is
     // set, this now starts using it.
-    fn concurrency_limit(&self) -> Option<std::num::NonZeroUsize> {
+    fn concurrency_limit(&self) -> Option<NonZeroUsize> {
         self.inner.concurrency_limit()
     }
 

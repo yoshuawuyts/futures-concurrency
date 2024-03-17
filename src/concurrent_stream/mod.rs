@@ -9,9 +9,9 @@ mod map;
 mod take;
 mod try_for_each;
 
+use core::future::Future;
+use core::num::NonZeroUsize;
 use for_each::ForEachConsumer;
-use std::future::Future;
-use std::num::NonZeroUsize;
 use try_for_each::TryForEachConsumer;
 
 pub use enumerate::Enumerate;
@@ -96,7 +96,7 @@ pub trait ConcurrentStream {
     }
 
     /// Obtain a simple pass-through adapter.
-    fn limit(self, limit: Option<std::num::NonZeroUsize>) -> Limit<Self>
+    fn limit(self, limit: Option<NonZeroUsize>) -> Limit<Self>
     where
         Self: Sized,
     {

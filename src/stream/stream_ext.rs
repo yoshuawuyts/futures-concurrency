@@ -1,8 +1,8 @@
-use crate::{
-    concurrent_stream::FromStream,
-    stream::{IntoStream, Merge},
-};
+use crate::stream::{IntoStream, Merge};
 use futures_core::Stream;
+
+#[cfg(feature = "alloc")]
+use crate::concurrent_stream::FromStream;
 
 use super::{chain::tuple::Chain2, merge::tuple::Merge2, zip::tuple::Zip2, Chain, Zip};
 

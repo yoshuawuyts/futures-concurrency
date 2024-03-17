@@ -3,14 +3,14 @@ use crate::future::FutureGroup;
 use futures_lite::StreamExt;
 
 use super::Consumer;
-use std::future::Future;
-use std::marker::PhantomData;
-use std::num::NonZeroUsize;
-
-use std::pin::Pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::task::{ready, Context, Poll};
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::future::Future;
+use core::marker::PhantomData;
+use core::num::NonZeroUsize;
+use core::pin::Pin;
+use core::sync::atomic::{AtomicUsize, Ordering};
+use core::task::{ready, Context, Poll};
 
 // OK: validated! - all bounds should check out
 pub(crate) struct TryForEachConsumer<FutT, T, F, FutB, E>

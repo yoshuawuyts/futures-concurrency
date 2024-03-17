@@ -1,9 +1,8 @@
 use super::{ConcurrentStream, Consumer};
-use std::{
-    future::Future,
-    pin::Pin,
-    task::{ready, Context, Poll},
-};
+use core::future::Future;
+use core::num::NonZeroUsize;
+use core::pin::Pin;
+use core::task::{ready, Context, Poll};
 
 /// A concurrent iterator that yields the current count and the element during iteration.
 ///
@@ -39,7 +38,7 @@ impl<CS: ConcurrentStream> ConcurrentStream for Enumerate<CS> {
             .await
     }
 
-    fn concurrency_limit(&self) -> Option<std::num::NonZeroUsize> {
+    fn concurrency_limit(&self) -> Option<NonZeroUsize> {
         self.inner.concurrency_limit()
     }
 

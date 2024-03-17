@@ -1,5 +1,6 @@
 use super::{ConcurrentStream, Consumer};
-use std::{
+use core::num::NonZeroUsize;
+use core::{
     future::Future,
     marker::PhantomData,
     pin::Pin,
@@ -61,7 +62,7 @@ where
         self.inner.drive(consumer).await
     }
 
-    fn concurrency_limit(&self) -> Option<std::num::NonZeroUsize> {
+    fn concurrency_limit(&self) -> Option<NonZeroUsize> {
         self.inner.concurrency_limit()
     }
 
