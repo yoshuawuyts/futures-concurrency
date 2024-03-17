@@ -157,7 +157,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::concurrent_stream::{ConcurrentStream, IntoConcurrentStream};
+    use crate::prelude::*;
     use futures_lite::stream;
     use std::sync::Arc;
 

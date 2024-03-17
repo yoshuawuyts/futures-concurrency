@@ -120,7 +120,8 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::concurrent_stream::{ConcurrentStream, IntoConcurrentStream};
+    // use crate::concurrent_stream::{ConcurrentStream, IntoConcurrentStream};
+    use crate::prelude::*;
     use futures_lite::stream;
     use futures_lite::StreamExt;
     use std::num::NonZeroUsize;

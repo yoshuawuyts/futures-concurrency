@@ -1,4 +1,7 @@
-use crate::stream::{IntoStream, Merge};
+use crate::{
+    concurrent_stream::FromStream,
+    stream::{IntoStream, Merge},
+};
 use futures_core::Stream;
 
 use super::{chain::tuple::Chain2, merge::tuple::Merge2, zip::tuple::Zip2, Chain, Zip};
@@ -22,6 +25,14 @@ pub trait StreamExt: Stream {
     where
         Self: Stream<Item = T> + Sized,
         S2: IntoStream<Item = T>;
+
+    /// Convert into a concurrent stream.
+    fn co(self) -> FromStream<Self>
+    where
+        Self: Sized,
+    {
+        FromStream::new(self)
+    }
 }
 
 impl<S1> StreamExt for S1

@@ -81,6 +81,8 @@ pub mod prelude {
     pub use super::stream::IntoStream as _;
     pub use super::stream::Merge as _;
     pub use super::stream::Zip as _;
+
+    pub use super::concurrent_stream::ConcurrentStream;
 }
 
 pub mod concurrent_stream;

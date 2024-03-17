@@ -12,7 +12,13 @@ use super::{ConcurrentStream, Consumer};
 #[derive(Debug)]
 pub struct FromStream<S: Stream> {
     #[pin]
-    iter: S,
+    stream: S,
+}
+
+impl<S: Stream> FromStream<S> {
+    pub(crate) fn new(stream: S) -> Self {
+        Self { stream }
+    }
 }
 
 impl<S> ConcurrentStream for FromStream<S>
@@ -26,7 +32,7 @@ where
     where
         C: Consumer<Self::Item, Self::Future>,
     {
-        let mut iter = pin!(self.iter);
+        let mut iter = pin!(self.stream);
 
         // Concurrently progress the consumer as well as the stream. Whenever
         // there is an item from the stream available, we submit it to the
@@ -83,28 +89,11 @@ where
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
+        self.stream.size_hint()
     }
 }
 
 enum State<T> {
     Progress(super::ConsumerState),
     Item(T),
-}
-
-/// Convert into a concurrent stream
-pub trait IntoConcurrentStream {
-    /// The type of concurrent stream we're returning.
-    type ConcurrentStream: ConcurrentStream;
-
-    /// Convert `self` into a concurrent stream.
-    fn co(self) -> Self::ConcurrentStream;
-}
-
-impl<S: Stream> IntoConcurrentStream for S {
-    type ConcurrentStream = FromStream<S>;
-
-    fn co(self) -> Self::ConcurrentStream {
-        FromStream { iter: self }
-    }
 }

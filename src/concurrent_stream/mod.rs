@@ -3,7 +3,7 @@
 mod drain;
 mod enumerate;
 mod for_each;
-mod into_concurrent_iterator;
+mod from_stream;
 mod limit;
 mod map;
 mod take;
@@ -15,7 +15,7 @@ use std::num::NonZeroUsize;
 use try_for_each::TryForEachConsumer;
 
 pub use enumerate::Enumerate;
-pub use into_concurrent_iterator::{FromStream, IntoConcurrentStream};
+pub use from_stream::FromStream;
 pub use limit::Limit;
 pub use map::Map;
 pub use take::Take;
@@ -152,7 +152,7 @@ pub trait ConcurrentStream {
 
 /// The state of the consumer, used to communicate back to the source.
 #[derive(Debug)]
-enum ConsumerState {
+pub enum ConsumerState {
     /// The consumer is done making progress, and the `finish` method should be called.
     Break,
     /// The consumer is ready to keep making progress.
@@ -162,9 +162,28 @@ enum ConsumerState {
     Empty,
 }
 
+/// Convert into a concurrent stream
+pub trait IntoConcurrentStream {
+    /// The type of concurrent stream we're returning.
+    type ConcurrentStream: ConcurrentStream;
+
+    /// Convert `self` into a concurrent stream.
+    fn into_concurrent_stream(self) -> Self::ConcurrentStream;
+}
+
+impl<S: ConcurrentStream> IntoConcurrentStream for S {
+    type ConcurrentStream = S;
+
+    fn into_concurrent_stream(self) -> Self::ConcurrentStream {
+        self
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+
+    use crate::prelude::*;
     use futures_lite::prelude::*;
     use futures_lite::stream;
 
