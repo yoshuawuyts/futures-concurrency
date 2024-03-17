@@ -1,5 +1,6 @@
 //! Concurrent execution of streams
 
+mod convert;
 mod drain;
 mod enumerate;
 mod for_each;
@@ -14,6 +15,7 @@ use core::num::NonZeroUsize;
 use for_each::ForEachConsumer;
 use try_for_each::TryForEachConsumer;
 
+pub use convert::{FromConcurrentStream, IntoConcurrentStream};
 pub use enumerate::Enumerate;
 pub use from_stream::FromStream;
 pub use limit::Limit;
@@ -148,6 +150,15 @@ pub trait ConcurrentStream {
         let limit = self.concurrency_limit();
         self.drive(TryForEachConsumer::new(limit, f)).await
     }
+
+    /// Transforms an iterator into a collection.
+    async fn collect<B>(self) -> B
+    where
+        B: FromConcurrentStream<Self::Item>,
+        Self: Sized,
+    {
+        B::from_concurrent_stream(self).await
+    }
 }
 
 /// The state of the consumer, used to communicate back to the source.
@@ -160,23 +171,6 @@ pub enum ConsumerState {
     /// The consumer currently holds no values and should not be called until
     /// more values have been provided to it.
     Empty,
-}
-
-/// Convert into a concurrent stream
-pub trait IntoConcurrentStream {
-    /// The type of concurrent stream we're returning.
-    type ConcurrentStream: ConcurrentStream;
-
-    /// Convert `self` into a concurrent stream.
-    fn into_concurrent_stream(self) -> Self::ConcurrentStream;
-}
-
-impl<S: ConcurrentStream> IntoConcurrentStream for S {
-    type ConcurrentStream = S;
-
-    fn into_concurrent_stream(self) -> Self::ConcurrentStream {
-        self
-    }
 }
 
 #[cfg(test)]
