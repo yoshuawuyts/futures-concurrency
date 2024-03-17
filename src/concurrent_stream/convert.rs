@@ -1,5 +1,7 @@
 use super::{ConcurrentStream, Consumer, ConsumerState};
 use crate::future::FutureGroup;
+use alloc::boxed::Box;
+use alloc::vec::Vec;
 use core::future::Future;
 use core::pin::Pin;
 use futures_lite::StreamExt;
