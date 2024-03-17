@@ -6,19 +6,19 @@ mod for_each;
 mod into_concurrent_iterator;
 mod limit;
 mod map;
-mod passthrough;
+mod take;
 mod try_for_each;
 
-use enumerate::Enumerate;
 use for_each::ForEachConsumer;
-use limit::Limit;
-use passthrough::Passthrough;
 use std::future::Future;
 use std::num::NonZeroUsize;
 use try_for_each::TryForEachConsumer;
 
+pub use enumerate::Enumerate;
 pub use into_concurrent_iterator::{FromStream, IntoConcurrentStream};
+pub use limit::Limit;
 pub use map::Map;
+pub use take::Take;
 
 use self::drain::Drain;
 
@@ -87,14 +87,6 @@ pub trait ConcurrentStream {
         Enumerate::new(self)
     }
 
-    /// Obtain a simple pass-through adapter.
-    fn passthrough(self) -> Passthrough<Self>
-    where
-        Self: Sized,
-    {
-        Passthrough::new(self)
-    }
-
     /// Iterate over each item in sequence
     async fn drain(self)
     where
@@ -109,6 +101,15 @@ pub trait ConcurrentStream {
         Self: Sized,
     {
         Limit::new(self, limit)
+    }
+
+    /// Creates a stream that yields the first `n`` elements, or fewer if the
+    /// underlying iterator ends sooner.
+    fn take(self, limit: usize) -> Take<Self>
+    where
+        Self: Sized,
+    {
+        Take::new(self, limit)
     }
 
     /// Convert items from one type into another

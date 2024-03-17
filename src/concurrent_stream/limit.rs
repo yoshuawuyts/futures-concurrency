@@ -1,6 +1,13 @@
 use super::{ConcurrentStream, Consumer};
 use std::{future::Future, num::NonZeroUsize};
 
+/// A concurrent iterator that limits the amount of concurrency applied.
+///
+/// This `struct` is created by the [`limit`] method on [`ConcurrentStream`]. See its
+/// documentation for more.
+///
+/// [`limit`]: ConcurrentStream::limit
+/// [`ConcurrentStream`]: trait.ConcurrentStream.html
 #[derive(Debug)]
 pub struct Limit<CS: ConcurrentStream> {
     inner: CS,

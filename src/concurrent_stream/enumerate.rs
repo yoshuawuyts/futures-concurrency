@@ -5,6 +5,13 @@ use std::{
     task::{ready, Context, Poll},
 };
 
+/// A concurrent iterator that yields the current count and the element during iteration.
+///
+/// This `struct` is created by the [`enumerate`] method on [`ConcurrentStream`]. See its
+/// documentation for more.
+///
+/// [`enumerate`]: ConcurrentStream::enumerate
+/// [`ConcurrentStream`]: trait.ConcurrentStream.html
 #[derive(Debug)]
 pub struct Enumerate<CS: ConcurrentStream> {
     inner: CS,
