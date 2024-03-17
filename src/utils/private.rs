@@ -1,9 +1,9 @@
 /// We hide the `Try` trait in a private module, as it's only meant to be a
 /// stable clone of the standard library's `Try` trait, as yet unstable.
 // NOTE: copied from `rayon`
-use std::convert::Infallible;
-use std::ops::ControlFlow::{self, Break, Continue};
-use std::task::Poll;
+use core::convert::Infallible;
+use core::ops::ControlFlow::{self, Break, Continue};
+use core::task::Poll;
 
 use crate::{private_decl, private_impl};
 
