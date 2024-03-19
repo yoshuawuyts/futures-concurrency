@@ -226,9 +226,8 @@ impl<S: Stream> StreamGroup<S> {
     where
         S: Stream,
     {
-        dbg!();
         let index = self.streams.insert(stream);
-        self.keys.insert(dbg!(index));
+        self.keys.insert(index);
         let key = Key(index);
 
         // If our slab allocated more space we need to
