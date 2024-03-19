@@ -231,9 +231,12 @@ impl<F: Future> FutureGroup<F> {
 
         // If our slab allocated more space we need to
         // update our tracking structures along with it.
-        let max_len = self.capacity().max(index);
-        self.wakers.resize(max_len);
-        self.states.resize(max_len);
+        let capacity = self.capacity();
+        let max_len = capacity.max(index);
+        if max_len > capacity {
+            self.wakers.resize(max_len);
+            self.states.resize(max_len);
+        }
 
         // Set the corresponding state
         self.states[index].set_pending();
