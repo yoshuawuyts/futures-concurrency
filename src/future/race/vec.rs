@@ -2,7 +2,9 @@ use crate::utils::{self, Indexer};
 
 use super::Race as RaceTrait;
 
+#[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
+
 use core::fmt;
 use core::future::{Future, IntoFuture};
 use core::pin::Pin;

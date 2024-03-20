@@ -1,7 +1,9 @@
 use super::Join as JoinTrait;
 use crate::utils::{FutureVec, OutputVec, PollVec, WakerVec};
 
+#[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
+
 use core::fmt;
 use core::future::{Future, IntoFuture};
 use core::mem::ManuallyDrop;

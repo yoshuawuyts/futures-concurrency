@@ -1,8 +1,9 @@
 use super::Zip as ZipTrait;
 use crate::stream::IntoStream;
 use crate::utils::{self, PollVec, WakerVec};
-
+#[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
+
 use core::fmt;
 use core::mem;
 use core::mem::MaybeUninit;
@@ -83,6 +84,7 @@ where
             }
 
             // unlock readiness so we don't deadlock when polling
+            #[allow(clippy::drop_non_drop)]
             drop(readiness);
 
             // Obtain the intermediate waker.
