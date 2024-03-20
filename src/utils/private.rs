@@ -161,8 +161,8 @@ pub struct PrivateMarker;
 #[macro_export]
 macro_rules! private_impl {
     () => {
-        fn __futures_concurrency_private__(&self) -> crate::private::PrivateMarker {
-            crate::private::PrivateMarker
+        fn __futures_concurrency_private__(&self) -> $crate::private::PrivateMarker {
+            $crate::private::PrivateMarker
         }
     };
 }
@@ -174,6 +174,6 @@ macro_rules! private_decl {
         /// This trait is private; this method exists to make it
         /// impossible to implement outside the crate.
         #[doc(hidden)]
-        fn __futures_concurrency_private__(&self) -> crate::private::PrivateMarker;
+        fn __futures_concurrency_private__(&self) -> $crate::private::PrivateMarker;
     };
 }

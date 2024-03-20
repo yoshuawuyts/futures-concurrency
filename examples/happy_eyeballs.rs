@@ -44,5 +44,5 @@ async fn open_tcp_socket(
     }
 
     // Start connecting. If an attempt succeeds, cancel all others attempts.
-    Ok(futures.race_ok().await?)
+    futures.race_ok().await
 }

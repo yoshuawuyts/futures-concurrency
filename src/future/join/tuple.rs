@@ -338,7 +338,7 @@ mod test {
         use futures_lite::future::pending;
 
         thread_local! {
-            static NOT_LEAKING: RefCell<bool> = RefCell::new(false);
+            static NOT_LEAKING: RefCell<bool> = const { RefCell::new(false) };
         };
 
         struct FlipFlagAtDrop;

@@ -76,7 +76,7 @@ where
 
     async fn progress(self: Pin<&mut Self>) -> super::ConsumerState {
         let mut this = self.project();
-        while let Some(_) = this.group.next().await {}
+        while (this.group.next().await).is_some() {}
         ConsumerState::Empty
     }
 
@@ -85,7 +85,7 @@ where
         // 4. We will no longer receive any additional futures from the
         // underlying stream; wait until all the futures in the group have
         // resolved.
-        while let Some(_) = this.group.next().await {}
+        while (this.group.next().await).is_some() {}
     }
 }
 
