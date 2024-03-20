@@ -76,6 +76,7 @@ pub use join::Join;
 pub use race::Race;
 pub use race_ok::RaceOk;
 pub use try_join::TryJoin;
+pub use wait_until::WaitUntil;
 
 /// A growable group of futures which act as a single unit.
 #[cfg(feature = "alloc")]
@@ -86,3 +87,4 @@ pub(crate) mod join;
 pub(crate) mod race;
 pub(crate) mod race_ok;
 pub(crate) mod try_join;
+pub(crate) mod wait_until;
