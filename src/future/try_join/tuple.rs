@@ -355,7 +355,7 @@ mod test {
             let res: Result<(_, char), ()> = (future::ready(Ok("hello")), future::ready(Err(())))
                 .try_join()
                 .await;
-            assert_eq!(res.unwrap_err(), ());
+            assert_eq!(res, Err(()));
         })
     }
 
