@@ -53,13 +53,13 @@ impl<'a, const N: usize> Deref for ReadinessArrayRef<'a, N> {
     type Target = ReadinessArray<N>;
 
     fn deref(&self) -> &Self::Target {
-        &self.inner
+        self.inner
     }
 }
 
 impl<'a, const N: usize> DerefMut for ReadinessArrayRef<'a, N> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
+        self.inner
     }
 }
 
