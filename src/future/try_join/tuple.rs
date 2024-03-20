@@ -245,6 +245,7 @@ macro_rules! impl_try_join_tuple {
                     }
 
                     // unlock readiness so we don't deadlock when polling
+                    #[allow(clippy::drop_non_drop)]
                     drop(readiness);
 
                     // obtain the intermediate waker
@@ -354,7 +355,7 @@ mod test {
             let res: Result<(_, char), ()> = (future::ready(Ok("hello")), future::ready(Err(())))
                 .try_join()
                 .await;
-            assert_eq!(res.unwrap_err(), ());
+            assert_eq!(res, Err(()));
         })
     }
 

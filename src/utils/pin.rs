@@ -1,5 +1,6 @@
-#[cfg(feature = "alloc")]
+#[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
+
 use core::pin::Pin;
 use core::slice::SliceIndex;
 

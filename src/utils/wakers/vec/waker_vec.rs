@@ -1,5 +1,7 @@
-use alloc::sync::Arc;
+#[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
+
+use alloc::sync::Arc;
 use core::task::Waker;
 use std::sync::{Mutex, MutexGuard};
 

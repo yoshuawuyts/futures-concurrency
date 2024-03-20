@@ -2,8 +2,9 @@ use super::RaceOk as RaceOkTrait;
 use crate::utils::iter_pin_mut;
 use crate::utils::MaybeDone;
 
-use alloc::boxed::Box;
-use alloc::vec::Vec;
+#[cfg(all(feature = "alloc", not(feature = "std")))]
+use alloc::{boxed::Box, vec::Vec};
+
 use core::fmt;
 use core::future::{Future, IntoFuture};
 use core::mem;
@@ -94,7 +95,6 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::error::AggregateError;
     use super::*;
     use alloc::vec;
     use core::future;

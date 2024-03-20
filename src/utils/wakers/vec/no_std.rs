@@ -58,13 +58,13 @@ impl<'a> Deref for ReadinessVecRef<'a> {
     type Target = ReadinessVec;
 
     fn deref(&self) -> &Self::Target {
-        &self.inner
+        self.inner
     }
 }
 
 impl<'a> DerefMut for ReadinessVecRef<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
+        self.inner
     }
 }
 

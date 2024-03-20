@@ -1,8 +1,9 @@
 use super::Zip as ZipTrait;
 use crate::stream::IntoStream;
 use crate::utils::{self, PollVec, WakerVec};
-
+#[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
+
 use core::fmt;
 use core::mem;
 use core::mem::MaybeUninit;
@@ -83,6 +84,7 @@ where
             }
 
             // unlock readiness so we don't deadlock when polling
+            #[allow(clippy::drop_non_drop)]
             drop(readiness);
 
             // Obtain the intermediate waker.
@@ -158,6 +160,19 @@ where
     }
 }
 
+// Inlined version of the unstable `MaybeUninit::array_assume_init` feature.
+// FIXME: replace with `utils::array_assume_init`
+unsafe fn vec_assume_init<T>(vec: Vec<MaybeUninit<T>>) -> Vec<T> {
+    // SAFETY:
+    // * The caller guarantees that all elements of the vec are initialized
+    // * `MaybeUninit<T>` and T are guaranteed to have the same layout
+    // * `MaybeUninit` does not drop, so there are no double-frees
+    // And thus the conversion is safe
+    let ret = unsafe { (&vec as *const _ as *const Vec<T>).read() };
+    mem::forget(vec);
+    ret
+}
+
 #[cfg(test)]
 mod tests {
     use alloc::vec;
@@ -180,17 +195,4 @@ mod tests {
             assert_eq!(s.next().await, None);
         })
     }
-}
-
-// Inlined version of the unstable `MaybeUninit::array_assume_init` feature.
-// FIXME: replace with `utils::array_assume_init`
-unsafe fn vec_assume_init<T>(vec: Vec<MaybeUninit<T>>) -> Vec<T> {
-    // SAFETY:
-    // * The caller guarantees that all elements of the vec are initialized
-    // * `MaybeUninit<T>` and T are guaranteed to have the same layout
-    // * `MaybeUninit` does not drop, so there are no double-frees
-    // And thus the conversion is safe
-    let ret = unsafe { (&vec as *const _ as *const Vec<T>).read() };
-    mem::forget(vec);
-    ret
 }

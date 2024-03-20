@@ -79,6 +79,7 @@ where
             }
 
             // unlock readiness so we don't deadlock when polling
+            #[allow(clippy::drop_non_drop)]
             drop(readiness);
 
             // Obtain the intermediate waker.
@@ -154,6 +155,20 @@ where
     }
 }
 
+// Inlined version of the unstable `MaybeUninit::array_assume_init` feature.
+// FIXME: replace with `utils::array_assume_init`
+unsafe fn array_assume_init<T, const N: usize>(array: [MaybeUninit<T>; N]) -> [T; N] {
+    // SAFETY:
+    // * The caller guarantees that all elements of the array are initialized
+    // * `MaybeUninit<T>` and T are guaranteed to have the same layout
+    // * `MaybeUninit` does not drop, so there are no double-frees
+    // And thus the conversion is safe
+    let ret = unsafe { (&array as *const _ as *const [T; N]).read() };
+    #[allow(clippy::forget_non_drop)]
+    mem::forget(array);
+    ret
+}
+
 #[cfg(test)]
 mod tests {
     use crate::stream::Zip;
@@ -174,18 +189,4 @@ mod tests {
             assert_eq!(s.next().await, None);
         })
     }
-}
-
-// Inlined version of the unstable `MaybeUninit::array_assume_init` feature.
-// FIXME: replace with `utils::array_assume_init`
-unsafe fn array_assume_init<T, const N: usize>(array: [MaybeUninit<T>; N]) -> [T; N] {
-    // SAFETY:
-    // * The caller guarantees that all elements of the array are initialized
-    // * `MaybeUninit<T>` and T are guaranteed to have the same layout
-    // * `MaybeUninit` does not drop, so there are no double-frees
-    // And thus the conversion is safe
-    let ret = unsafe { (&array as *const _ as *const [T; N]).read() };
-    #[allow(clippy::forget_non_drop)]
-    mem::forget(array);
-    ret
 }

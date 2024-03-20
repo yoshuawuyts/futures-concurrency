@@ -1,4 +1,6 @@
+#[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
+
 use core::{
     mem::{self, ManuallyDrop, MaybeUninit},
     pin::Pin,

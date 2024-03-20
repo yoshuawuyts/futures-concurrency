@@ -1,7 +1,9 @@
 use super::TryJoin as TryJoinTrait;
 use crate::utils::{FutureVec, OutputVec, PollVec, WakerVec};
 
+#[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
+
 use core::fmt;
 use core::future::{Future, IntoFuture};
 use core::mem::ManuallyDrop;
@@ -106,6 +108,7 @@ where
         for (i, mut fut) in this.futures.iter().enumerate() {
             if this.state[i].is_pending() && readiness.clear_ready(i) {
                 // unlock readiness so we don't deadlock when polling
+                #[allow(clippy::drop_non_drop)]
                 drop(readiness);
 
                 // Obtain the intermediate waker.

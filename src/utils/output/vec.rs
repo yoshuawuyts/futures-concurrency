@@ -1,5 +1,6 @@
-use alloc::vec;
-use alloc::vec::Vec;
+#[cfg(all(feature = "alloc", not(feature = "std")))]
+use alloc::{vec, vec::Vec};
+
 use core::mem::{self, MaybeUninit};
 
 /// A contiguous vector of uninitialized data.

@@ -77,6 +77,7 @@ where
             }
 
             // unlock readiness so we don't deadlock when polling
+            #[allow(clippy::drop_non_drop)]
             drop(readiness);
 
             // Obtain the intermediate waker.

@@ -2,7 +2,9 @@ use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
 use crate::utils::{self, Indexer, PollVec, WakerVec};
 
+#[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
+
 use core::fmt;
 use core::pin::Pin;
 use core::task::{Context, Poll};
@@ -79,6 +81,7 @@ where
             }
 
             // unlock readiness so we don't deadlock when polling
+            #[allow(clippy::drop_non_drop)]
             drop(readiness);
 
             // Obtain the intermediate waker.

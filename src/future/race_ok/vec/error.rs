@@ -1,4 +1,6 @@
+#[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
+
 use core::fmt;
 use core::ops::Deref;
 use core::ops::DerefMut;

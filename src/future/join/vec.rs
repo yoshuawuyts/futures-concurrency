@@ -1,7 +1,9 @@
 use super::Join as JoinTrait;
 use crate::utils::{FutureVec, OutputVec, PollVec, WakerVec};
 
+#[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
+
 use core::fmt;
 use core::future::{Future, IntoFuture};
 use core::mem::ManuallyDrop;
@@ -98,6 +100,7 @@ where
         for (i, mut fut) in futures.iter().enumerate() {
             if states[i].is_pending() && readiness.clear_ready(i) {
                 // unlock readiness so we don't deadlock when polling
+                #[allow(clippy::drop_non_drop)]
                 drop(readiness);
 
                 // Obtain the intermediate waker.
@@ -178,8 +181,6 @@ mod test {
     use alloc::sync::Arc;
     use alloc::vec;
     use core::future;
-    use core::future::Future;
-    use core::task::Context;
 
     #[test]
     fn smoke() {
