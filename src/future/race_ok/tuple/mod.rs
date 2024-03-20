@@ -78,7 +78,7 @@ macro_rules! impl_race_ok_tuple {
             }
         }
 
-        impl<T, ERR, $($F: Future),*> Future for $StructName<T, ERR, $($F),*>
+        impl<T, ERR, $($F),*> Future for $StructName<T, ERR, $($F),*>
         where
             $( $F: Future<Output = Result<T, ERR>>, )*
             ERR: fmt::Debug,
@@ -138,7 +138,7 @@ macro_rules! impl_race_ok_tuple {
         }
 
         #[pinned_drop]
-        impl<T, ERR, $($F: Future,)*> PinnedDrop for $StructName<T, ERR, $($F,)*>
+        impl<T, ERR, $($F,)*> PinnedDrop for $StructName<T, ERR, $($F,)*>
         where
             $( $F: Future<Output = Result<T, ERR>>, )*
             ERR: fmt::Debug,
