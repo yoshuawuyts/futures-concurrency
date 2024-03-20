@@ -181,8 +181,6 @@ mod test {
     use alloc::sync::Arc;
     use alloc::vec;
     use core::future;
-    use core::future::Future;
-    use core::task::Context;
 
     #[test]
     fn smoke() {

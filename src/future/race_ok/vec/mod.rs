@@ -95,7 +95,6 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::error::AggregateError;
     use super::*;
     use alloc::vec;
     use core::future;
