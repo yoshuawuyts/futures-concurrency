@@ -100,6 +100,7 @@ where
         for (i, mut fut) in futures.iter().enumerate() {
             if states[i].is_pending() && readiness.clear_ready(i) {
                 // unlock readiness so we don't deadlock when polling
+                #[allow(clippy::drop_non_drop)]
                 drop(readiness);
 
                 // Obtain the intermediate waker.

@@ -301,6 +301,7 @@ impl<F: Future> FutureGroup<F> {
         for index in this.keys.iter().cloned() {
             if states[index].is_pending() && readiness.clear_ready(index) {
                 // unlock readiness so we don't deadlock when polling
+                #[allow(clippy::drop_non_drop)]
                 drop(readiness);
 
                 // Obtain the intermediate waker.

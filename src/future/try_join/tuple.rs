@@ -245,6 +245,7 @@ macro_rules! impl_try_join_tuple {
                     }
 
                     // unlock readiness so we don't deadlock when polling
+                    #[allow(clippy::drop_non_drop)]
                     drop(readiness);
 
                     // obtain the intermediate waker

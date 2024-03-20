@@ -108,6 +108,7 @@ where
         for (i, mut fut) in this.futures.iter().enumerate() {
             if this.state[i].is_pending() && readiness.clear_ready(i) {
                 // unlock readiness so we don't deadlock when polling
+                #[allow(clippy::drop_non_drop)]
                 drop(readiness);
 
                 // Obtain the intermediate waker.
