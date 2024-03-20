@@ -1,6 +1,5 @@
 //! Concurrent execution of streams
 
-mod drain;
 mod enumerate;
 mod for_each;
 mod from_concurrent_stream;
@@ -23,8 +22,6 @@ pub use into_concurrent_stream::IntoConcurrentStream;
 pub use limit::Limit;
 pub use map::Map;
 pub use take::Take;
-
-use self::drain::Drain;
 
 /// Describes a type which can receive data.
 ///
@@ -89,14 +86,6 @@ pub trait ConcurrentStream {
         Self: Sized,
     {
         Enumerate::new(self)
-    }
-
-    /// Iterate over each item in sequence
-    async fn drain(self)
-    where
-        Self: Sized,
-    {
-        self.drive(Drain::new()).await
     }
 
     /// Obtain a simple pass-through adapter.
@@ -192,7 +181,7 @@ mod test {
                 .map(|x| async move {
                     println!("{x:?}");
                 })
-                .drain()
+                .for_each(|_| async {})
                 .await;
         });
     }

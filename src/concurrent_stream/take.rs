@@ -96,7 +96,7 @@ mod test {
             }))
             .co()
             .take(5)
-            .for_each(|n| async move { assert!(dbg!(n) < 5) })
+            .for_each(|n| async move { assert!(n < 5) })
             .await;
         });
     }
