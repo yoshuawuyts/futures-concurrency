@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! Utilities to implement the different futures of this crate.
 
 mod array;
