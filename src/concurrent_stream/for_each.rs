@@ -1,8 +1,8 @@
+use super::{Consumer, ConsumerState};
 use crate::future::FutureGroup;
 use futures_lite::StreamExt;
 use pin_project::pin_project;
 
-use super::{Consumer, ConsumerState};
 use alloc::sync::Arc;
 use core::future::Future;
 use core::marker::PhantomData;

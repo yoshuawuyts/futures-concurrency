@@ -1,5 +1,6 @@
 use super::{ConcurrentStream, Consumer, ConsumerState, IntoConcurrentStream};
 use crate::future::FutureGroup;
+#[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
 use core::future::Future;
 use core::pin::Pin;
