@@ -3,7 +3,6 @@ use futures_lite::StreamExt;
 use pin_project::pin_project;
 
 use super::{Consumer, ConsumerState};
-use alloc::boxed::Box;
 use alloc::sync::Arc;
 use core::future::Future;
 use core::marker::PhantomData;
@@ -60,7 +59,7 @@ where
 {
     type Output = ();
 
-    async fn send(mut self: Pin<&mut Self>, future: FutT) -> super::ConsumerState {
+    async fn send(self: Pin<&mut Self>, future: FutT) -> super::ConsumerState {
         let mut this = self.project();
         // If we have no space, we're going to provide backpressure until we have space
         while this.count.load(Ordering::Relaxed) >= *this.limit {

@@ -33,6 +33,7 @@ where
         C: Consumer<Self::Item, Self::Future>,
     {
         let mut iter = pin!(self.stream);
+        let mut consumer = pin!(consumer);
 
         // Concurrently progress the consumer as well as the stream. Whenever
         // there is an item from the stream available, we submit it to the
@@ -53,7 +54,7 @@ where
 
             // Drive the consumer forward
             let b = async {
-                let control_flow = consumer.progress().await;
+                let control_flow = consumer.as_mut().progress().await;
                 State::Progress(control_flow)
             };
 
@@ -64,14 +65,14 @@ where
                     ConsumerState::Break => break,
                     ConsumerState::Continue => continue,
                     ConsumerState::Empty => match iter.next().await {
-                        Some(item) => match consumer.send(ready(item)).await {
+                        Some(item) => match consumer.as_mut().send(ready(item)).await {
                             ConsumerState::Break => break,
                             ConsumerState::Empty | ConsumerState::Continue => continue,
                         },
                         None => break,
                     },
                 },
-                State::Item(Some(item)) => match consumer.send(ready(item)).await {
+                State::Item(Some(item)) => match consumer.as_mut().send(ready(item)).await {
                     ConsumerState::Break => break,
                     ConsumerState::Empty | ConsumerState::Continue => continue,
                 },
@@ -81,7 +82,7 @@ where
 
         // We will no longer receive items from the underlying stream, which
         // means we're ready to wait for the consumer to finish up.
-        consumer.flush().await
+        consumer.as_mut().flush().await
     }
 
     fn concurrency_limit(&self) -> Option<NonZeroUsize> {

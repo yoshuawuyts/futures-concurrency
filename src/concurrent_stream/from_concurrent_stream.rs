@@ -1,6 +1,5 @@
 use super::{ConcurrentStream, Consumer, ConsumerState, IntoConcurrentStream};
 use crate::future::FutureGroup;
-use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::future::Future;
 use core::pin::Pin;
