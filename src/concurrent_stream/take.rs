@@ -1,6 +1,9 @@
+use pin_project::pin_project;
+
 use super::{ConcurrentStream, Consumer, ConsumerState};
 use core::future::Future;
 use core::num::NonZeroUsize;
+use core::pin::Pin;
 
 /// A concurrent iterator that only iterates over the first `n` iterations of `iter`.
 ///
@@ -49,7 +52,9 @@ impl<CS: ConcurrentStream> ConcurrentStream for Take<CS> {
     }
 }
 
+#[pin_project]
 struct TakeConsumer<C> {
+    #[pin]
     inner: C,
     count: usize,
     limit: usize,
@@ -61,22 +66,25 @@ where
 {
     type Output = C::Output;
 
-    async fn send(&mut self, future: Fut) -> ConsumerState {
-        self.count += 1;
-        let state = self.inner.send(future).await;
-        if self.count >= self.limit {
+    async fn send(self: Pin<&mut Self>, future: Fut) -> ConsumerState {
+        let this = self.project();
+        *this.count += 1;
+        let state = this.inner.send(future).await;
+        if this.count >= this.limit {
             ConsumerState::Break
         } else {
             state
         }
     }
 
-    async fn progress(&mut self) -> ConsumerState {
-        self.inner.progress().await
+    async fn progress(self: Pin<&mut Self>) -> ConsumerState {
+        let this = self.project();
+        this.inner.progress().await
     }
 
-    async fn flush(&mut self) -> Self::Output {
-        self.inner.flush().await
+    async fn flush(self: Pin<&mut Self>) -> Self::Output {
+        let this = self.project();
+        this.inner.flush().await
     }
 }
 

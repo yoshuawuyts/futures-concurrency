@@ -2,9 +2,9 @@ use crate::concurrent_stream::ConsumerState;
 use crate::future::FutureGroup;
 use crate::private::Try;
 use futures_lite::StreamExt;
+use pin_project::pin_project;
 
 use super::Consumer;
-use alloc::boxed::Box;
 use alloc::sync::Arc;
 use core::future::Future;
 use core::marker::PhantomData;
@@ -14,7 +14,7 @@ use core::pin::Pin;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use core::task::{ready, Context, Poll};
 
-// OK: validated! - all bounds should check out
+#[pin_project]
 pub(crate) struct TryForEachConsumer<FutT, T, F, FutB, B>
 where
     FutT: Future<Output = T>,
@@ -25,7 +25,8 @@ where
     // NOTE: we can remove the `Arc` here if we're willing to make this struct self-referential
     count: Arc<AtomicUsize>,
     // TODO: remove the `Pin<Box>` from this signature by requiring this struct is pinned
-    group: Pin<Box<FutureGroup<TryForEachFut<F, FutT, T, FutB, B>>>>,
+    #[pin]
+    group: FutureGroup<TryForEachFut<F, FutT, T, FutB, B>>,
     limit: usize,
     residual: Option<B::Residual>,
     f: F,
@@ -49,7 +50,7 @@ where
             f,
             residual: None,
             count: Arc::new(AtomicUsize::new(0)),
-            group: Box::pin(FutureGroup::new()),
+            group: FutureGroup::new(),
             _phantom: PhantomData,
         }
     }
@@ -65,15 +66,16 @@ where
 {
     type Output = B;
 
-    async fn send(&mut self, future: FutT) -> super::ConsumerState {
+    async fn send(self: Pin<&mut Self>, future: FutT) -> super::ConsumerState {
+        let mut this = self.project();
         // If we have no space, we're going to provide backpressure until we have space
-        while self.count.load(Ordering::Relaxed) >= self.limit {
-            match self.group.next().await {
+        while this.count.load(Ordering::Relaxed) >= *this.limit {
+            match this.group.next().await {
                 None => break,
                 Some(res) => match res.branch() {
                     ControlFlow::Continue(_) => todo!(),
                     ControlFlow::Break(residual) => {
-                        self.residual = Some(residual);
+                        *this.residual = Some(residual);
                         return ConsumerState::Break;
                     }
                 },
@@ -81,32 +83,34 @@ where
         }
 
         // Space was available! - insert the item for posterity
-        self.count.fetch_add(1, Ordering::Relaxed);
-        let fut = TryForEachFut::new(self.f.clone(), future, self.count.clone());
-        self.group.as_mut().insert_pinned(fut);
+        this.count.fetch_add(1, Ordering::Relaxed);
+        let fut = TryForEachFut::new(this.f.clone(), future, this.count.clone());
+        this.group.as_mut().insert_pinned(fut);
         ConsumerState::Continue
     }
 
-    async fn progress(&mut self) -> super::ConsumerState {
-        while let Some(res) = self.group.next().await {
+    async fn progress(self: Pin<&mut Self>) -> super::ConsumerState {
+        let mut this = self.project();
+        while let Some(res) = this.group.next().await {
             if let ControlFlow::Break(residual) = res.branch() {
-                self.residual = Some(residual);
+                *this.residual = Some(residual);
                 return ConsumerState::Break;
             }
         }
         ConsumerState::Empty
     }
 
-    async fn flush(&mut self) -> Self::Output {
+    async fn flush(self: Pin<&mut Self>) -> Self::Output {
+        let mut this = self.project();
         // Return the error if we stopped iteration because of a previous error.
-        if self.residual.is_some() {
-            return B::from_residual(self.residual.take().unwrap());
+        if this.residual.is_some() {
+            return B::from_residual(this.residual.take().unwrap());
         }
 
         // We will no longer receive any additional futures from the
         // underlying stream; wait until all the futures in the group have
         // resolved.
-        while let Some(res) = self.group.next().await {
+        while let Some(res) = this.group.next().await {
             if let ControlFlow::Break(residual) = res.branch() {
                 return B::from_residual(residual);
             }

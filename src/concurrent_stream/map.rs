@@ -1,3 +1,5 @@
+use pin_project::pin_project;
+
 use super::{ConcurrentStream, Consumer};
 use core::num::NonZeroUsize;
 use core::{
@@ -71,7 +73,7 @@ where
     }
 }
 
-// OK: validated! - all bounds should check out
+#[pin_project]
 pub struct MapConsumer<C, F, FutT, T, FutB, B>
 where
     FutT: Future<Output = T>,
@@ -80,6 +82,7 @@ where
     F: Clone,
     FutB: Future<Output = B>,
 {
+    #[pin]
     inner: C,
     f: F,
     _phantom: PhantomData<(FutT, T, FutB, B)>,
@@ -95,17 +98,20 @@ where
 {
     type Output = C::Output;
 
-    async fn progress(&mut self) -> super::ConsumerState {
-        self.inner.progress().await
+    async fn progress(self: Pin<&mut Self>) -> super::ConsumerState {
+        let this = self.project();
+        this.inner.progress().await
     }
 
-    async fn send(&mut self, future: FutT) -> super::ConsumerState {
-        let fut = MapFuture::new(self.f.clone(), future);
-        self.inner.send(fut).await
+    async fn send(self: Pin<&mut Self>, future: FutT) -> super::ConsumerState {
+        let this = self.project();
+        let fut = MapFuture::new(this.f.clone(), future);
+        this.inner.send(fut).await
     }
 
-    async fn flush(&mut self) -> Self::Output {
-        self.inner.flush().await
+    async fn flush(self: Pin<&mut Self>) -> Self::Output {
+        let this = self.project();
+        this.inner.flush().await
     }
 }
 

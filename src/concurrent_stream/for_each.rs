@@ -23,7 +23,7 @@ where
     // NOTE: we can remove the `Arc` here if we're willing to make this struct self-referential
     count: Arc<AtomicUsize>,
     #[pin]
-    group: Pin<Box<FutureGroup<ForEachFut<F, FutT, T, FutB>>>>,
+    group: FutureGroup<ForEachFut<F, FutT, T, FutB>>,
     limit: usize,
     f: F,
     _phantom: PhantomData<(T, FutB)>,
@@ -45,7 +45,7 @@ where
             f,
             _phantom: PhantomData,
             count: Arc::new(AtomicUsize::new(0)),
-            group: Box::pin(FutureGroup::new()),
+            group: FutureGroup::new(),
         }
     }
 }
@@ -60,30 +60,33 @@ where
 {
     type Output = ();
 
-    async fn send(&mut self, future: FutT) -> super::ConsumerState {
+    async fn send(mut self: Pin<&mut Self>, future: FutT) -> super::ConsumerState {
+        let mut this = self.project();
         // If we have no space, we're going to provide backpressure until we have space
-        while self.count.load(Ordering::Relaxed) >= self.limit {
-            self.group.next().await;
+        while this.count.load(Ordering::Relaxed) >= *this.limit {
+            this.group.next().await;
         }
 
         // Space was available! - insert the item for posterity
-        self.count.fetch_add(1, Ordering::Relaxed);
-        let fut = ForEachFut::new(self.f.clone(), future, self.count.clone());
-        self.group.as_mut().insert_pinned(fut);
+        this.count.fetch_add(1, Ordering::Relaxed);
+        let fut = ForEachFut::new(this.f.clone(), future, this.count.clone());
+        this.group.as_mut().insert_pinned(fut);
 
         ConsumerState::Continue
     }
 
-    async fn progress(&mut self) -> super::ConsumerState {
-        while let Some(_) = self.group.next().await {}
+    async fn progress(self: Pin<&mut Self>) -> super::ConsumerState {
+        let mut this = self.project();
+        while let Some(_) = this.group.next().await {}
         ConsumerState::Empty
     }
 
-    async fn flush(&mut self) -> Self::Output {
+    async fn flush(self: Pin<&mut Self>) -> Self::Output {
+        let mut this = self.project();
         // 4. We will no longer receive any additional futures from the
         // underlying stream; wait until all the futures in the group have
         // resolved.
-        while let Some(_) = self.group.next().await {}
+        while let Some(_) = this.group.next().await {}
     }
 }
 

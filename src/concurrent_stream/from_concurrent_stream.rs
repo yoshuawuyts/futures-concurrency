@@ -5,6 +5,7 @@ use alloc::vec::Vec;
 use core::future::Future;
 use core::pin::Pin;
 use futures_lite::StreamExt;
+use pin_project::pin_project;
 
 /// Conversion from a [`ConcurrentStream`]
 #[allow(async_fn_in_trait)]
@@ -28,15 +29,17 @@ impl<T> FromConcurrentStream<T> for Vec<T> {
 }
 
 // TODO: replace this with a generalized `fold` operation
+#[pin_project]
 pub(crate) struct VecConsumer<'a, Fut: Future> {
-    group: Pin<Box<FutureGroup<Fut>>>,
+    #[pin]
+    group: FutureGroup<Fut>,
     output: &'a mut Vec<Fut::Output>,
 }
 
 impl<'a, Fut: Future> VecConsumer<'a, Fut> {
     pub(crate) fn new(output: &'a mut Vec<Fut::Output>) -> Self {
         Self {
-            group: Box::pin(FutureGroup::new()),
+            group: FutureGroup::new(),
             output,
         }
     }
@@ -48,21 +51,24 @@ where
 {
     type Output = ();
 
-    async fn send(&mut self, future: Fut) -> super::ConsumerState {
+    async fn send(self: Pin<&mut Self>, future: Fut) -> super::ConsumerState {
+        let mut this = self.project();
         // unbounded concurrency, so we just goooo
-        self.group.as_mut().insert_pinned(future);
+        this.group.as_mut().insert_pinned(future);
         ConsumerState::Continue
     }
 
-    async fn progress(&mut self) -> super::ConsumerState {
-        while let Some(item) = self.group.next().await {
-            self.output.push(item);
+    async fn progress(self: Pin<&mut Self>) -> super::ConsumerState {
+        let mut this = self.project();
+        while let Some(item) = this.group.next().await {
+            this.output.push(item);
         }
         ConsumerState::Empty
     }
-    async fn flush(&mut self) -> Self::Output {
-        while let Some(item) = self.group.next().await {
-            self.output.push(item);
+    async fn flush(self: Pin<&mut Self>) -> Self::Output {
+        let mut this = self.project();
+        while let Some(item) = this.group.next().await {
+            this.output.push(item);
         }
     }
 }

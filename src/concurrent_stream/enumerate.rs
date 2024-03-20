@@ -1,3 +1,5 @@
+use pin_project::pin_project;
+
 use super::{ConcurrentStream, Consumer};
 use core::future::Future;
 use core::num::NonZeroUsize;
@@ -47,7 +49,9 @@ impl<CS: ConcurrentStream> ConcurrentStream for Enumerate<CS> {
     }
 }
 
+#[pin_project]
 struct EnumerateConsumer<C> {
+    #[pin]
     inner: C,
     count: usize,
 }
@@ -58,18 +62,21 @@ where
 {
     type Output = C::Output;
 
-    async fn send(&mut self, future: Fut) -> super::ConsumerState {
-        let count = self.count;
-        self.count += 1;
-        self.inner.send(EnumerateFuture::new(future, count)).await
+    async fn send(self: Pin<&mut Self>, future: Fut) -> super::ConsumerState {
+        let this = self.project();
+        let count = *this.count;
+        *this.count += 1;
+        this.inner.send(EnumerateFuture::new(future, count)).await
     }
 
-    async fn progress(&mut self) -> super::ConsumerState {
-        self.inner.progress().await
+    async fn progress(self: Pin<&mut Self>) -> super::ConsumerState {
+        let this = self.project();
+        this.inner.progress().await
     }
 
-    async fn flush(&mut self) -> Self::Output {
-        self.inner.flush().await
+    async fn flush(self: Pin<&mut Self>) -> Self::Output {
+        let this = self.project();
+        this.inner.flush().await
     }
 }
 

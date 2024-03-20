@@ -1,6 +1,9 @@
+use pin_project::pin_project;
+
 use super::{ConcurrentStream, Consumer};
 use core::future::Future;
 use core::num::NonZeroUsize;
+use core::pin::Pin;
 
 /// A concurrent iterator that limits the amount of concurrency applied.
 ///
@@ -43,7 +46,9 @@ impl<CS: ConcurrentStream> ConcurrentStream for Limit<CS> {
     }
 }
 
+#[pin_project]
 struct LimitConsumer<C> {
+    #[pin]
     inner: C,
 }
 impl<C, Item, Fut> Consumer<Item, Fut> for LimitConsumer<C>
@@ -53,15 +58,18 @@ where
 {
     type Output = C::Output;
 
-    async fn send(&mut self, future: Fut) -> super::ConsumerState {
-        self.inner.send(future).await
+    async fn send(self: Pin<&mut Self>, future: Fut) -> super::ConsumerState {
+        let this = self.project();
+        this.inner.send(future).await
     }
 
-    async fn progress(&mut self) -> super::ConsumerState {
-        self.inner.progress().await
+    async fn progress(self: Pin<&mut Self>) -> super::ConsumerState {
+        let this = self.project();
+        this.inner.progress().await
     }
 
-    async fn flush(&mut self) -> Self::Output {
-        self.inner.flush().await
+    async fn flush(self: Pin<&mut Self>) -> Self::Output {
+        let this = self.project();
+        this.inner.flush().await
     }
 }

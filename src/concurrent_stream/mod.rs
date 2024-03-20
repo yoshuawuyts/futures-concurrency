@@ -12,6 +12,7 @@ mod try_for_each;
 
 use core::future::Future;
 use core::num::NonZeroUsize;
+use core::pin::Pin;
 use for_each::ForEachConsumer;
 use try_for_each::TryForEachConsumer;
 
@@ -37,18 +38,18 @@ where
     type Output;
 
     /// Send an item down to the next step in the processing queue.
-    async fn send(&mut self, fut: Fut) -> ConsumerState;
+    async fn send(self: Pin<&mut Self>, fut: Fut) -> ConsumerState;
 
     /// Make progress on the consumer while doing something else.
     ///
     /// It should always be possible to drop the future returned by this
     /// function. This is solely intended to keep work going on the `Consumer`
     /// while doing e.g. waiting for new futures from a stream.
-    async fn progress(&mut self) -> ConsumerState;
+    async fn progress(self: Pin<&mut Self>) -> ConsumerState;
 
     /// We have no more data left to send to the `Consumer`; wait for its
     /// output.
-    async fn flush(&mut self) -> Self::Output;
+    async fn flush(self: Pin<&mut Self>) -> Self::Output;
 }
 
 /// Concurrently operate over items in a stream
