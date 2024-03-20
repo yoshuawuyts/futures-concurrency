@@ -8,6 +8,7 @@
 use crate::concurrent_stream::{self, ConcurrentStream, FromStream};
 use crate::prelude::*;
 use crate::utils::{from_iter, FromIter};
+use alloc::vec::Vec;
 use core::future::Ready;
 
 pub use crate::future::join::vec::Join;
