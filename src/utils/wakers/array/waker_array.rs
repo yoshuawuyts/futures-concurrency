@@ -5,7 +5,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use crate::utils::wakers::shared_arc::{waker_from_redirec_position, SharedArcContent};
 
-use super::{InlineWakerArray, ReadinessArray};
+use super::ReadinessArray;
 
 /// A collection of wakers which delegate to an in-line waker.
 pub(crate) struct WakerArray<const N: usize> {

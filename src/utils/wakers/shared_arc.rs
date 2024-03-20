@@ -1,7 +1,6 @@
 use core::task::{RawWaker, RawWakerVTable, Waker};
 
 use alloc::sync::Arc;
-use bitvec::index;
 
 pub(super) unsafe trait SharedArcContent {
     /// Get the reference of the redirect slice
