@@ -27,7 +27,7 @@ where
     // TODO: remove the `Pin<Box>` from this signature by requiring this struct is pinned
     group: Pin<Box<FutureGroup<TryForEachFut<F, FutT, T, FutB, B>>>>,
     limit: usize,
-    err: Option<B::Residual>,
+    residual: Option<B::Residual>,
     f: F,
     _phantom: PhantomData<(T, FutB)>,
 }
@@ -47,7 +47,7 @@ where
         Self {
             limit,
             f,
-            err: None,
+            residual: None,
             count: Arc::new(AtomicUsize::new(0)),
             group: Box::pin(FutureGroup::new()),
             _phantom: PhantomData,
@@ -73,7 +73,7 @@ where
                 Some(res) => match res.branch() {
                     ControlFlow::Continue(_) => todo!(),
                     ControlFlow::Break(residual) => {
-                        self.err = Some(residual);
+                        self.residual = Some(residual);
                         return ConsumerState::Break;
                     }
                 },
@@ -90,17 +90,17 @@ where
     async fn progress(&mut self) -> super::ConsumerState {
         while let Some(res) = self.group.next().await {
             if let ControlFlow::Break(residual) = res.branch() {
-                self.err = Some(residual);
+                self.residual = Some(residual);
                 return ConsumerState::Break;
             }
         }
         ConsumerState::Empty
     }
 
-    async fn finish(mut self) -> Self::Output {
+    async fn flush(&mut self) -> Self::Output {
         // Return the error if we stopped iteration because of a previous error.
-        if let Some(residual) = self.err {
-            return B::from_residual(residual);
+        if self.residual.is_some() {
+            return B::from_residual(self.residual.take().unwrap());
         }
 
         // We will no longer receive any additional futures from the

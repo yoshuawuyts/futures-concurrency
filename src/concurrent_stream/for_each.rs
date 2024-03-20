@@ -1,5 +1,6 @@
 use crate::future::FutureGroup;
 use futures_lite::StreamExt;
+use pin_project::pin_project;
 
 use super::{Consumer, ConsumerState};
 use alloc::boxed::Box;
@@ -12,6 +13,7 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use core::task::{ready, Context, Poll};
 
 // OK: validated! - all bounds should check out
+#[pin_project]
 pub(crate) struct ForEachConsumer<FutT, T, F, FutB>
 where
     FutT: Future<Output = T>,
@@ -20,7 +22,7 @@ where
 {
     // NOTE: we can remove the `Arc` here if we're willing to make this struct self-referential
     count: Arc<AtomicUsize>,
-    // TODO: remove the `Pin<Box>` from this signature by requiring this struct is pinned
+    #[pin]
     group: Pin<Box<FutureGroup<ForEachFut<F, FutT, T, FutB>>>>,
     limit: usize,
     f: F,
@@ -77,7 +79,7 @@ where
         ConsumerState::Empty
     }
 
-    async fn finish(mut self) -> Self::Output {
+    async fn flush(&mut self) -> Self::Output {
         // 4. We will no longer receive any additional futures from the
         // underlying stream; wait until all the futures in the group have
         // resolved.

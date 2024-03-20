@@ -60,7 +60,7 @@ where
         }
         ConsumerState::Empty
     }
-    async fn finish(mut self) -> Self::Output {
+    async fn flush(&mut self) -> Self::Output {
         while let Some(item) = self.group.next().await {
             self.output.push(item);
         }

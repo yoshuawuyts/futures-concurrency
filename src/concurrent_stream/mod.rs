@@ -48,7 +48,7 @@ where
 
     /// We have no more data left to send to the `Consumer`; wait for its
     /// output.
-    async fn finish(self) -> Self::Output;
+    async fn flush(&mut self) -> Self::Output;
 }
 
 /// Concurrently operate over items in a stream

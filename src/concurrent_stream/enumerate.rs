@@ -68,8 +68,8 @@ where
         self.inner.progress().await
     }
 
-    async fn finish(self) -> Self::Output {
-        self.inner.finish().await
+    async fn flush(&mut self) -> Self::Output {
+        self.inner.flush().await
     }
 }
 

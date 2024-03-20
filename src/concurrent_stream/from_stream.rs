@@ -81,7 +81,7 @@ where
 
         // We will no longer receive items from the underlying stream, which
         // means we're ready to wait for the consumer to finish up.
-        consumer.finish().await
+        consumer.flush().await
     }
 
     fn concurrency_limit(&self) -> Option<NonZeroUsize> {
