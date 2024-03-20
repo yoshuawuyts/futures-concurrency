@@ -1,30 +1,10 @@
-use super::{ConcurrentStream, Consumer, ConsumerState};
+use super::{ConcurrentStream, Consumer, ConsumerState, IntoConcurrentStream};
 use crate::future::FutureGroup;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::future::Future;
 use core::pin::Pin;
 use futures_lite::StreamExt;
-
-/// Conversion into a [`ConcurrentStream`]
-pub trait IntoConcurrentStream {
-    /// The type of the elements being iterated over.
-    type Item;
-    /// Which kind of iterator are we turning this into?
-    type ConcurrentStream: ConcurrentStream<Item = Self::Item>;
-
-    /// Convert `self` into a concurrent iterator.
-    fn into_concurrent_stream(self) -> Self::ConcurrentStream;
-}
-
-impl<S: ConcurrentStream> IntoConcurrentStream for S {
-    type Item = S::Item;
-    type ConcurrentStream = S;
-
-    fn into_concurrent_stream(self) -> Self::ConcurrentStream {
-        self
-    }
-}
 
 /// Conversion from a [`ConcurrentStream`]
 #[allow(async_fn_in_trait)]
@@ -40,7 +20,7 @@ impl<T> FromConcurrentStream<T> for Vec<T> {
     where
         S: IntoConcurrentStream<Item = T>,
     {
-        let stream = iter.into_concurrent_stream();
+        let stream = iter.into_co_stream();
         let mut output = Vec::with_capacity(stream.size_hint().1.unwrap_or_default());
         stream.drive(VecConsumer::new(&mut output)).await;
         output

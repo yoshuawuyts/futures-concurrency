@@ -1,10 +1,11 @@
 //! Concurrent execution of streams
 
-mod convert;
 mod drain;
 mod enumerate;
 mod for_each;
+mod from_concurrent_stream;
 mod from_stream;
+mod into_concurrent_stream;
 mod limit;
 mod map;
 mod take;
@@ -15,9 +16,10 @@ use core::num::NonZeroUsize;
 use for_each::ForEachConsumer;
 use try_for_each::TryForEachConsumer;
 
-pub use convert::{FromConcurrentStream, IntoConcurrentStream};
 pub use enumerate::Enumerate;
+pub use from_concurrent_stream::FromConcurrentStream;
 pub use from_stream::FromStream;
+pub use into_concurrent_stream::IntoConcurrentStream;
 pub use limit::Limit;
 pub use map::Map;
 pub use take::Take;

@@ -6,6 +6,7 @@ mod indexer;
 mod output;
 mod pin;
 mod poll_state;
+mod stream;
 mod tuple;
 mod wakers;
 
@@ -36,3 +37,6 @@ pub(crate) use wakers::DummyWaker;
 
 #[cfg(all(test, feature = "alloc"))]
 pub(crate) mod channel;
+
+#[cfg(feature = "alloc")]
+pub(crate) use stream::{from_iter, FromIter};
