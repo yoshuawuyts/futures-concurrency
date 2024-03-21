@@ -1,4 +1,4 @@
-use super::{ConcurrentStream, Consumer};
+use super::Consumer;
 use crate::concurrent_stream::ConsumerState;
 use crate::prelude::*;
 

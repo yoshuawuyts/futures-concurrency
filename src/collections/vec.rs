@@ -5,7 +5,7 @@
 //!
 //! [std::vec]: https://doc.rust-lang.org/stable/std/vec/use core::future::Ready;
 
-use crate::concurrent_stream::{self, ConcurrentStream, FromStream};
+use crate::concurrent_stream::{self, FromStream};
 use crate::prelude::*;
 use crate::utils::{from_iter, FromIter};
 #[cfg(all(feature = "alloc", not(feature = "std")))]
