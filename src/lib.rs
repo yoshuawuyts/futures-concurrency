@@ -66,7 +66,11 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+mod collections;
 mod utils;
+
+#[doc(hidden)]
+pub use utils::private;
 
 /// The futures concurrency prelude.
 pub mod prelude {
@@ -81,7 +85,18 @@ pub mod prelude {
     pub use super::stream::IntoStream as _;
     pub use super::stream::Merge as _;
     pub use super::stream::Zip as _;
+
+    #[cfg(feature = "alloc")]
+    pub use super::concurrent_stream::{
+        ConcurrentStream, FromConcurrentStream, IntoConcurrentStream,
+    };
 }
+
+#[cfg(feature = "alloc")]
+pub mod concurrent_stream;
+
+#[cfg(feature = "alloc")]
+pub use collections::vec;
 
 pub mod future;
 pub mod stream;
@@ -95,17 +110,4 @@ pub mod array {
     pub use crate::stream::chain::array::Chain;
     pub use crate::stream::merge::array::Merge;
     pub use crate::stream::zip::array::Zip;
-}
-
-/// Helper functions and types for contiguous growable array type with heap-allocated contents,
-/// written `Vec<T>`.
-#[cfg(feature = "alloc")]
-pub mod vec {
-    pub use crate::future::join::vec::Join;
-    pub use crate::future::race::vec::Race;
-    pub use crate::future::race_ok::vec::{AggregateError, RaceOk};
-    pub use crate::future::try_join::vec::TryJoin;
-    pub use crate::stream::chain::vec::Chain;
-    pub use crate::stream::merge::vec::Merge;
-    pub use crate::stream::zip::vec::Zip;
 }

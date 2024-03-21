@@ -73,6 +73,8 @@ impl<T: Debug> Debug for FutureGroup<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FutureGroup")
             .field("slab", &"[..]")
+            .field("len", &self.futures.len())
+            .field("capacity", &self.futures.capacity())
             .finish()
     }
 }
@@ -238,6 +240,37 @@ impl<F: Future> FutureGroup<F> {
         // Set the corresponding state
         self.states[index].set_pending();
         let mut readiness = self.wakers.readiness();
+        readiness.set_ready(index);
+
+        key
+    }
+
+    /// Insert a value into a pinned `FutureGroup`
+    ///
+    /// This method is private because it serves as an implementation detail for
+    /// `ConcurrentStream`. We should never expose this publicly, as the entire
+    /// point of this crate is that we abstract the futures poll machinery away
+    /// from end-users.
+    pub(crate) fn insert_pinned(self: Pin<&mut Self>, stream: F) -> Key
+    where
+        F: Future,
+    {
+        let mut this = self.project();
+        // SAFETY: inserting a value into the futures slab does not ever move
+        // any of the existing values.
+        let index = unsafe { this.futures.as_mut().get_unchecked_mut() }.insert(stream);
+        this.keys.insert(index);
+        let key = Key(index);
+
+        // If our slab allocated more space we need to
+        // update our tracking structures along with it.
+        let max_len = this.futures.as_ref().capacity().max(index);
+        this.wakers.resize(max_len);
+        this.states.resize(max_len);
+
+        // Set the corresponding state
+        this.states[index].set_pending();
+        let mut readiness = this.wakers.readiness();
         readiness.set_ready(index);
 
         key

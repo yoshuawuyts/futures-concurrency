@@ -1,6 +1,9 @@
 use crate::stream::{IntoStream, Merge};
 use futures_core::Stream;
 
+#[cfg(feature = "alloc")]
+use crate::concurrent_stream::FromStream;
+
 use super::{chain::tuple::Chain2, merge::tuple::Merge2, zip::tuple::Zip2, Chain, Zip};
 
 /// An extension trait for the `Stream` trait.
@@ -22,6 +25,15 @@ pub trait StreamExt: Stream {
     where
         Self: Stream<Item = T> + Sized,
         S2: IntoStream<Item = T>;
+
+    /// Convert into a concurrent stream.
+    #[cfg(feature = "alloc")]
+    fn co(self) -> FromStream<Self>
+    where
+        Self: Sized,
+    {
+        FromStream::new(self)
+    }
 }
 
 impl<S1> StreamExt for S1
