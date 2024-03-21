@@ -163,7 +163,6 @@ mod test {
     use super::*;
     use crate::prelude::*;
     use futures_lite::stream;
-    use std::sync::Arc;
 
     #[test]
     fn concurrency_one() {

@@ -196,7 +196,7 @@ mod test {
     use super::*;
     use crate::prelude::*;
     use futures_lite::stream;
-    use std::{io, sync::Arc};
+    use std::io;
 
     #[test]
     fn concurrency_one() {
