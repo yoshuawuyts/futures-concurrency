@@ -66,6 +66,7 @@ pub struct StreamGroup<S> {
     states: PollVec,
     keys: BTreeSet<usize>,
     key_removal_queue: SmallVec<[usize; 10]>,
+    capacity: usize,
 }
 
 impl<T: Debug> Debug for StreamGroup<T> {
@@ -108,6 +109,7 @@ impl<S> StreamGroup<S> {
             states: PollVec::new(capacity),
             keys: BTreeSet::new(),
             key_removal_queue: smallvec![],
+            capacity,
         }
     }
 
@@ -141,7 +143,7 @@ impl<S> StreamGroup<S> {
     /// # let group: StreamGroup<usize> = group;
     /// ```
     pub fn capacity(&self) -> usize {
-        self.streams.capacity()
+        self.capacity
     }
 
     /// Returns true if there are no futures currently active in the group.
@@ -230,9 +232,13 @@ impl<S: Stream> StreamGroup<S> {
 
         // If our slab allocated more space we need to
         // update our tracking structures along with it.
-        let max_len = self.capacity().max(index);
-        self.wakers.resize(max_len);
-        self.states.resize(max_len);
+        let capacity = self.capacity();
+        let max_len = capacity.max(index + 1);
+        if max_len > capacity {
+            self.wakers.resize(max_len);
+            self.states.resize(max_len);
+            self.capacity = max_len;
+        }
 
         // Set the corresponding state
         self.states[index].set_pending();
@@ -439,6 +445,16 @@ mod test {
             assert_eq!(out, 6);
             assert_eq!(group.len(), 0);
             assert!(group.is_empty());
+        });
+    }
+
+    #[test]
+    fn insert_many() {
+        futures_lite::future::block_on(async {
+            let mut group = StreamGroup::new();
+            for _ in 0..100 {
+                group.insert(stream::once(2));
+            }
         });
     }
 }
