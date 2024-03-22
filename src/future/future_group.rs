@@ -4,7 +4,7 @@ use core::task::{Context, Poll};
 use futures_core::stream::Stream;
 use futures_core::Future;
 
-use crate::collections::group_inner::{GroupInner, Key};
+use crate::collections::inner_group::{InnerGroup, Key};
 
 /// A growable group of futures which act as a single unit.
 ///
@@ -59,7 +59,7 @@ use crate::collections::group_inner::{GroupInner, Key};
 #[pin_project::pin_project]
 pub struct FutureGroup<F> {
     #[pin]
-    inner: GroupInner<F>,
+    inner: InnerGroup<F>,
 }
 
 impl<F> FutureGroup<F> {
@@ -89,7 +89,7 @@ impl<F> FutureGroup<F> {
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            inner: GroupInner::with_capacity(capacity),
+            inner: InnerGroup::with_capacity(capacity),
         }
     }
 

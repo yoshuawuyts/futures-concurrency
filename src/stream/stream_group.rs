@@ -5,7 +5,7 @@ use core::task::{Context, Poll};
 use futures_core::Stream;
 use smallvec::{smallvec, SmallVec};
 
-use crate::collections::group_inner::{GroupInner, Key};
+use crate::collections::inner_group::{InnerGroup, Key};
 
 /// A growable group of streams which act as a single unit.
 ///
@@ -59,7 +59,7 @@ use crate::collections::group_inner::{GroupInner, Key};
 #[pin_project::pin_project]
 pub struct StreamGroup<S> {
     #[pin]
-    inner: GroupInner<S>,
+    inner: InnerGroup<S>,
 }
 
 impl<S> StreamGroup<S> {
@@ -89,7 +89,7 @@ impl<S> StreamGroup<S> {
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            inner: GroupInner::with_capacity(capacity),
+            inner: InnerGroup::with_capacity(capacity),
         }
     }
 

@@ -8,7 +8,7 @@ use crate::utils::{PollVec, WakerVec};
 const GROUP_GROWTH_FACTOR: usize = 2;
 
 #[pin_project::pin_project]
-pub struct GroupInner<A> {
+pub struct InnerGroup<A> {
     #[pin]
     pub items: Slab<A>,
     pub wakers: WakerVec,
@@ -18,7 +18,7 @@ pub struct GroupInner<A> {
     len: usize,
 }
 
-impl<A> GroupInner<A> {
+impl<A> InnerGroup<A> {
     pub fn with_capacity(cap: usize) -> Self {
         Self {
             items: Slab::with_capacity(cap),
@@ -117,20 +117,20 @@ impl<A> GroupInner<A> {
 }
 
 /// Keyed operations
-impl<A> GroupInner<A> {
+impl<A> InnerGroup<A> {
     // move to other impl block
     pub fn contains_key(&self, key: Key) -> bool {
         self.items.contains(key.0)
     }
 }
 
-impl<A> Default for GroupInner<A> {
+impl<A> Default for InnerGroup<A> {
     fn default() -> Self {
         Self::with_capacity(0)
     }
 }
 
-impl<A> fmt::Debug for GroupInner<A> {
+impl<A> fmt::Debug for InnerGroup<A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("GroupInner")
             .field("cap", &self.cap)
