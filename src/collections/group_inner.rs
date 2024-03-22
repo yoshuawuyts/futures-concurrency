@@ -48,7 +48,7 @@ impl<A> GroupInner<A> {
 
     pub fn insert(&mut self, item: A) -> Key {
         if !self.has_capacity() {
-            self.resize(self.cap + 1 * GROUP_GROWTH_FACTOR);
+            self.resize((self.cap + 1) * GROUP_GROWTH_FACTOR);
         }
 
         let index = self.items.insert(item);
@@ -65,7 +65,7 @@ impl<A> GroupInner<A> {
     pub fn insert_pinned(mut self: Pin<&mut Self>, item: A) -> Key {
         if !self.has_capacity() {
             let r = unsafe { &mut self.as_mut().get_unchecked_mut() };
-            r.resize(r.cap + 1 * GROUP_GROWTH_FACTOR);
+            r.resize((r.cap + 1) * GROUP_GROWTH_FACTOR);
         }
 
         let mut this = self.project();

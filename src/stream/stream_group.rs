@@ -1,13 +1,11 @@
-use alloc::collections::BTreeSet;
-use core::fmt::{self, Debug};
+use core::fmt::Debug;
 use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 use futures_core::Stream;
-use slab::Slab;
 use smallvec::{smallvec, SmallVec};
 
-use crate::utils::{PollState, PollVec, WakerVec};
+use crate::collections::group_inner::{GroupInner, Key};
 
 /// A growable group of streams which act as a single unit.
 ///
@@ -57,23 +55,11 @@ use crate::utils::{PollState, PollVec, WakerVec};
 /// # });
 /// ```
 #[must_use = "`StreamGroup` does nothing if not iterated over"]
-#[derive(Default)]
+#[derive(Default, Debug)]
 #[pin_project::pin_project]
 pub struct StreamGroup<S> {
     #[pin]
-    streams: Slab<S>,
-    wakers: WakerVec,
-    states: PollVec,
-    keys: BTreeSet<usize>,
-    key_removal_queue: SmallVec<[usize; 10]>,
-}
-
-impl<T: Debug> Debug for StreamGroup<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("StreamGroup")
-            .field("slab", &"[..]")
-            .finish()
-    }
+    inner: GroupInner<S>,
 }
 
 impl<S> StreamGroup<S> {
@@ -103,11 +89,7 @@ impl<S> StreamGroup<S> {
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            streams: Slab::with_capacity(capacity),
-            wakers: WakerVec::new(capacity),
-            states: PollVec::new(capacity),
-            keys: BTreeSet::new(),
-            key_removal_queue: smallvec![],
+            inner: GroupInner::with_capacity(capacity),
         }
     }
 
@@ -125,7 +107,7 @@ impl<S> StreamGroup<S> {
     /// assert_eq!(group.len(), 1);
     /// ```
     pub fn len(&self) -> usize {
-        self.streams.len()
+        self.inner.len()
     }
 
     /// Return the capacity of the `StreamGroup`.
@@ -141,7 +123,7 @@ impl<S> StreamGroup<S> {
     /// # let group: StreamGroup<usize> = group;
     /// ```
     pub fn capacity(&self) -> usize {
-        self.streams.capacity()
+        self.inner.capacity()
     }
 
     /// Returns true if there are no futures currently active in the group.
@@ -158,7 +140,7 @@ impl<S> StreamGroup<S> {
     /// assert!(!group.is_empty());
     /// ```
     pub fn is_empty(&self) -> bool {
-        self.streams.is_empty()
+        self.inner.is_empty()
     }
 
     /// Removes a stream from the group. Returns whether the value was present in
@@ -179,12 +161,7 @@ impl<S> StreamGroup<S> {
     /// # })
     /// ```
     pub fn remove(&mut self, key: Key) -> bool {
-        let is_present = self.keys.remove(&key.0);
-        if is_present {
-            self.states[key.0].set_none();
-            self.streams.remove(key.0);
-        }
-        is_present
+        self.inner.remove(key).is_some()
     }
 
     /// Returns `true` if the `StreamGroup` contains a value for the specified key.
@@ -204,7 +181,7 @@ impl<S> StreamGroup<S> {
     /// # })
     /// ```
     pub fn contains_key(&mut self, key: Key) -> bool {
-        self.keys.contains(&key.0)
+        self.inner.contains_key(key)
     }
 }
 
@@ -224,22 +201,7 @@ impl<S: Stream> StreamGroup<S> {
     where
         S: Stream,
     {
-        let index = self.streams.insert(stream);
-        self.keys.insert(index);
-        let key = Key(index);
-
-        // If our slab allocated more space we need to
-        // update our tracking structures along with it.
-        let max_len = self.capacity().max(index);
-        self.wakers.resize(max_len);
-        self.states.resize(max_len);
-
-        // Set the corresponding state
-        self.states[index].set_pending();
-        let mut readiness = self.wakers.readiness();
-        readiness.set_ready(index);
-
-        key
+        self.inner.insert(stream)
     }
 
     /// Create a stream which also yields the key of each item.
@@ -274,90 +236,80 @@ impl<S: Stream> StreamGroup<S> {
         cx: &Context<'_>,
     ) -> Poll<Option<(Key, <S as Stream>::Item)>> {
         let mut this = self.project();
+        let inner = unsafe { &mut this.inner.as_mut().get_unchecked_mut() };
 
         // Short-circuit if we have no streams to iterate over
-        if this.streams.is_empty() {
+        if inner.is_empty() {
             return Poll::Ready(None);
         }
 
         // Set the top-level waker and check readiness
-        let mut readiness = this.wakers.readiness();
-        readiness.set_waker(cx.waker());
-        if !readiness.any_ready() {
+        inner.set_top_waker(cx.waker());
+        if !inner.any_ready() {
             // Nothing is ready yet
             return Poll::Pending;
         }
 
         // Setup our stream state
-        let mut ret = Poll::Pending;
         let mut done_count = 0;
-        let stream_count = this.streams.len();
-        let states = this.states;
+        let stream_count = inner.len();
+        let mut removal_queue: SmallVec<[usize; 10]> = smallvec![];
 
-        // SAFETY: We unpin the stream set so we can later individually access
-        // single streams. Either to read from them or to drop them.
-        let streams = unsafe { this.streams.as_mut().get_unchecked_mut() };
-
-        for index in this.keys.iter().cloned() {
-            if states[index].is_pending() && readiness.clear_ready(index) {
-                // unlock readiness so we don't deadlock when polling
-                #[allow(clippy::drop_non_drop)]
-                drop(readiness);
-
-                // Obtain the intermediate waker.
-                let mut cx = Context::from_waker(this.wakers.get(index).unwrap());
-
-                // SAFETY: this stream here is a projection from the streams
-                // vec, which we're reading from.
-                let stream = unsafe { Pin::new_unchecked(&mut streams[index]) };
-                match stream.poll_next(&mut cx) {
-                    Poll::Ready(Some(item)) => {
-                        // Set the return type for the function
-                        ret = Poll::Ready(Some((Key(index), item)));
-
-                        // We just obtained an item from this index, make sure
-                        // we check it again on a next iteration
-                        states[index] = PollState::Pending;
-                        let mut readiness = this.wakers.readiness();
-                        readiness.set_ready(index);
-
-                        break;
-                    }
-                    Poll::Ready(None) => {
-                        // A stream has ended, make note of that
-                        done_count += 1;
-
-                        // Remove all associated data about the stream.
-                        // The only data we can't remove directly is the key entry.
-                        states[index] = PollState::None;
-                        streams.remove(index);
-                        this.key_removal_queue.push(index);
-                    }
-                    // Keep looping if there is nothing for us to do
-                    Poll::Pending => {}
-                };
-
-                // Lock readiness so we can use it again
-                readiness = this.wakers.readiness();
+        for index in inner.keys.iter().cloned() {
+            if !inner.can_progress_index(index) {
+                continue;
             }
+
+            // Obtain the intermediate waker.
+            let mut cx = Context::from_waker(inner.wakers.get(index).unwrap());
+
+            // SAFETY: this stream here is a projection from the streams
+            // vec, which we're reading from.
+            let stream = unsafe { Pin::new_unchecked(&mut inner.items[index]) };
+            match stream.poll_next(&mut cx) {
+                Poll::Ready(Some(item)) => {
+                    let key = Key(index);
+                    // Set the return type for the function
+                    let ret = Poll::Ready(Some((key, item)));
+
+                    // We just obtained an item from this index, make sure
+                    // we check it again on a next iteration
+                    inner.states[index].set_pending();
+                    inner.wakers.readiness().set_ready(index);
+
+                    for key in removal_queue {
+                        inner.remove(Key(key));
+                    }
+
+                    return ret;
+                }
+                Poll::Ready(None) => {
+                    // A stream has ended, make note of that
+                    done_count += 1;
+
+                    // Remove all associated data about the stream.
+                    // The only data we can't remove directly is the key entry.
+                    removal_queue.push(index);
+                    continue;
+                }
+                // Keep looping if there is nothing for us to do
+                Poll::Pending => {}
+            };
         }
 
         // Now that we're no longer borrowing `this.keys` we can loop over
         // which items we need to remove
-        if !this.key_removal_queue.is_empty() {
-            for key in this.key_removal_queue.iter() {
-                this.keys.remove(key);
-            }
-            this.key_removal_queue.clear();
+        for key in removal_queue {
+            inner.remove(Key(key));
         }
 
         // If all streams turned up with `Poll::Ready(None)` our
         // stream should return that
         if done_count == stream_count {
-            ret = Poll::Ready(None);
+            return Poll::Ready(None);
         }
 
-        ret
+        Poll::Pending
     }
 }
 
@@ -384,10 +336,6 @@ impl<S: Stream> FromIterator<S> for StreamGroup<S> {
         this
     }
 }
-
-/// A key used to index into the `StreamGroup` type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Key(usize);
 
 /// Iterate over items in the stream group with their associated keys.
 #[derive(Debug)]
