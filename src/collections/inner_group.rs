@@ -11,7 +11,9 @@ use smallvec::{smallvec, SmallVec};
 
 use crate::utils::{PollVec, WakerVec};
 
-const GROUP_GROWTH_FACTOR: usize = 2;
+const fn grow_group_capacity(cap: usize) -> usize {
+    cap * 2 + 1
+}
 
 #[pin_project::pin_project]
 pub struct InnerGroup<A, B> {
@@ -56,7 +58,7 @@ impl<A, B> InnerGroup<A, B> {
 
     pub fn insert(&mut self, item: A) -> Key {
         if !self.has_capacity() {
-            self.resize((self.cap + 1) * GROUP_GROWTH_FACTOR);
+            self.reserve(grow_group_capacity(self.cap));
         }
 
         let index = self.items.insert(item);
@@ -75,7 +77,7 @@ impl<A, B> InnerGroup<A, B> {
 
         if !self.has_capacity() {
             let r = unsafe { &mut self.as_mut().get_unchecked_mut() };
-            r.resize((r.cap + 1) * GROUP_GROWTH_FACTOR);
+            r.reserve(grow_group_capacity(r.cap));
         }
 
         let mut this = self.project();
@@ -102,15 +104,17 @@ impl<A, B> InnerGroup<A, B> {
         Some(item)
     }
 
-    // todo: rename to reserve
-    pub fn resize(&mut self, cap: usize) {
-        if self.len + cap < self.cap {
+    /// Reserve `additional` capacity for new items
+    /// Does nothing if the capacity is already sufficient
+    pub fn reserve(&mut self, additional: usize) {
+        if self.len + additional < self.cap {
             return;
         }
-        self.wakers.resize(cap);
-        self.states.resize(cap);
-        self.items.reserve_exact(cap);
-        self.cap = cap;
+        let new_cap = self.cap + additional;
+        self.wakers.resize(new_cap);
+        self.states.resize(new_cap);
+        self.items.reserve_exact(new_cap);
+        self.cap = new_cap;
     }
 
     pub fn set_top_waker(&mut self, waker: &Waker) {

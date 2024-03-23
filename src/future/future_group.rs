@@ -186,6 +186,25 @@ impl<F> FutureGroup<F> {
     pub fn contains_key(&mut self, key: Key) -> bool {
         self.inner.contains_key(key)
     }
+
+    /// Reserves capacity for `additional` more futures to be inserted.
+    /// Does nothing if the capacity is already sufficient.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use futures_concurrency::future::FutureGroup;
+    /// use std::future;
+    /// # futures_lite::future::block_on(async {
+    /// let mut group = FutureGroup::with_capacity(0);
+    /// assert_eq!(group.capacity(), 0);
+    /// group.reserve(10);
+    /// assert_eq!(group.capacity(), 10);
+    /// # })
+    /// ```
+    pub fn reserve(&mut self, additional: usize) {
+        self.inner.reserve(additional);
+    }
 }
 
 impl<F> Default for FutureGroup<F> {
