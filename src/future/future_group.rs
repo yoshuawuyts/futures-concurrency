@@ -75,7 +75,7 @@ impl<F> FutureGroup<F> {
     /// # let group: FutureGroup<core::future::Ready<usize>> = group;
     /// ```
     pub fn new() -> Self {
-        Self::with_capacity(0)
+        Self::default()
     }
 
     /// Create a new instance of `FutureGroup` with a given capacity.
@@ -185,6 +185,12 @@ impl<F> FutureGroup<F> {
     /// ```
     pub fn contains_key(&mut self, key: Key) -> bool {
         self.inner.contains_key(key)
+    }
+}
+
+impl<F> Default for FutureGroup<F> {
+    fn default() -> Self {
+        Self::with_capacity(0)
     }
 }
 

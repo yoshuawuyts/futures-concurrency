@@ -113,16 +113,8 @@ impl<A, B> InnerGroup<A, B> {
         self.cap = cap;
     }
 
-    pub fn any_ready(&self) -> bool {
-        self.wakers.readiness().any_ready()
-    }
-
     pub fn set_top_waker(&mut self, waker: &Waker) {
         self.wakers.readiness().set_waker(waker);
-    }
-
-    pub fn can_progress_index(&self, index: usize) -> bool {
-        self.states[index].is_pending() && self.wakers.readiness().clear_ready(index)
     }
 
     // move to other impl block
@@ -171,7 +163,7 @@ where
 
         // set the top-level waker and check readiness
         this.set_top_waker(cx.waker());
-        if !this.any_ready() {
+        if !this.wakers.readiness().any_ready() {
             // nothing is ready yet
             return Poll::Pending;
         }
@@ -183,7 +175,8 @@ where
         let mut ret = Poll::Pending;
 
         for index in this.keys.iter().cloned() {
-            if !this.can_progress_index(index) {
+            // can we make progress for this item?
+            if !(this.states[index].is_pending() && this.wakers.readiness().clear_ready(index)) {
                 continue;
             }
 
