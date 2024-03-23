@@ -4,8 +4,7 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 use futures_core::Stream;
 
-use crate::collections::inner_group::theory::PollStream;
-use crate::collections::inner_group::{InnerGroup, Key};
+use crate::collections::inner_group::{InnerGroup, Key, PollStream};
 
 /// A growable group of streams which act as a single unit.
 ///
@@ -59,7 +58,7 @@ use crate::collections::inner_group::{InnerGroup, Key};
 #[pin_project::pin_project]
 pub struct StreamGroup<S> {
     #[pin]
-    inner: InnerGroup<S, PollStream<S>>,
+    inner: InnerGroup<S, PollStream>,
 }
 
 impl<S> StreamGroup<S> {
