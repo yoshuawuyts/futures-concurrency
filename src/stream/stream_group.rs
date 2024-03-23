@@ -190,10 +190,10 @@ impl<S> StreamGroup<S> {
     /// # Example
     ///
     /// ```rust
-    /// use futures_concurrency::future::StreamGroup;
-    /// use std::future;
+    /// use futures_concurrency::stream::StreamGroup;
+    /// use futures_lite::stream::Once;
     /// # futures_lite::future::block_on(async {
-    /// let mut group = StreamGroup::with_capacity(0);
+    /// let mut group: StreamGroup<Once<usize>> = StreamGroup::with_capacity(0);
     /// assert_eq!(group.capacity(), 0);
     /// group.reserve(10);
     /// assert_eq!(group.capacity(), 10);

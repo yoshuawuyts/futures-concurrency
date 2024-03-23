@@ -194,9 +194,9 @@ impl<F> FutureGroup<F> {
     ///
     /// ```rust
     /// use futures_concurrency::future::FutureGroup;
-    /// use std::future;
+    /// use std::future::Ready;
     /// # futures_lite::future::block_on(async {
-    /// let mut group = FutureGroup::with_capacity(0);
+    /// let mut group: FutureGroup<Ready<usize>> = FutureGroup::with_capacity(0);
     /// assert_eq!(group.capacity(), 0);
     /// group.reserve(10);
     /// assert_eq!(group.capacity(), 10);
