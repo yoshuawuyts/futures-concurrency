@@ -1,7 +1,13 @@
-use core::{pin::Pin, task::Waker};
+use core::{
+    marker::PhantomData,
+    ops::ControlFlow,
+    pin::Pin,
+    task::{Context, Poll, Waker},
+};
 
 use alloc::{collections::BTreeSet, fmt};
 use slab::Slab;
+use smallvec::{smallvec, SmallVec};
 
 use crate::utils::{PollVec, WakerVec};
 
@@ -16,6 +22,7 @@ pub struct InnerGroup<A> {
     pub keys: BTreeSet<usize>,
     cap: usize,
     len: usize,
+    //_poll_behavior: PhantomData<B>,
 }
 
 impl<A> InnerGroup<A> {
@@ -27,6 +34,7 @@ impl<A> InnerGroup<A> {
             keys: BTreeSet::new(),
             cap,
             len: 0,
+            // _poll_behavior: PhantomData,
         }
     }
 
@@ -132,7 +140,7 @@ impl<A> Default for InnerGroup<A> {
 
 impl<A> fmt::Debug for InnerGroup<A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("GroupInner")
+        f.debug_struct("InnerGroup")
             .field("cap", &self.cap)
             .field("len", &self.len)
             .finish()
@@ -142,3 +150,154 @@ impl<A> fmt::Debug for InnerGroup<A> {
 /// A key used to index into the `FutureGroup` type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Key(pub usize);
+
+// ----
+// prototyping
+
+use theory::*;
+
+#[derive(Debug)]
+#[pin_project::pin_project]
+pub struct Group<A, B> {
+    #[pin]
+    pub inner: InnerGroup<A>,
+    pub _poll_behavior: PhantomData<B>,
+}
+
+impl<A, B> Group<A, B>
+where
+    B: PollBehavior<Polling = A>,
+{
+    pub fn poll_next_inner(self: Pin<&mut Self>, cx: &Context<'_>) -> Poll<Option<(Key, B::Poll)>> {
+        let mut this = self.project();
+        let group = unsafe { this.inner.as_mut().get_unchecked_mut() };
+
+        // short-circuit if we have no items to iterate over
+        if group.is_empty() {
+            return Poll::Ready(None);
+        }
+
+        // set the top-level waker and check readiness
+        group.set_top_waker(cx.waker());
+        if !group.any_ready() {
+            // nothing is ready yet
+            return Poll::Pending;
+        }
+
+        let mut done_count = 0;
+        let group_len = group.len();
+        let mut removal_queue: SmallVec<[_; 10]> = smallvec![];
+
+        let mut ret = Poll::Pending;
+
+        for index in group.keys.iter().cloned() {
+            if !group.can_progress_index(index) {
+                continue;
+            }
+
+            // obtain the intermediate waker
+            let mut cx = Context::from_waker(group.wakers.get(index).unwrap());
+
+            let pollable = unsafe { Pin::new_unchecked(&mut group.items[index]) };
+            match B::poll(pollable, &mut cx) {
+                Poll::Ready(ControlFlow::Break((result, PollAgain::Stop))) => {
+                    for item in removal_queue {
+                        group.remove(Key(item));
+                    }
+                    group.remove(Key(index));
+                    return Poll::Ready(Some((Key(index), result)));
+                }
+                Poll::Ready(ControlFlow::Break((result, PollAgain::Poll))) => {
+                    group.states[index].set_pending();
+                    group.wakers.readiness().set_ready(index);
+
+                    ret = Poll::Ready(Some((Key(index), result)));
+                    break;
+                }
+                Poll::Ready(ControlFlow::Continue(_)) => {
+                    done_count += 1;
+                    removal_queue.push(index);
+                    continue;
+                }
+                Poll::Pending => continue,
+            }
+        }
+        for item in removal_queue {
+            group.remove(Key(item));
+        }
+
+        if done_count == group_len {
+            return Poll::Ready(None);
+        }
+
+        ret
+    }
+}
+
+pub mod theory {
+    use core::future::Future;
+    use core::marker::PhantomData;
+    use core::ops::ControlFlow;
+    use core::pin::Pin;
+    use core::task::{Context, Poll};
+
+    use futures_core::Stream;
+
+    pub enum PollAgain {
+        Poll,
+        Stop,
+    }
+
+    pub trait PollBehavior {
+        type Item;
+        type Polling;
+        type Poll;
+
+        fn poll(
+            this: Pin<&mut Self::Polling>,
+            cx: &mut Context<'_>,
+        ) -> Poll<ControlFlow<(Self::Poll, PollAgain)>>;
+    }
+
+    #[derive(Debug)]
+    pub struct PollFuture<F: Future>(PhantomData<F>);
+
+    impl<F: Future> PollBehavior for PollFuture<F> {
+        type Item = F::Output;
+        type Polling = F;
+        type Poll = Self::Item;
+
+        fn poll(
+            this: Pin<&mut Self::Polling>,
+            cx: &mut Context<'_>,
+        ) -> Poll<ControlFlow<(Self::Poll, PollAgain)>> {
+            if let Poll::Ready(item) = this.poll(cx) {
+                Poll::Ready(ControlFlow::Break((item, PollAgain::Stop)))
+            } else {
+                Poll::Pending
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct PollStream<S: Stream>(PhantomData<S>);
+
+    impl<S: Stream> PollBehavior for PollStream<S> {
+        type Item = S::Item;
+        type Polling = S;
+        type Poll = Option<Self::Item>;
+
+        fn poll(
+            this: Pin<&mut Self::Polling>,
+            cx: &mut Context<'_>,
+        ) -> Poll<ControlFlow<(Self::Poll, PollAgain)>> {
+            match this.poll_next(cx) {
+                Poll::Ready(Some(item)) => {
+                    Poll::Ready(ControlFlow::Break((Some(item), PollAgain::Poll)))
+                }
+                Poll::Ready(None) => Poll::Ready(ControlFlow::Continue(())),
+                Poll::Pending => Poll::Pending,
+            }
+        }
+    }
+}
