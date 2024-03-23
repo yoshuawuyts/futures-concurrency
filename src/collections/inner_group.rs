@@ -14,18 +14,18 @@ use crate::utils::{PollVec, WakerVec};
 const GROUP_GROWTH_FACTOR: usize = 2;
 
 #[pin_project::pin_project]
-pub struct InnerGroup<A> {
+pub struct InnerGroup<A, B> {
     #[pin]
-    pub items: Slab<A>,
-    pub wakers: WakerVec,
-    pub states: PollVec,
-    pub keys: BTreeSet<usize>,
+    items: Slab<A>,
+    wakers: WakerVec,
+    states: PollVec,
+    keys: BTreeSet<usize>,
     cap: usize,
     len: usize,
-    //_poll_behavior: PhantomData<B>,
+    _poll_behavior: PhantomData<B>,
 }
 
-impl<A> InnerGroup<A> {
+impl<A, B> InnerGroup<A, B> {
     pub fn with_capacity(cap: usize) -> Self {
         Self {
             items: Slab::with_capacity(cap),
@@ -34,7 +34,7 @@ impl<A> InnerGroup<A> {
             keys: BTreeSet::new(),
             cap,
             len: 0,
-            // _poll_behavior: PhantomData,
+            _poll_behavior: PhantomData,
         }
     }
 
@@ -71,6 +71,8 @@ impl<A> InnerGroup<A> {
     }
 
     pub fn insert_pinned(mut self: Pin<&mut Self>, item: A) -> Key {
+        // todo: less unsafe
+
         if !self.has_capacity() {
             let r = unsafe { &mut self.as_mut().get_unchecked_mut() };
             r.resize((r.cap + 1) * GROUP_GROWTH_FACTOR);
@@ -122,23 +124,20 @@ impl<A> InnerGroup<A> {
     pub fn can_progress_index(&self, index: usize) -> bool {
         self.states[index].is_pending() && self.wakers.readiness().clear_ready(index)
     }
-}
 
-/// Keyed operations
-impl<A> InnerGroup<A> {
     // move to other impl block
     pub fn contains_key(&self, key: Key) -> bool {
         self.items.contains(key.0)
     }
 }
 
-impl<A> Default for InnerGroup<A> {
+impl<A, B> Default for InnerGroup<A, B> {
     fn default() -> Self {
         Self::with_capacity(0)
     }
 }
 
-impl<A> fmt::Debug for InnerGroup<A> {
+impl<A, B> fmt::Debug for InnerGroup<A, B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("InnerGroup")
             .field("cap", &self.cap)
@@ -156,60 +155,53 @@ pub struct Key(pub usize);
 
 use theory::*;
 
-#[derive(Debug)]
-#[pin_project::pin_project]
-pub struct Group<A, B> {
-    #[pin]
-    pub inner: InnerGroup<A>,
-    pub _poll_behavior: PhantomData<B>,
-}
-
-impl<A, B> Group<A, B>
+impl<A, B> InnerGroup<A, B>
 where
     B: PollBehavior<Polling = A>,
 {
-    pub fn poll_next_inner(self: Pin<&mut Self>, cx: &Context<'_>) -> Poll<Option<(Key, B::Poll)>> {
-        let mut this = self.project();
-        let group = unsafe { this.inner.as_mut().get_unchecked_mut() };
-
+    pub fn poll_next_inner(
+        mut self: Pin<&mut Self>,
+        cx: &Context<'_>,
+    ) -> Poll<Option<(Key, B::Poll)>> {
+        let this = unsafe { self.as_mut().get_unchecked_mut() };
         // short-circuit if we have no items to iterate over
-        if group.is_empty() {
+        if this.is_empty() {
             return Poll::Ready(None);
         }
 
         // set the top-level waker and check readiness
-        group.set_top_waker(cx.waker());
-        if !group.any_ready() {
+        this.set_top_waker(cx.waker());
+        if !this.any_ready() {
             // nothing is ready yet
             return Poll::Pending;
         }
 
         let mut done_count = 0;
-        let group_len = group.len();
+        let group_len = this.len();
         let mut removal_queue: SmallVec<[_; 10]> = smallvec![];
 
         let mut ret = Poll::Pending;
 
-        for index in group.keys.iter().cloned() {
-            if !group.can_progress_index(index) {
+        for index in this.keys.iter().cloned() {
+            if !this.can_progress_index(index) {
                 continue;
             }
 
             // obtain the intermediate waker
-            let mut cx = Context::from_waker(group.wakers.get(index).unwrap());
+            let mut cx = Context::from_waker(this.wakers.get(index).unwrap());
 
-            let pollable = unsafe { Pin::new_unchecked(&mut group.items[index]) };
+            let pollable = unsafe { Pin::new_unchecked(&mut this.items[index]) };
             match B::poll(pollable, &mut cx) {
                 Poll::Ready(ControlFlow::Break((result, PollAgain::Stop))) => {
                     for item in removal_queue {
-                        group.remove(Key(item));
+                        this.remove(Key(item));
                     }
-                    group.remove(Key(index));
+                    this.remove(Key(index));
                     return Poll::Ready(Some((Key(index), result)));
                 }
                 Poll::Ready(ControlFlow::Break((result, PollAgain::Poll))) => {
-                    group.states[index].set_pending();
-                    group.wakers.readiness().set_ready(index);
+                    this.states[index].set_pending();
+                    this.wakers.readiness().set_ready(index);
 
                     ret = Poll::Ready(Some((Key(index), result)));
                     break;
@@ -223,7 +215,7 @@ where
             }
         }
         for item in removal_queue {
-            group.remove(Key(item));
+            this.remove(Key(item));
         }
 
         if done_count == group_len {
@@ -260,7 +252,7 @@ pub mod theory {
     }
 
     #[derive(Debug)]
-    pub struct PollFuture<F: Future>(PhantomData<F>);
+    pub struct PollFuture<F>(PhantomData<F>);
 
     impl<F: Future> PollBehavior for PollFuture<F> {
         type Item = F::Output;
@@ -280,21 +272,19 @@ pub mod theory {
     }
 
     #[derive(Debug)]
-    pub struct PollStream<S: Stream>(PhantomData<S>);
+    pub struct PollStream<S>(PhantomData<S>);
 
     impl<S: Stream> PollBehavior for PollStream<S> {
         type Item = S::Item;
         type Polling = S;
-        type Poll = Option<Self::Item>;
+        type Poll = Self::Item;
 
         fn poll(
             this: Pin<&mut Self::Polling>,
             cx: &mut Context<'_>,
         ) -> Poll<ControlFlow<(Self::Poll, PollAgain)>> {
             match this.poll_next(cx) {
-                Poll::Ready(Some(item)) => {
-                    Poll::Ready(ControlFlow::Break((Some(item), PollAgain::Poll)))
-                }
+                Poll::Ready(Some(item)) => Poll::Ready(ControlFlow::Break((item, PollAgain::Poll))),
                 Poll::Ready(None) => Poll::Ready(ControlFlow::Continue(())),
                 Poll::Pending => Poll::Pending,
             }
