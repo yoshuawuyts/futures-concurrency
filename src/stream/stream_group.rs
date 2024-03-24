@@ -1,4 +1,4 @@
-use core::fmt::Debug;
+use core::fmt;
 use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::task::{Context, Poll};
@@ -54,11 +54,26 @@ use crate::collections::inner_group::{InnerGroup, Key, PollStream};
 /// # });
 /// ```
 #[must_use = "`StreamGroup` does nothing if not iterated over"]
-#[derive(Default, Debug)]
 #[pin_project::pin_project]
 pub struct StreamGroup<S> {
     #[pin]
     inner: InnerGroup<S, PollStream>,
+}
+
+impl<F> Default for StreamGroup<F> {
+    fn default() -> Self {
+        Self::with_capacity(0)
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for StreamGroup<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("StreamGroup")
+            .field("slab", &"[..]")
+            .field("len", &self.inner.len())
+            .field("capacity", &self.inner.capacity())
+            .finish()
+    }
 }
 
 impl<S> StreamGroup<S> {

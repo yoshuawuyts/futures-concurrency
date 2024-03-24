@@ -1,3 +1,4 @@
+use core::fmt;
 use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::task::{Context, Poll};
@@ -55,11 +56,26 @@ use crate::collections::inner_group::{InnerGroup, Key, PollFuture};
 /// # });}
 /// ```
 #[must_use = "`FutureGroup` does nothing if not iterated over"]
-#[derive(Debug)]
 #[pin_project::pin_project]
 pub struct FutureGroup<F> {
     #[pin]
     inner: InnerGroup<F, PollFuture>,
+}
+
+impl<F> Default for FutureGroup<F> {
+    fn default() -> Self {
+        Self::with_capacity(0)
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for FutureGroup<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FutureGroup")
+            .field("slab", &"[..]")
+            .field("len", &self.inner.len())
+            .field("capacity", &self.inner.capacity())
+            .finish()
+    }
 }
 
 impl<F> FutureGroup<F> {
@@ -203,12 +219,6 @@ impl<F> FutureGroup<F> {
     /// ```
     pub fn reserve(&mut self, additional: usize) {
         self.inner.reserve(additional);
-    }
-}
-
-impl<F> Default for FutureGroup<F> {
-    fn default() -> Self {
-        Self::with_capacity(0)
     }
 }
 
