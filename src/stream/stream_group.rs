@@ -300,7 +300,8 @@ impl<S: Stream> Stream for Keyed<S> {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
-        // todo: unsafe
+        // SAFETY: pin-projecting to the inner group is safe because we trust
+        // it that it's correctly pinned
         let inner = unsafe { this.group.as_mut().map_unchecked_mut(|t| &mut t.inner) };
         inner.poll_next_inner(cx)
     }
