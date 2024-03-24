@@ -26,7 +26,7 @@ use super::PollState;
 /// ```
 const MAX_INLINE_ENTRIES: usize = core::mem::size_of::<usize>() * 3 - 2;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct PollVec(SmallVec<[PollState; MAX_INLINE_ENTRIES]>);
 
 impl PollVec {
