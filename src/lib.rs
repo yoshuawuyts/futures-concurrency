@@ -26,7 +26,6 @@
 //!
 //! ```rust
 //! use futures_concurrency::prelude::*;
-//! use futures_lite::stream;
 //!
 //! # futures::executor::block_on(async {
 //! let v: Vec<_> = vec!["chashu", "nori"]
