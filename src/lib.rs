@@ -25,12 +25,12 @@
 //! use futures_lite::stream;
 //!
 //! let v: Vec<_> = vec!["chashu", "nori"]
-//! 	.into_co_stream()
-//! 	.map(|msg| async move { format!("hello {msg}") })
-//! 	.collect()
-//! 	.await;
+//!     .into_co_stream()
+//!     .map(|msg| async move { format!("hello {msg}") })
+//!     .collect()
+//!     .await;
 //!
-//!  assert_eq!(v, &["hello chashu", "hello nori"]);
+//! assert_eq!(v, &["hello chashu", "hello nori"]);
 //! ```
 //!
 //! **Access stack data outside the futures' scope**
@@ -44,13 +44,13 @@
 //! let mut num = 0;
 //!
 //! let a = async {
-//! 	println!("hello from the first future");
-//! 	dbg!(&container);
+//!     println!("hello from the first future");
+//!     dbg!(&container);
 //! };
 //!
 //! let b = async {
-//! 	println!("hello from the second future");
-//! 	num += container[0] + container[2];
+//!     println!("hello from the second future");
+//!     num += container[0] + container[2];
 //! };
 //!
 //! println!("hello from the main future");
