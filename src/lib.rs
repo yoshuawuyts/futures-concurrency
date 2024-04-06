@@ -7,7 +7,7 @@
 //! cases performance should be on par with, if not exceed conventional executor
 //! implementations.
 //!
-//! ## Examples
+//! # Examples
 //!
 //! **Await multiple futures of different types**
 //! ```rust
@@ -67,9 +67,9 @@
 //! # });
 //! ```
 //!
-//! ## Operations
+//! # Operations
 //!
-//! ### Futures
+//! ## Futures
 //!
 //! For futures which return a regular type `T` only the `join` and `race`
 //! operations are available. `join` waits for all futures to complete, while `race`
@@ -88,7 +88,7 @@
 //! - `array`: [`join`][future::Join#impl-Join-for-\[Fut;+N\]], [`try_join`][future::TryJoin#impl-TryJoin-for-\[Fut;+N\]], [`race`][future::Race#impl-Race-for-\[Fut;+N\]], [`race_ok`][future::RaceOk#impl-RaceOk-for-\[Fut;+N\]]
 //! - `Vec`: [`join`][future::Join#impl-Join-for-Vec<Fut>], [`try_join`][future::TryJoin#impl-TryJoin-for-Vec<Fut>], [`race`][future::Race#impl-Race-for-Vec<Fut>], [`race_ok`][future::RaceOk#impl-RaceOk-for-Vec<Fut>]
 //!
-//! ### Streams
+//! ## Streams
 //!
 //! Streams yield outputs one-by-one, which means that deciding to stop iterating is
 //! the same for fallible and infallible streams. The operations provided for
@@ -116,7 +116,7 @@
 //! - `array`: [`chain`][stream::Chain#impl-Chain-for-\[Fut;+N\]], [`merge`][stream::Merge#impl-Merge-for-\[Fut;+N\]], [`zip`][stream::Zip#impl-Zip-for-\[Fut;+N\]]
 //! - `Vec`: [`chain`][stream::Chain#impl-Chain-for-Vec<Fut>], [`merge`][stream::Merge#impl-Merge-for-Vec<Fut>], [`zip`][stream::Zip#impl-Zip-for-Vec<Fut>]
 //!
-//! ## Runtime Support
+//! # Runtime Support
 //!
 //! `futures-concurrency` does not depend on any runtime executor being present.
 //! This enables it to work out of the box with any async runtime, including:
@@ -124,7 +124,7 @@
 //! `#[no_std]` environments, allowing it to be used with embedded async
 //! runtimes such as `embassy`.
 //!
-//! ## Feature Flags
+//! # Feature Flags
 //!
 //! The `std` feature flag is enabled by default. To target `alloc` or `no_std`
 //! environments, you can enable the following configuration:
@@ -138,7 +138,7 @@
 //! futures-concurrency = { version = "7.5.0", default-features = false, features = ["alloc"] }
 //! ```
 //!
-//! ## Further Reading
+//! # Further Reading
 //!
 //! `futures-concurrency` has been developed over the span of several years. It is
 //! primarily maintained by Yosh Wuyts, a member of the Rust Async WG. You can read

@@ -41,6 +41,70 @@
   </h3>
 </div>
 
+Performant, portable, structured concurrency operations for async Rust. It
+works with any runtime, does not erase lifetimes, always handles
+cancellation, and always returns output to the caller.
+
+`futures-concurrency` provides concurrency operations for both groups of futures
+and streams. Both for bounded and unbounded sets of futures and streams. In both
+cases performance should be on par with, if not exceed conventional executor
+implementations.
+
+## Examples
+
+**Await multiple futures of different types**
+```rust
+use futures_concurrency::prelude::*;
+use std::future;
+
+let a = future::ready(1u8);
+let b = future::ready("hello");
+let c = future::ready(3u16);
+assert_eq!((a, b, c).join().await, (1, "hello", 3));
+```
+
+**Concurrently process items in a stream**
+
+```rust
+use futures_concurrency::prelude::*;
+use futures_lite::stream;
+
+# futures::executor::block_on(async {
+let v: Vec<_> = vec!["chashu", "nori"]
+    .into_co_stream()
+    .map(|msg| async move { format!("hello {msg}") })
+    .collect()
+    .await;
+
+assert_eq!(v, &["hello chashu", "hello nori"]);
+```
+
+**Access stack data outside the futures' scope**
+
+_Adapted from [`std::thread::scope`](https://doc.rust-lang.org/std/thread/fn.scope.html)._
+
+```rust
+use futures_concurrency::prelude::*;
+
+let mut container = vec![1, 2, 3];
+let mut num = 0;
+
+let a = async {
+    println!("hello from the first future");
+    dbg!(&container);
+};
+
+let b = async {
+    println!("hello from the second future");
+    num += container[0] + container[2];
+};
+
+println!("hello from the main future");
+let _ = (a, b).join().await;
+container.push(4);
+assert_eq!(num, container.len());
+```
+
 ## Installation
 ```sh
 $ cargo add futures-concurrency
