@@ -12,10 +12,12 @@
 //! use futures_concurrency::prelude::*;
 //! use std::future;
 //!
+//! # futures::executor::block_on(async {
 //! let a = future::ready(1u8);
 //! let b = future::ready("hello");
 //! let c = future::ready(3u16);
 //! assert_eq!((a, b, c).join().await, (1, "hello", 3));
+//! # });
 //! ```
 //!
 //! **Concurrently process items in a stream**
@@ -24,6 +26,7 @@
 //! use futures_concurrency::prelude::*;
 //! use futures_lite::stream;
 //!
+//! # futures::executor::block_on(async {
 //! let v: Vec<_> = vec!["chashu", "nori"]
 //!     .into_co_stream()
 //!     .map(|msg| async move { format!("hello {msg}") })
@@ -31,6 +34,7 @@
 //!     .await;
 //!
 //! assert_eq!(v, &["hello chashu", "hello nori"]);
+//! # });
 //! ```
 //!
 //! **Access stack data outside the futures' scope**
@@ -40,6 +44,7 @@
 //! ```rust
 //! use futures_concurrency::prelude::*;
 //!
+//! # futures::executor::block_on(async {
 //! let mut container = vec![1, 2, 3];
 //! let mut num = 0;
 //!
@@ -56,7 +61,8 @@
 //! println!("hello from the main future");
 //! let _ = (a, b).join().await;
 //! container.push(4);
-//! assert_eq!(x, container.len());
+//! assert_eq!(num, container.len());
+//! # });
 //! ```
 //!
 //! ## Operations
