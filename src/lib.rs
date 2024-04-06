@@ -1,4 +1,6 @@
-//! Performant, portable, structured concurrency operations for async Rust. It works with any runtime, does not erase lifetimes, always handles cancellation, and always returns output to the caller.
+//! Performant, portable, structured concurrency operations for async Rust. It
+//! works with any runtime, does not erase lifetimes, always handles
+//! cancellation, and always returns output to the caller.
 //!
 //! `futures-concurrency` provides concurrency operations for both groups of futures
 //! and streams. Both for bounded and unbounded sets of futures and streams. In both
@@ -116,7 +118,11 @@
 //!
 //! ## Runtime Support
 //!
-//! `futures-concurrency` does not depend on any runtime executor being present. This enables it to work out of the box with any async runtime, including: `tokio`, `async-std`, `smol`, `glommio`, and `monoio`. It also supports `#[no_std]` environments, allowing it to be used with embedded async runtimes such as `embassy`.
+//! `futures-concurrency` does not depend on any runtime executor being present.
+//! This enables it to work out of the box with any async runtime, including:
+//! `tokio`, `async-std`, `smol`, `glommio`, and `monoio`. It also supports
+//! `#[no_std]` environments, allowing it to be used with embedded async
+//! runtimes such as `embassy`.
 //!
 //! ## Feature Flags
 //!
