@@ -92,16 +92,16 @@
 //! Streams yield outputs one-by-one, which means that deciding to stop iterating is
 //! the same for fallible and infallible streams. The operations provided for
 //! streams can be categorized based on whether their inputs can be concurrently
-//! processed, and whether their outputs can be concurrently processed.
+//! evaluated, and whether their outputs can be concurrently processed.
 //!
 //! Specifically in the case of `merge`, it takes `N` streams in, and yields items
 //! one-by-one as soon as any are available. This enables the output of individual
 //! streams to be concurrently processed by further operations later on.
 //!
-//! |                          | __Sequential processing__ | __Concurrent processing__ |
-//! | ------------------------ | --------------------- | --------------------- |
-//! | __Sequential execution__ | `Stream::chain`       | *not yet available* ‡ |
-//! | __Concurrent execution__ | `Stream::zip`         | `Stream::merge`       |
+//! |                                 | __Sequential output processing__ | __Concurrent output processing__ |
+//! | ------------------------------- | -------------------------------- | -------------------------------- |
+//! | __Sequential input evaluation__ | `Stream::chain`                  | *not yet available* ‡            |
+//! | __Concurrent input evaluation__ | `Stream::zip`                    | `Stream::merge`                  |
 //!
 //!  ‡: _This could be addressed by a hypothetical `Stream::unzip` operation,
 //!  however because we aspire for semantic compatibility with `std::iter::Iterator`
