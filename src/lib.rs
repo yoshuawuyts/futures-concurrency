@@ -22,7 +22,7 @@
 //! # });
 //! ```
 //!
-//! **Concurrently process items in a stream**
+//! **Concurrently process items in a collection**
 //!
 //! ```rust
 //! use futures_concurrency::prelude::*;
@@ -110,7 +110,7 @@
 //! The following streams implementations are provided by `futures-concurrency`:
 //!
 //! - [`StreamGroup`][stream::StreamGroup]: A growable group of streams which operate as a single unit.
-//! - [`ConcurrentStream`][concurrent_stream::ConcurrentStream]: An asynchronous stream which can concurrently process items.
+//! - [`ConcurrentStream`][concurrent_stream::ConcurrentStream]: A trait for asynchronous streams which can concurrently process items.
 //! - `tuple`: [`chain`][stream::Chain#impl-Chain-for-(A,+B)], [`merge`][stream::Merge#impl-Merge-for-(A,+B)], [`zip`][stream::Zip#impl-Zip-for-(A,+B)]
 //! - `array`: [`chain`][stream::Chain#impl-Chain-for-\[Fut;+N\]], [`merge`][stream::Merge#impl-Merge-for-\[Fut;+N\]], [`zip`][stream::Zip#impl-Zip-for-\[Fut;+N\]]
 //! - `Vec`: [`chain`][stream::Chain#impl-Chain-for-Vec<Fut>], [`merge`][stream::Merge#impl-Merge-for-Vec<Fut>], [`zip`][stream::Zip#impl-Zip-for-Vec<Fut>]
