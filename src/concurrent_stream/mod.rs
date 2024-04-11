@@ -1,4 +1,40 @@
 //! Concurrent execution of streams
+//!
+//! # Examples
+//!
+//! **Concurrently process items in a collection**
+//!
+//! ```rust
+//! use futures_concurrency::prelude::*;
+//!
+//! # futures::executor::block_on(async {
+//! let v: Vec<_> = vec!["chashu", "nori"]
+//!     .into_co_stream()
+//!     .map(|msg| async move { format!("hello {msg}") })
+//!     .collect()
+//!     .await;
+//!
+//! assert_eq!(v, &["hello chashu", "hello nori"]);
+//! # });
+//! ```
+//!
+//! **Concurrently process items in a stream**
+//!
+//! ```rust
+//! use futures_concurrency::prelude::*;
+//! use futures_lite::stream;
+//!
+//! # futures::executor::block_on(async {
+//! let v: Vec<_> = stream::repeat("chashu")
+//!     .co()
+//!     .take(2)
+//!     .map(|msg| async move { format!("hello {msg}") })
+//!     .collect()
+//!     .await;
+//!
+//! assert_eq!(v, &["hello chashu", "hello chashu"]);
+//! # });
+//! ```
 
 mod enumerate;
 mod for_each;
