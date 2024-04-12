@@ -71,9 +71,17 @@ where
         // If we have no space, we're going to provide backpressure until we have space
         while this.count.load(Ordering::Relaxed) >= *this.limit {
             match this.group.next().await {
+                // Case 1: there are no more items available in the group. We
+                // can no longer iterate over them, and necessarily should be
+                // able to insert.
                 None => break,
                 Some(res) => match res.branch() {
-                    ControlFlow::Continue(_) => todo!(),
+                    // Case 2: We got more data and no error, try to loop again.
+                    ControlFlow::Continue(_) => continue,
+
+                    // Case 3: We got an error of some kind, stop iterating
+                    // entirely so we can short-circuit with an error from the
+                    // `flush` method.
                     ControlFlow::Break(residual) => {
                         *this.residual = Some(residual);
                         return ConsumerState::Break;
