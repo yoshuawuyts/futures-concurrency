@@ -66,6 +66,7 @@ pub struct StreamGroup<S> {
     states: PollVec,
     keys: BTreeSet<usize>,
     key_removal_queue: SmallVec<[usize; 10]>,
+    capacity: usize,
 }
 
 impl<T: Debug> Debug for StreamGroup<T> {
@@ -108,6 +109,7 @@ impl<S> StreamGroup<S> {
             states: PollVec::new(capacity),
             keys: BTreeSet::new(),
             key_removal_queue: smallvec![],
+            capacity,
         }
     }
 
@@ -124,6 +126,7 @@ impl<S> StreamGroup<S> {
     /// group.insert(stream::once(12));
     /// assert_eq!(group.len(), 1);
     /// ```
+    #[inline(always)]
     pub fn len(&self) -> usize {
         self.streams.len()
     }
@@ -141,7 +144,7 @@ impl<S> StreamGroup<S> {
     /// # let group: StreamGroup<usize> = group;
     /// ```
     pub fn capacity(&self) -> usize {
-        self.streams.capacity()
+        self.capacity
     }
 
     /// Returns true if there are no futures currently active in the group.
@@ -157,6 +160,7 @@ impl<S> StreamGroup<S> {
     /// group.insert(stream::once(12));
     /// assert!(!group.is_empty());
     /// ```
+    #[inline(always)]
     pub fn is_empty(&self) -> bool {
         self.streams.is_empty()
     }
@@ -206,6 +210,36 @@ impl<S> StreamGroup<S> {
     pub fn contains_key(&mut self, key: Key) -> bool {
         self.keys.contains(&key.0)
     }
+
+    /// Reserves capacity for `additional` more streams to be inserted.
+    /// Does nothing if the capacity is already sufficient.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use futures_concurrency::stream::StreamGroup;
+    /// use futures_lite::stream::Once;
+    /// # futures_lite::future::block_on(async {
+    /// let mut group: StreamGroup<Once<usize>> = StreamGroup::with_capacity(0);
+    /// assert_eq!(group.capacity(), 0);
+    /// group.reserve(10);
+    /// assert_eq!(group.capacity(), 10);
+    ///
+    /// // does nothing if capacity is sufficient
+    /// group.reserve(5);
+    /// assert_eq!(group.capacity(), 10);
+    /// # })
+    /// ```
+    pub fn reserve(&mut self, additional: usize) {
+        if self.len() + additional < self.capacity {
+            return;
+        }
+        let new_cap = self.capacity + additional;
+        self.wakers.resize(new_cap);
+        self.states.resize(new_cap);
+        self.streams.reserve_exact(additional);
+        self.capacity = new_cap;
+    }
 }
 
 impl<S: Stream> StreamGroup<S> {
@@ -224,22 +258,18 @@ impl<S: Stream> StreamGroup<S> {
     where
         S: Stream,
     {
+        if self.capacity <= self.len() {
+            self.reserve(self.capacity * 2 + 1);
+        }
+
         let index = self.streams.insert(stream);
         self.keys.insert(index);
-        let key = Key(index);
-
-        // If our slab allocated more space we need to
-        // update our tracking structures along with it.
-        let max_len = self.capacity().max(index);
-        self.wakers.resize(max_len);
-        self.states.resize(max_len);
 
         // Set the corresponding state
         self.states[index].set_pending();
-        let mut readiness = self.wakers.readiness();
-        readiness.set_ready(index);
+        self.wakers.readiness().set_ready(index);
 
-        key
+        Key(index)
     }
 
     /// Create a stream which also yields the key of each item.
@@ -270,10 +300,10 @@ impl<S: Stream> StreamGroup<S> {
 
 impl<S: Stream> StreamGroup<S> {
     fn poll_next_inner(
-        self: Pin<&mut Self>,
+        mut self: Pin<&mut Self>,
         cx: &Context<'_>,
     ) -> Poll<Option<(Key, <S as Stream>::Item)>> {
-        let mut this = self.project();
+        let mut this = self.as_mut().project();
 
         // Short-circuit if we have no streams to iterate over
         if this.streams.is_empty() {
@@ -439,6 +469,18 @@ mod test {
             assert_eq!(out, 6);
             assert_eq!(group.len(), 0);
             assert!(group.is_empty());
+        });
+    }
+
+    #[test]
+    fn capacity_grow_on_insert() {
+        futures_lite::future::block_on(async {
+            let mut group = StreamGroup::new();
+            let cap = group.capacity();
+
+            group.insert(stream::once(1));
+
+            assert!(group.capacity() > cap);
         });
     }
 }
