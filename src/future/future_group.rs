@@ -415,14 +415,22 @@ impl<F: Future> Stream for FutureGroup<F> {
     }
 }
 
-impl<F: Future> FromIterator<F> for FutureGroup<F> {
-    fn from_iter<T: IntoIterator<Item = F>>(iter: T) -> Self {
+impl<F: Future> Extend<F> for FutureGroup<F> {
+    fn extend<T: IntoIterator<Item = F>>(&mut self, iter: T) {
         let iter = iter.into_iter();
         let len = iter.size_hint().1.unwrap_or_default();
-        let mut this = Self::with_capacity(len);
+        self.reserve(len);
+
         for future in iter {
-            this.insert(future);
+            self.insert(future);
         }
+    }
+}
+
+impl<F: Future> FromIterator<F> for FutureGroup<F> {
+    fn from_iter<T: IntoIterator<Item = F>>(iter: T) -> Self {
+        let mut this = Self::new();
+        this.extend(iter);
         this
     }
 }
