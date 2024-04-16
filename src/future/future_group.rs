@@ -59,7 +59,6 @@ use crate::utils::{PollState, PollVec, WakerVec};
 /// ```
 
 #[must_use = "`FutureGroup` does nothing if not iterated over"]
-#[derive(Default)]
 #[pin_project::pin_project]
 pub struct FutureGroup<F> {
     #[pin]
@@ -77,6 +76,12 @@ impl<T: Debug> Debug for FutureGroup<T> {
             .field("len", &self.len())
             .field("capacity", &self.capacity)
             .finish()
+    }
+}
+
+impl<T> Default for FutureGroup<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
