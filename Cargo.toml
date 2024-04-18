@@ -10,6 +10,7 @@ edition = "2021"
 keywords = []
 categories = []
 authors = ["Yoshua Wuyts <yoshuawuyts@gmail.com>"]
+rust-version = "1.75.0"
 
 [profile.bench]
 debug = true

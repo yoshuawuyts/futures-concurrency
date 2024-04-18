@@ -52,6 +52,13 @@ jobs:
         command: test
         args: --all
 
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: taiki-e/install-action@cargo-hack
+    - run: cargo hack check --rust-version --workspace --all-targets --ignore-private
+
   miri:
     name: "Build and test (miri, nightly)"
     runs-on: ubuntu-latest
