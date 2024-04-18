@@ -7,8 +7,8 @@ documentation = "https://docs.rs/futures-concurrency"
 description = "Structured concurrency operations for async Rust"
 readme = "README.md"
 edition = "2021"
-keywords = []
-categories = []
+keywords = ["async", "concurrency"]
+categories = ["asynchronous", "concurrency"]
 authors = ["Yoshua Wuyts <yoshuawuyts@gmail.com>"]
 rust-version = "1.75.0"
 
