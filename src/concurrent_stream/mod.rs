@@ -133,7 +133,7 @@ pub trait ConcurrentStream {
         Limit::new(self, limit)
     }
 
-    /// Creates a stream that yields the first `n`` elements, or fewer if the
+    /// Creates a stream that yields the first `n` elements, or fewer if the
     /// underlying iterator ends sooner.
     fn take(self, limit: usize) -> Take<Self>
     where
