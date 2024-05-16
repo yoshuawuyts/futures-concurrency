@@ -1,9 +1,9 @@
 use super::{ConcurrentStream, Consumer, ConsumerState, IntoConcurrentStream};
-use futures_buffered::FuturesUnordered;
 #[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
 use core::future::Future;
 use core::pin::Pin;
+use futures_buffered::FuturesUnordered;
 use futures_lite::StreamExt;
 use pin_project::pin_project;
 

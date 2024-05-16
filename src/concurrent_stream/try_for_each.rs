@@ -1,6 +1,6 @@
 use crate::concurrent_stream::ConsumerState;
-use futures_buffered::FuturesUnordered;
 use crate::private::Try;
+use futures_buffered::FuturesUnordered;
 use futures_lite::StreamExt;
 use pin_project::pin_project;
 
