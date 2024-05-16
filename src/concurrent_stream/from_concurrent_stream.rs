@@ -1,5 +1,5 @@
 use super::{ConcurrentStream, Consumer, ConsumerState, IntoConcurrentStream};
-use crate::future::FutureGroup;
+use futures_buffered::FuturesUnordered;
 #[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
 use core::future::Future;
@@ -32,14 +32,14 @@ impl<T> FromConcurrentStream<T> for Vec<T> {
 #[pin_project]
 pub(crate) struct VecConsumer<'a, Fut: Future> {
     #[pin]
-    group: FutureGroup<Fut>,
+    group: FuturesUnordered<Fut>,
     output: &'a mut Vec<Fut::Output>,
 }
 
 impl<'a, Fut: Future> VecConsumer<'a, Fut> {
     pub(crate) fn new(output: &'a mut Vec<Fut::Output>) -> Self {
         Self {
-            group: FutureGroup::new(),
+            group: FuturesUnordered::new(),
             output,
         }
     }
@@ -54,7 +54,7 @@ where
     async fn send(self: Pin<&mut Self>, future: Fut) -> super::ConsumerState {
         let mut this = self.project();
         // unbounded concurrency, so we just goooo
-        this.group.as_mut().insert_pinned(future);
+        this.group.as_mut().push(future);
         ConsumerState::Continue
     }
 
