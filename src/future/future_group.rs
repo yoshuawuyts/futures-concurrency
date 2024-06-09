@@ -274,6 +274,7 @@ impl<F: Future> FutureGroup<F> {
         Key(index)
     }
 
+    #[allow(unused)]
     /// Insert a value into a pinned `FutureGroup`
     ///
     /// This method is private because it serves as an implementation detail for
