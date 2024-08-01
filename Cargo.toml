@@ -29,10 +29,10 @@ harness = false
 [features]
 default = ["std"]
 std = ["alloc"]
-alloc = ["bitvec/alloc", "dep:slab", "dep:smallvec"]
+alloc = ["dep:fixedbitset", "dep:slab", "dep:smallvec"]
 
 [dependencies]
-bitvec = { version = "1.0.1", default-features = false, features = ["alloc"] }
+fixedbitset = { version = "0.5.7", default-features = false, optional = true }
 futures-core = { version = "0.3", default-features = false }
 futures-lite = "1.12.0"
 pin-project = "1.0.8"
