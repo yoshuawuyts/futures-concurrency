@@ -30,12 +30,12 @@
 //! iterators:
 //!
 //! - `merge`: combine multiple iterators into a single iterator, where the new
-//! iterator yields an item as soon as one is available from one of the
-//! underlying iterators.
+//!   iterator yields an item as soon as one is available from one of the
+//!   underlying iterators.
 //! - `zip`: combine multiple iterators into an iterator of pairs. The
-//! underlying iterators will be awaited concurrently.
+//!   underlying iterators will be awaited concurrently.
 //! - `chain`: iterate over multiple iterators in sequence. The next iterator in
-//! the sequence won't start until the previous iterator has finished.
+//!   the sequence won't start until the previous iterator has finished.
 //!
 //! ## Futures
 //!

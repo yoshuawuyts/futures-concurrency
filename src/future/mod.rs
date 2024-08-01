@@ -66,7 +66,7 @@
 //!
 //! - `future::TryMerge`: wait for all futures in the set to complete _successfully_, or return on the first error.
 //! - `future::RaceOk`: wait for the first _successful_ future in the set to
-//! complete, or return an `Err` if *no* futures complete successfully.
+//!    complete, or return an `Err` if *no* futures complete successfully.
 //!
 #[doc(inline)]
 #[cfg(feature = "alloc")]
