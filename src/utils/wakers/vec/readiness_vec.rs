@@ -1,12 +1,12 @@
-use bitvec::{bitvec, vec::BitVec};
 use core::task::Waker;
+use fixedbitset::FixedBitSet;
 
 /// Tracks which wakers are "ready" and should be polled.
 #[derive(Debug)]
 pub(crate) struct ReadinessVec {
     ready_count: usize,
     max_count: usize,
-    readiness_list: BitVec,
+    readiness_list: FixedBitSet,
     parent_waker: Option<Waker>,
 }
 
@@ -16,7 +16,8 @@ impl ReadinessVec {
         Self {
             ready_count: len,
             max_count: len,
-            readiness_list: bitvec![true as usize; len],
+            // See https://github.com/petgraph/fixedbitset/issues/101
+            readiness_list: FixedBitSet::with_capacity_and_blocks(len, std::iter::repeat(!0)),
             parent_waker: None,
         }
     }
@@ -36,7 +37,7 @@ impl ReadinessVec {
 
     /// Set all markers to ready.
     pub(crate) fn set_all_ready(&mut self) {
-        self.readiness_list.fill(true);
+        self.readiness_list.set_range(.., true);
         self.ready_count = self.max_count;
     }
 
@@ -56,7 +57,7 @@ impl ReadinessVec {
     /// Returns whether the task id was previously ready
     #[allow(unused)]
     pub(crate) fn clear_all_ready(&mut self) {
-        self.readiness_list.fill(false);
+        self.readiness_list.set_range(.., false);
         self.ready_count = 0;
     }
 
@@ -85,8 +86,27 @@ impl ReadinessVec {
     /// If new entries are created, they will be marked as 'ready'.
     pub(crate) fn resize(&mut self, len: usize) {
         self.max_count = len;
-        self.readiness_list.resize(len, true);
-        self.ready_count = self.readiness_list.iter_ones().count();
+
+        let old_len = self.readiness_list.len();
+        match len.cmp(&old_len) {
+            std::cmp::Ordering::Less => {
+                // shrink
+                self.ready_count -= self.readiness_list.count_ones(len..);
+                self.readiness_list = FixedBitSet::with_capacity_and_blocks(
+                    len,
+                    self.readiness_list.as_slice().iter().cloned(),
+                );
+            }
+            std::cmp::Ordering::Equal => {
+                // no-op
+            }
+            std::cmp::Ordering::Greater => {
+                // grow
+                self.readiness_list.grow(len);
+                self.readiness_list.set_range(old_len..len, true);
+                self.ready_count += len - old_len;
+            }
+        }
     }
 }
 
