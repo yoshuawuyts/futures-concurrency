@@ -116,13 +116,13 @@ where
 
     async fn progress(self: Pin<&mut Self>) -> super::ConsumerState {
         let mut this = self.project();
+        let Ok(items) = this.output else {
+            return ConsumerState::Break;
+        };
 
         while let Some(item) = this.group.next().await {
             match item {
                 Ok(item) => {
-                    let Ok(items) = this.output else {
-                        panic!("progress called after returning ConsumerState::Break");
-                    };
                     items.push(item);
                 }
                 Err(e) => {
