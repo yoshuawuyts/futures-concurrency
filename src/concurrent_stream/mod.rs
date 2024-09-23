@@ -192,7 +192,7 @@ pub trait ConcurrentStream {
 /// The state of the consumer, used to communicate back to the source.
 #[derive(Debug)]
 pub enum ConsumerState {
-    /// The consumer is done making progress, and the `finish` method should be called.
+    /// The consumer is done making progress, and the `flush` method should be called.
     Break,
     /// The consumer is ready to keep making progress.
     Continue,
