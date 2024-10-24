@@ -42,7 +42,7 @@ use crate::utils::{PollState, PollVec, WakerVec};
 /// # futures_lite::future::block_on(async {
 /// let mut group = StreamGroup::new();
 /// group.insert(stream::once(4));
-
+///
 /// let mut index = 3;
 /// let mut out = 0;
 /// let mut group = group.lend_mut();

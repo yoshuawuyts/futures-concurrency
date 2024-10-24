@@ -57,7 +57,6 @@ use crate::utils::{PollState, PollVec, WakerVec};
 /// assert_eq!(out, 10);
 /// # });}
 /// ```
-
 #[must_use = "`FutureGroup` does nothing if not iterated over"]
 #[pin_project::pin_project]
 pub struct FutureGroup<F> {
