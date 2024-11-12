@@ -57,7 +57,7 @@ impl<'a, Fut: Future> VecConsumer<'a, Fut> {
     }
 }
 
-impl<'a, Item, Fut> Consumer<Item, Fut> for VecConsumer<'a, Fut>
+impl<Item, Fut> Consumer<Item, Fut> for VecConsumer<'_, Fut>
 where
     Fut: Future<Output = Item>,
 {
@@ -101,7 +101,7 @@ impl<'a, Fut: Future, T, E> ResultVecConsumer<'a, Fut, T, E> {
     }
 }
 
-impl<'a, Fut, T, E> Consumer<Result<T, E>, Fut> for ResultVecConsumer<'a, Fut, T, E>
+impl<Fut, T, E> Consumer<Result<T, E>, Fut> for ResultVecConsumer<'_, Fut, T, E>
 where
     Fut: Future<Output = Result<T, E>>,
 {
