@@ -101,6 +101,9 @@ macro_rules! impl_race_ok_tuple {
                 }
 
                 for i in this.indexer.iter() {
+                    if this.errors_states[i].is_ready() {
+                        continue;
+                    }
                     utils::gen_conditions!(i, this, cx, poll, $((Indexes::$F as usize; $F, {
                         Poll::Ready(output) => match output {
                             Ok(output) => {
@@ -217,6 +220,23 @@ mod test {
             let errors = (a, b).race_ok().await.unwrap_err();
             assert_eq!(errors[0], "hello");
             assert_eq!(errors[1], "world");
+        });
+    }
+
+    #[test]
+    fn race_ok_resume_after_completion() {
+        use futures_lite::future::yield_now;
+        futures_lite::future::block_on(async {
+            let ok = async {
+                yield_now().await;
+                yield_now().await;
+                Ok::<_, ()>(())
+            };
+            let err = async { Err::<(), _>(()) };
+
+            let res = (ok, err).race_ok().await;
+
+            assert_eq!(res.ok().unwrap(), ());
         });
     }
 }
