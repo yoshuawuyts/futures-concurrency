@@ -36,7 +36,7 @@ fixedbitset = { version = "0.5.7", default-features = false, optional = true }
 futures-core = { version = "0.3", default-features = false }
 futures-lite = { version = "2.5.0", default-features = false }
 pin-project = "1.1"
-slab = { version = "0.4.9", optional = true }
+slab = { version = "0.4.9", optional = true, default-features = false }
 smallvec = { version = "1.13", optional = true }
 futures-buffered = "0.2.9"
 
