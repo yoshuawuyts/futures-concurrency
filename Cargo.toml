@@ -40,6 +40,9 @@ slab = { version = "0.4.9", optional = true }
 smallvec = { version = "1.13", optional = true }
 futures-buffered = { version = "0.2.9", optional = true }
 
+[patch.crates-io]
+half = { version = "2.4.1", git = "https://github.com/VoidStarKat/half-rs.git", tag = "v2.4.1" }
+
 [dev-dependencies]
 async-io = "2.4"
 async-std = { version = "1.13.0", features = ["attributes"] }
