@@ -54,7 +54,7 @@ macro_rules! unsafe_poll {
 /// Drop all initialized values
 macro_rules! drop_initialized_values {
     // recursively iterate
-    (@drop $output:ident, $($rem_outs:ident,)* | $states:expr_2021, $state_idx:tt, $($rem_idx:tt,)*) => {
+    (@drop $output:ident, $($rem_outs:ident,)* | $states:expr, $state_idx:tt, $($rem_idx:tt,)*) => {
         if $states[$state_idx].is_ready() {
             // SAFETY: we've just filtered down to *only* the initialized values.
             // We can assume they're initialized, and this is where we drop them.
@@ -65,10 +65,10 @@ macro_rules! drop_initialized_values {
     };
 
     // base condition
-    (@drop | $states:expr_2021, $($rem_idx:tt,)*) => {};
+    (@drop | $states:expr, $($rem_idx:tt,)*) => {};
 
     // macro start
-    ($($outs:ident,)+ | $states:expr_2021) => {
+    ($($outs:ident,)+ | $states:expr) => {
         drop_initialized_values!(@drop $($outs,)+ | $states, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,);
     };
 }
