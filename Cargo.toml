@@ -53,7 +53,7 @@ criterion = { version = "0.5", features = [
 ] }
 futures = "0.3"
 futures-time = "3.0.0"
-itertools = "0.13"
+itertools = "0.14"
 lending-stream = "1.0.1"
-rand = "0.8.5"
+rand = "0.9.1"
 tokio = { version = "1.41", features = ["macros", "time", "rt-multi-thread"] }
