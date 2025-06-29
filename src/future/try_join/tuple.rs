@@ -79,7 +79,7 @@ macro_rules! unsafe_poll {
 /// Drop all initialized values
 macro_rules! drop_initialized_values {
     // recursively iterate
-    (@drop $output:ident, $($rem_outs:ident,)* | $states:expr, $state_idx:tt, $($rem_idx:tt,)*) => {
+    (@drop $output:ident, $($rem_outs:ident,)* | $states:expr_2021, $state_idx:tt, $($rem_idx:tt,)*) => {
         if $states[$state_idx].is_ready() {
             // SAFETY: we've just filtered down to *only* the initialized values.
             // We can assume they're initialized, and this is where we drop them.
@@ -90,10 +90,10 @@ macro_rules! drop_initialized_values {
     };
 
     // base condition
-    (@drop | $states:expr, $($rem_idx:tt,)*) => {};
+    (@drop | $states:expr_2021, $($rem_idx:tt,)*) => {};
 
     // macro start
-    ($($outs:ident,)+ | $states:expr) => {
+    ($($outs:ident,)+ | $states:expr_2021) => {
         drop_initialized_values!(@drop $($outs,)+ | $states, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,);
     };
 }
@@ -280,7 +280,7 @@ macro_rules! impl_try_join_tuple {
             fn drop(self: Pin<&mut Self>) {
                 let this = self.project();
 
-                let ($(ref mut $F,)+) = this.outputs;
+                let &mut ($(ref mut $F,)+) = this.outputs;
 
                 let states = this.state;
                 let mut futures = this.futures;

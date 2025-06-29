@@ -17,7 +17,7 @@
 // - https://rust-lang.github.io/rfcs/3086-macro-metavar-expr.html
 macro_rules! gen_conditions {
     // Base condition, setup the depth counter.
-    ($i:expr, $this:expr, $cx:expr, $method:ident, $(($F_index: expr; $F:ident, { $($arms:pat => $foo:expr,)* }))*) => {
+    ($i:expr_2021, $this:expr_2021, $cx:expr_2021, $method:ident, $(($F_index: expr_2021; $F:ident, { $($arms:pat => $foo:expr_2021,)* }))*) => {
         $(
             if $i == $F_index {
                 match unsafe { Pin::new_unchecked(&mut $this.$F) }.$method($cx) {
