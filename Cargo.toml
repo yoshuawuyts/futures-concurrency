@@ -10,7 +10,7 @@ edition = "2021"
 keywords = ["async", "concurrency"]
 categories = ["asynchronous", "concurrency"]
 authors = ["Yoshua Wuyts <yoshuawuyts@gmail.com>"]
-rust-version = "1.75.0"
+rust-version = "1.81.0"
 
 [profile.bench]
 debug = true
@@ -39,9 +39,6 @@ pin-project = "1.1"
 slab = { version = "0.4.9", optional = true }
 smallvec = { version = "1.13", optional = true }
 futures-buffered = { version = "0.2.9", optional = true }
-
-[patch.crates-io]
-half = { version = "2.4.1", git = "https://github.com/VoidStarKat/half-rs.git", tag = "v2.4.1" }
 
 [dev-dependencies]
 async-io = "2.4"
