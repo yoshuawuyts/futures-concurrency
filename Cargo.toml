@@ -43,7 +43,7 @@ futures-buffered = { version = "0.2.9", optional = true }
 [dev-dependencies]
 async-io = "2.4"
 async-std = { version = "1.13.0", features = ["attributes"] }
-criterion = { version = "0.5", features = [
+criterion = { version = "0.7", features = [
     "async",
     "async_futures",
     "html_reports",
