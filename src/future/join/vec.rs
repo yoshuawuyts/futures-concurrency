@@ -202,12 +202,12 @@ mod test {
     #[test]
     fn debug() {
         let mut fut = vec![future::ready("hello"), future::ready("world")].join();
-        assert_eq!(format!("{:?}", fut), "[Pending, Pending]");
+        assert_eq!(format!("{fut:?}"), "[Pending, Pending]");
         let mut fut = Pin::new(&mut fut);
 
         let waker = Arc::new(DummyWaker()).into();
         let mut cx = Context::from_waker(&waker);
         let _ = fut.as_mut().poll(&mut cx);
-        assert_eq!(format!("{:?}", fut), "[None, None]");
+        assert_eq!(format!("{fut:?}"), "[None, None]");
     }
 }
