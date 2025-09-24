@@ -28,7 +28,7 @@ where
     type Item = S::Item;
     type Future = Ready<Self::Item>;
 
-    async fn drive<C>(self, mut consumer: C) -> C::Output
+    async fn drive<C>(self, consumer: C) -> C::Output
     where
         C: Consumer<Self::Item, Self::Future>,
     {
