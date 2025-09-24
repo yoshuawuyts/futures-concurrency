@@ -29,7 +29,7 @@ harness = false
 [features]
 default = ["std"]
 std = ["alloc", "futures-lite/std"]
-alloc = ["dep:fixedbitset", "dep:slab", "dep:smallvec", "futures-lite/alloc"]
+alloc = ["dep:fixedbitset", "dep:slab", "dep:smallvec", "dep:futures-buffered", "futures-lite/alloc"]
 
 [dependencies]
 fixedbitset = { version = "0.5.7", default-features = false, optional = true }
@@ -38,7 +38,7 @@ futures-lite = { version = "2.5.0", default-features = false }
 pin-project = "1.1"
 slab = { version = "0.4.9", optional = true, default-features = false }
 smallvec = { version = "1.13", optional = true }
-futures-buffered = "0.2.9"
+futures-buffered = { version = "0.2.9", optional = true }
 
 [dev-dependencies]
 async-io = "2.4"

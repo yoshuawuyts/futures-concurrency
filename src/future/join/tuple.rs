@@ -47,7 +47,7 @@ macro_rules! unsafe_poll {
 
     // macro start
     ($iteration:ident, $this:ident, $futures:ident, $cx:ident, $LEN:ident, $($F:ident,)+) => {
-        unsafe_poll!(@inner $iteration, $this, $futures, $cx, $($F)+ | 0 1 2 3 4 5 6 7 8 9 10 11);
+        unsafe_poll!(@inner $iteration, $this, $futures, $cx, $($F)+ | 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14);
     };
 }
 
@@ -69,7 +69,7 @@ macro_rules! drop_initialized_values {
 
     // macro start
     ($($outs:ident,)+ | $states:expr) => {
-        drop_initialized_values!(@drop $($outs,)+ | $states, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,);
+        drop_initialized_values!(@drop $($outs,)+ | $states, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,);
     };
 }
 
@@ -92,7 +92,7 @@ macro_rules! drop_pending_futures {
 
     // macro start
     ($states:ident, $futures:ident, $($F:ident,)+) => {
-        drop_pending_futures!(@inner $states, $futures, $($F)+ | 0 1 2 3 4 5 6 7 8 9 10 11);
+        drop_pending_futures!(@inner $states, $futures, $($F)+ | 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14);
     };
 }
 
@@ -290,6 +290,9 @@ impl_join_tuple! { join9 Join9 A B C D E F G H I }
 impl_join_tuple! { join10 Join10 A B C D E F G H I J }
 impl_join_tuple! { join11 Join11 A B C D E F G H I J K }
 impl_join_tuple! { join12 Join12 A B C D E F G H I J K L }
+impl_join_tuple! { join13 Join13 A B C D E F G H I J K L M }
+impl_join_tuple! { join14 Join14 A B C D E F G H I J K L M N }
+impl_join_tuple! { join15 Join15 A B C D E F G H I J K L M N O }
 
 #[cfg(test)]
 mod test {
