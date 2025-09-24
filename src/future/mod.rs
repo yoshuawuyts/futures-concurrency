@@ -46,7 +46,7 @@
 //! When working with futures which don't return `Result` types, we
 //! provide two built-in concurrency operations:
 //!
-//! - `future::Merge`: wait for all futures in the set to complete
+//! - `future::Join`: wait for all futures in the set to complete
 //! - `future::Race`: wait for the _first_ future in the set to complete
 //!
 //! Because futures can be considered to be an async sequence of one, see
@@ -61,12 +61,12 @@
 //!
 //! |                             | __Wait for all outputs__ | __Wait for first output__ |
 //! | ---                         | ---                      | ---                       |
-//! | __Continue on error__       | `future::Merge`          | `future::RaceOk`
-//! | __Return early on error__   | `future::TryMerge`       | `future::Race`
+//! | __Continue on error__       | `future::Join`           | `future::RaceOk`
+//! | __Return early on error__   | `future::TryJoin`        | `future::Race`
 //!
-//! - `future::TryMerge`: wait for all futures in the set to complete _successfully_, or return on the first error.
+//! - `future::TryJoin`: wait for all futures in the set to complete _successfully_, or return on the first error.
 //! - `future::RaceOk`: wait for the first _successful_ future in the set to
-//!    complete, or return an `Err` if *no* futures complete successfully.
+//!   complete, or return an `Err` if *no* futures complete successfully.
 //!
 #[doc(inline)]
 #[cfg(feature = "alloc")]
