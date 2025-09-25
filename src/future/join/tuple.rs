@@ -246,7 +246,7 @@ macro_rules! impl_join_tuple {
             fn drop(self: Pin<&mut Self>) {
                 let this = self.project();
 
-                let ($(ref mut $F,)+) = this.outputs;
+                let &mut ($(ref mut $F,)+) = this.outputs;
 
                 let states = this.state;
                 let mut futures = this.futures;

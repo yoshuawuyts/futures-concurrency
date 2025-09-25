@@ -10,7 +10,7 @@ edition = "2021"
 keywords = ["async", "concurrency"]
 categories = ["asynchronous", "concurrency"]
 authors = ["Yoshua Wuyts <yoshuawuyts@gmail.com>"]
-rust-version = "1.75.0"
+rust-version = "1.81.0"
 
 [profile.bench]
 debug = true
@@ -43,14 +43,14 @@ futures-buffered = { version = "0.2.9", optional = true }
 [dev-dependencies]
 async-io = "2.4"
 async-std = { version = "1.13.0", features = ["attributes"] }
-criterion = { version = "0.5", features = [
+criterion = { version = "0.7", features = [
     "async",
     "async_futures",
     "html_reports",
 ] }
 futures = "0.3"
 futures-time = "3.0.0"
-itertools = "0.13"
+itertools = "0.14"
 lending-stream = "1.0.1"
-rand = "0.8.5"
+rand = "0.9.1"
 tokio = { version = "1.41", features = ["macros", "time", "rt-multi-thread"] }

@@ -18,7 +18,7 @@
 //!     let b = future::ready(2);
 //!     let c = future::ready(3);
 //!     assert_eq!([a, b, c].join().await, [1, 2, 3]);
-//!    
+//!
 //!     // Await multiple differently-typed futures.
 //!     let a = future::ready(1u8);
 //!     let b = future::ready("hello");

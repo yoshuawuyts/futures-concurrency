@@ -37,10 +37,9 @@ where
             MaybeDone::Done(Ok(_)) => {}
             MaybeDone::Done(Err(_)) | MaybeDone::Future(_) | MaybeDone::Gone => return None,
         }
-        if let MaybeDone::Done(Ok(output)) = mem::replace(this, MaybeDone::Gone) {
-            Some(output)
-        } else {
-            unreachable!()
+        match mem::replace(this, MaybeDone::Gone) {
+            MaybeDone::Done(Ok(output)) => Some(output),
+            _ => unreachable!(),
         }
     }
 
@@ -53,10 +52,9 @@ where
             MaybeDone::Done(Err(_)) => {}
             MaybeDone::Done(Ok(_)) | MaybeDone::Future(_) | MaybeDone::Gone => return None,
         }
-        if let MaybeDone::Done(Err(output)) = mem::replace(this, MaybeDone::Gone) {
-            Some(output)
-        } else {
-            unreachable!()
+        match mem::replace(this, MaybeDone::Gone) {
+            MaybeDone::Done(Err(output)) => Some(output),
+            _ => unreachable!(),
         }
     }
 }

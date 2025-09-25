@@ -19,10 +19,11 @@ fn main() {
 
 mod stream_group {
     use criterion::async_executor::FuturesExecutor;
-    use criterion::{black_box, criterion_group, BatchSize, BenchmarkId, Criterion};
+    use criterion::{criterion_group, BatchSize, BenchmarkId, Criterion};
     use futures::stream::SelectAll;
     use futures_concurrency::stream::StreamGroup;
     use futures_lite::prelude::*;
+    use std::hint::black_box;
 
     use crate::utils::{make_select_all, make_stream_group};
     criterion_group! {
@@ -69,10 +70,11 @@ mod stream_group {
 }
 mod future_group {
     use std::fmt::{Debug, Display};
+    use std::hint::black_box;
     use std::time::{Duration, Instant};
 
     use criterion::async_executor::FuturesExecutor;
-    use criterion::{black_box, criterion_group, BatchSize, BenchmarkId, Criterion};
+    use criterion::{criterion_group, BatchSize, BenchmarkId, Criterion};
     use futures::channel::oneshot;
     use futures::never::Never;
     use futures::stream::FuturesUnordered;
@@ -237,10 +239,11 @@ mod future_group {
 
 mod merge {
     use criterion::async_executor::FuturesExecutor;
-    use criterion::{black_box, criterion_group, Criterion};
+    use criterion::{criterion_group, Criterion};
     use futures_concurrency::prelude::*;
     use futures_lite::future::block_on;
     use futures_lite::prelude::*;
+    use std::hint::black_box;
 
     use super::utils::{streams_array, streams_tuple, streams_vec};
 
@@ -321,8 +324,9 @@ mod merge {
 
 mod join {
     use criterion::async_executor::FuturesExecutor;
-    use criterion::{black_box, criterion_group, Criterion};
+    use criterion::{criterion_group, Criterion};
     use futures_concurrency::prelude::*;
+    use std::hint::black_box;
 
     use super::utils::{futures_array, futures_tuple, futures_vec};
 
@@ -386,8 +390,9 @@ mod join {
 
 mod race {
     use criterion::async_executor::FuturesExecutor;
-    use criterion::{black_box, criterion_group, Criterion};
+    use criterion::{criterion_group, Criterion};
     use futures_concurrency::prelude::*;
+    use std::hint::black_box;
 
     use crate::utils::futures_tuple;
 
