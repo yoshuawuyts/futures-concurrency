@@ -4,7 +4,7 @@ use super::{ConcurrentStream, Consumer};
 use core::future::Future;
 use core::num::NonZeroUsize;
 use core::pin::Pin;
-use core::task::{ready, Context, Poll};
+use core::task::{Context, Poll, ready};
 
 /// A concurrent iterator that yields the current count and the element during iteration.
 ///
@@ -128,8 +128,8 @@ where
 mod test {
     // use crate::concurrent_stream::{ConcurrentStream, IntoConcurrentStream};
     use crate::prelude::*;
-    use futures_lite::stream;
     use futures_lite::StreamExt;
+    use futures_lite::stream;
     use std::num::NonZeroUsize;
 
     #[test]

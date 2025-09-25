@@ -1,6 +1,6 @@
 use super::RaceOk as RaceOkTrait;
-use crate::utils::iter_pin_mut;
 use crate::utils::MaybeDone;
+use crate::utils::iter_pin_mut;
 
 #[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::{boxed::Box, vec::Vec};

@@ -9,7 +9,7 @@ use core::marker::PhantomData;
 use core::num::NonZeroUsize;
 use core::pin::Pin;
 use core::sync::atomic::{AtomicUsize, Ordering};
-use core::task::{ready, Context, Poll};
+use core::task::{Context, Poll, ready};
 
 // OK: validated! - all bounds should check out
 #[pin_project]

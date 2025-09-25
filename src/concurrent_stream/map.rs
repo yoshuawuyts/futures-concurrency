@@ -6,7 +6,7 @@ use core::{
     future::Future,
     marker::PhantomData,
     pin::Pin,
-    task::{ready, Context, Poll},
+    task::{Context, Poll, ready},
 };
 
 /// Convert items from one type into another

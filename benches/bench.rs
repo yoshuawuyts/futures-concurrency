@@ -19,7 +19,7 @@ fn main() {
 
 mod stream_group {
     use criterion::async_executor::FuturesExecutor;
-    use criterion::{criterion_group, BatchSize, BenchmarkId, Criterion};
+    use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group};
     use futures::stream::SelectAll;
     use futures_concurrency::stream::StreamGroup;
     use futures_lite::prelude::*;
@@ -74,7 +74,7 @@ mod future_group {
     use std::time::{Duration, Instant};
 
     use criterion::async_executor::FuturesExecutor;
-    use criterion::{criterion_group, BatchSize, BenchmarkId, Criterion};
+    use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group};
     use futures::channel::oneshot;
     use futures::never::Never;
     use futures::stream::FuturesUnordered;
@@ -82,7 +82,7 @@ mod future_group {
     use futures_lite::future::yield_now;
     use futures_lite::prelude::*;
     use itertools::Itertools;
-    use rand::{seq::SliceRandom, SeedableRng};
+    use rand::{SeedableRng, seq::SliceRandom};
 
     use crate::utils::{make_future_group, make_futures_unordered};
     criterion_group! {
@@ -239,7 +239,7 @@ mod future_group {
 
 mod merge {
     use criterion::async_executor::FuturesExecutor;
-    use criterion::{criterion_group, Criterion};
+    use criterion::{Criterion, criterion_group};
     use futures_concurrency::prelude::*;
     use futures_lite::future::block_on;
     use futures_lite::prelude::*;
@@ -324,7 +324,7 @@ mod merge {
 
 mod join {
     use criterion::async_executor::FuturesExecutor;
-    use criterion::{criterion_group, Criterion};
+    use criterion::{Criterion, criterion_group};
     use futures_concurrency::prelude::*;
     use std::hint::black_box;
 
@@ -390,7 +390,7 @@ mod join {
 
 mod race {
     use criterion::async_executor::FuturesExecutor;
-    use criterion::{criterion_group, Criterion};
+    use criterion::{Criterion, criterion_group};
     use futures_concurrency::prelude::*;
     use std::hint::black_box;
 

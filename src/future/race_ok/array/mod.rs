@@ -1,7 +1,7 @@
 use super::RaceOk as RaceOkTrait;
+use crate::utils::PollArray;
 use crate::utils::array_assume_init;
 use crate::utils::iter_pin_mut;
-use crate::utils::PollArray;
 
 use core::array;
 use core::fmt;

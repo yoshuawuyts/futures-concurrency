@@ -7,7 +7,7 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 
-use super::{shuffle, PrioritizedWaker, State};
+use super::{PrioritizedWaker, State, shuffle};
 
 #[allow(unused)]
 pub fn streams_vec(len: usize) -> Vec<CountdownStream> {

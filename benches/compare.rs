@@ -1,5 +1,5 @@
 use criterion::async_executor::FuturesExecutor;
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use futures_concurrency::prelude::*;
 
 mod utils;
@@ -47,8 +47,18 @@ fn select_vs_merge(c: &mut Criterion) {
             use futures::stream::StreamExt;
 
             // Create two streams of numbers. Both streams require being `fuse`d.
-            let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h, mut i, mut j] =
-                utils::streams_array::<N>().map(|fut| fut.fuse());
+            let [
+                mut a,
+                mut b,
+                mut c,
+                mut d,
+                mut e,
+                mut f,
+                mut g,
+                mut h,
+                mut i,
+                mut j,
+            ] = utils::streams_array::<N>().map(|fut| fut.fuse());
 
             // Initialize the output counter.
             let mut total = 0usize;

@@ -1,5 +1,5 @@
 use core::ops::{Deref, DerefMut};
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 
 use super::PollState;
 
@@ -102,7 +102,7 @@ impl DerefMut for PollVec {
 
 #[cfg(test)]
 mod tests {
-    use super::{PollVec, MAX_INLINE_ENTRIES};
+    use super::{MAX_INLINE_ENTRIES, PollVec};
 
     #[test]
     fn type_size() {

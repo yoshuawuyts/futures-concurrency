@@ -9,7 +9,7 @@
 use futures_concurrency::prelude::*;
 use futures_core::Future;
 use std::{future::ready, pin::Pin};
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 

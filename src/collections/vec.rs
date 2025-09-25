@@ -7,7 +7,7 @@
 
 use crate::concurrent_stream::{self, FromStream};
 use crate::prelude::*;
-use crate::utils::{from_iter, FromIter};
+use crate::utils::{FromIter, from_iter};
 #[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
 use core::future::Ready;

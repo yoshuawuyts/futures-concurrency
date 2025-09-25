@@ -36,8 +36,8 @@ enum State {
 }
 
 fn shuffle<T>(slice: &mut [T]) {
-    use rand::seq::SliceRandom;
     use rand::SeedableRng;
+    use rand::seq::SliceRandom;
     let mut rng = rand::rngs::StdRng::seed_from_u64(42);
     slice.shuffle(&mut rng);
 }

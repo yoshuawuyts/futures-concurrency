@@ -7,7 +7,7 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll};
 
-use super::{shuffle, PrioritizedWaker, State};
+use super::{PrioritizedWaker, State, shuffle};
 
 pub fn futures_vec(len: usize) -> Vec<CountdownFuture> {
     let wakers = Rc::new(RefCell::new(BinaryHeap::new()));

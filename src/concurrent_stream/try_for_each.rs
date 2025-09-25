@@ -12,7 +12,7 @@ use core::num::NonZeroUsize;
 use core::ops::ControlFlow;
 use core::pin::Pin;
 use core::sync::atomic::{AtomicUsize, Ordering};
-use core::task::{ready, Context, Poll};
+use core::task::{Context, Poll, ready};
 
 #[pin_project]
 pub(crate) struct TryForEachConsumer<FutT, T, F, FutB, B>
