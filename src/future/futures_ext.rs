@@ -3,9 +3,9 @@ use crate::future::Race;
 use core::future::IntoFuture;
 use futures_core::Future;
 
+use super::WaitUntil;
 use super::join::tuple::Join2;
 use super::race::tuple::Race2;
-use super::WaitUntil;
 
 /// An extension trait for the `Future` trait.
 pub trait FutureExt: Future {

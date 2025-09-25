@@ -6,7 +6,7 @@ use futures_core::Stream;
 #[cfg(feature = "alloc")]
 use crate::concurrent_stream::FromStream;
 
-use super::{chain::tuple::Chain2, merge::tuple::Merge2, zip::tuple::Zip2, Chain, WaitUntil, Zip};
+use super::{Chain, WaitUntil, Zip, chain::tuple::Chain2, merge::tuple::Merge2, zip::tuple::Zip2};
 
 /// An extension trait for the `Stream` trait.
 pub trait StreamExt: Stream {

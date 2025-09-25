@@ -20,42 +20,34 @@ jobs:
         rust: [stable]
 
     steps:
-    - uses: actions/checkout@master
+    - uses: actions/checkout@v5
 
     - name: Install ${{ matrix.rust }}
-      uses: actions-rs/toolchain@v1
+      uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: ${{ matrix.rust }}
         override: true
 
     - name: check
-      uses: actions-rs/cargo@v1
-      with:
-        command: check
-        args: --all --bins --examples
+      run: |
+        cargo check --all --bins --examples
 
     - name: check no-std
-      uses: actions-rs/cargo@v1
-      with:
-        command: check
-        args: --all --no-default-features
+      run: |
+        cargo check --all --no-default-features
 
     - name: check alloc
-      uses: actions-rs/cargo@v1
-      with:
-        command: check
-        args: --all --no-default-features --features alloc
+      run: |
+        cargo check --all --no-default-features --features alloc
 
     - name: tests
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --all
+      run: |
+        cargo test --all
 
   msrv:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - uses: taiki-e/install-action@cargo-hack
     - run: cargo hack check --rust-version --workspace --lib --ignore-private
 
@@ -63,7 +55,7 @@ jobs:
     name: "Build and test (miri, nightly)"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
       - name: Install Miri
         run: |
           rustup toolchain install nightly --component miri
@@ -76,8 +68,8 @@ jobs:
     name: Checking clippy, fmt and docs
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
-    - uses: actions-rs/toolchain@v1
+    - uses: actions/checkout@v5
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: nightly
         components: rustfmt, clippy
@@ -96,6 +88,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
       - name: Check semver
         uses: obi1kenobi/cargo-semver-checks-action@v2

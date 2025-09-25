@@ -41,4 +41,4 @@ pub(crate) use wakers::DummyWaker;
 pub(crate) mod channel;
 
 #[cfg(feature = "alloc")]
-pub(crate) use stream::{from_iter, FromIter};
+pub(crate) use stream::{FromIter, from_iter};

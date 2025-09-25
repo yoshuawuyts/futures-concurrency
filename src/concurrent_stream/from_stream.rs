@@ -2,7 +2,7 @@ use super::Consumer;
 use crate::concurrent_stream::ConsumerState;
 use crate::prelude::*;
 
-use core::future::{ready, Ready};
+use core::future::{Ready, ready};
 use core::num::NonZeroUsize;
 use core::pin::pin;
 use futures_lite::{Stream, StreamExt};

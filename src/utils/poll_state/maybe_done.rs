@@ -1,7 +1,7 @@
 use core::future::Future;
 use core::mem;
 use core::pin::Pin;
-use core::task::{ready, Context, Poll};
+use core::task::{Context, Poll, ready};
 
 /// A future that may have completed.
 #[derive(Debug)]

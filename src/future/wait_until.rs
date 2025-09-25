@@ -1,6 +1,6 @@
 use core::future::Future;
 use core::pin::Pin;
-use core::task::{ready, Context, Poll};
+use core::task::{Context, Poll, ready};
 
 /// Suspends a future until the specified deadline.
 ///

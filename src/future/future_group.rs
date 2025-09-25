@@ -3,8 +3,8 @@ use core::fmt::{self, Debug};
 use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use futures_core::stream::Stream;
 use futures_core::Future;
+use futures_core::stream::Stream;
 use slab::Slab;
 
 use crate::utils::{PollState, PollVec, WakerVec};
