@@ -87,7 +87,7 @@ macro_rules! impl_merge_tuple {
             $F: Stream<Item = T>,
         )* {
             #[pin] streams: $mod_name::Streams<$($F,)+>,
-            indexer: utils::Indexer,
+            indexer: utils::Indexer<{ utils::tuple_len!($($F,)*) }>,
             wakers: WakerArray<{$mod_name::LEN}>,
             state: PollArray<{$mod_name::LEN}>,
             completed: u8,
@@ -169,7 +169,7 @@ macro_rules! impl_merge_tuple {
                 let ($($F,)*): ($($F,)*) = self;
                 $StructName {
                     streams: $mod_name::Streams { $($F: $F.into_stream()),+ },
-                    indexer: utils::Indexer::new(utils::tuple_len!($($F,)*)),
+                    indexer: utils::Indexer::new(),
                     wakers: WakerArray::new(),
                     state: PollArray::new_pending(),
                     completed: 0,

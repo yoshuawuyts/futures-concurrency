@@ -38,7 +38,7 @@ macro_rules! impl_race_ok_tuple {
         {
             completed: usize,
             done: bool,
-            indexer: utils::Indexer,
+            indexer: utils::Indexer<{ $StructName }>,
             errors: [MaybeUninit<ERR>; $StructName],
             errors_states: PollArray<{ $StructName }>,
             $( #[pin] $F: $F, )*
@@ -70,7 +70,7 @@ macro_rules! impl_race_ok_tuple {
                 $StructName {
                     completed: 0,
                     done: false,
-                    indexer: utils::Indexer::new($StructName),
+                    indexer: utils::Indexer::new(),
                     errors: array::from_fn(|_| MaybeUninit::uninit()),
                     errors_states: PollArray::new_pending(),
                     $($F: $F.into_future()),*

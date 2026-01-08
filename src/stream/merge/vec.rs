@@ -1,6 +1,6 @@
 use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, Indexer, PollVec, WakerVec};
+use crate::utils::{self, DynIndexer, PollVec, WakerVec};
 
 #[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
@@ -24,7 +24,7 @@ where
 {
     #[pin]
     streams: Vec<S>,
-    indexer: Indexer,
+    indexer: DynIndexer,
     complete: usize,
     wakers: WakerVec,
     state: PollVec,
@@ -40,7 +40,7 @@ where
         Self {
             wakers: WakerVec::new(len),
             state: PollVec::new_pending(len),
-            indexer: Indexer::new(len),
+            indexer: DynIndexer::new(len),
             streams,
             complete: 0,
             done: false,

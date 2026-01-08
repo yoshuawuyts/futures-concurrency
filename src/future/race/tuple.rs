@@ -25,7 +25,7 @@ macro_rules! impl_race_tuple {
             $F: Future<Output = T>,
         )* {
             done: bool,
-            indexer: utils::Indexer,
+            indexer: utils::Indexer<{ utils::tuple_len!($($F,)*) }>,
             $(#[pin] $F: $F,)*
         }
 
@@ -51,7 +51,7 @@ macro_rules! impl_race_tuple {
                 let ($($F,)*): ($($F,)*) = self;
                 $StructName {
                     done: false,
-                    indexer: utils::Indexer::new(utils::tuple_len!($($F,)*)),
+                    indexer: utils::Indexer::new(),
                     $($F: $F.into_future()),*
                 }
             }
