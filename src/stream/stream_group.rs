@@ -4,10 +4,9 @@ use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::task::{Context, Poll};
 use futures_core::Stream;
-use slab::Slab;
 use smallvec::{smallvec, SmallVec};
 
-use crate::utils::{PollState, PollVec, WakerVec};
+use crate::utils::{ChunkedVec, PollState, PollVec, WakerVec};
 
 /// A growable group of streams which act as a single unit.
 ///
@@ -61,18 +60,19 @@ use crate::utils::{PollState, PollVec, WakerVec};
 #[pin_project::pin_project]
 pub struct StreamGroup<S> {
     #[pin]
-    streams: Slab<S>,
+    streams: ChunkedVec<S>,
     wakers: WakerVec,
     states: PollVec,
     keys: BTreeSet<usize>,
     key_removal_queue: SmallVec<[usize; 10]>,
-    capacity: usize,
 }
 
 impl<T: Debug> Debug for StreamGroup<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("StreamGroup")
-            .field("slab", &"[..]")
+            .field("streams", &"[..]")
+            .field("len", &self.len())
+            .field("capacity", &self.capacity())
             .finish()
     }
 }
@@ -104,12 +104,11 @@ impl<S> StreamGroup<S> {
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            streams: Slab::with_capacity(capacity),
+            streams: ChunkedVec::with_capacity(capacity),
             wakers: WakerVec::new(capacity),
             states: PollVec::new(capacity),
             keys: BTreeSet::new(),
             key_removal_queue: smallvec![],
-            capacity,
         }
     }
 
@@ -140,11 +139,11 @@ impl<S> StreamGroup<S> {
     /// use futures_lite::stream;
     ///
     /// let group = StreamGroup::with_capacity(2);
-    /// assert_eq!(group.capacity(), 2);
+    /// assert!(group.capacity() >= 2);
     /// # let group: StreamGroup<usize> = group;
     /// ```
     pub fn capacity(&self) -> usize {
-        self.capacity
+        self.streams.capacity()
     }
 
     /// Returns true if there are no futures currently active in the group.
@@ -223,27 +222,23 @@ impl<S> StreamGroup<S> {
     /// let mut group: StreamGroup<Once<usize>> = StreamGroup::with_capacity(0);
     /// assert_eq!(group.capacity(), 0);
     /// group.reserve(10);
-    /// assert_eq!(group.capacity(), 10);
+    /// assert!(group.capacity() >= 10);
     ///
     /// // does nothing if capacity is sufficient
     /// group.reserve(5);
-    /// assert_eq!(group.capacity(), 10);
+    /// assert!(group.capacity() >= 10);
     /// # })
     /// ```
     pub fn reserve(&mut self, additional: usize) {
-        if self.len() + additional < self.capacity {
-            return;
-        }
-        let new_cap = self.capacity + additional;
+        self.streams.reserve(additional);
+        let new_cap = self.streams.capacity();
         self.wakers.resize(new_cap);
         self.states.resize(new_cap);
-        self.streams.reserve_exact(additional);
-        self.capacity = new_cap;
     }
 }
 
 impl<S: Stream> StreamGroup<S> {
-    /// Insert a new future into the group.
+    /// Insert a new stream into the group.
     ///
     /// # Example
     ///
@@ -258,12 +253,13 @@ impl<S: Stream> StreamGroup<S> {
     where
         S: Stream,
     {
-        if self.capacity <= self.len() {
-            self.reserve(self.capacity * 2 + 1);
-        }
-
         let index = self.streams.insert(stream);
         self.keys.insert(index);
+
+        // Ensure wakers and states have enough capacity
+        let new_cap = self.streams.capacity();
+        self.wakers.resize(new_cap);
+        self.states.resize(new_cap);
 
         // Set the corresponding state
         self.states[index].set_pending();
