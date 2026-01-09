@@ -1,7 +1,9 @@
 //! Pin safety regression tests for FutureGroup and StreamGroup.
+//!
+//! Check [#188](https://github.com/yoshuawuyts/futures-concurrency/issues/188) for context
 
 #![cfg(feature = "alloc")]
-#![allow(clippy::assertions_on_constants)] // assert!(true, "it works because it didn't panic")
+#![allow(clippy::assertions_on_constants)]
 
 use std::{
     future::Future,
@@ -107,7 +109,7 @@ fn future_group_no_move_on_growth() {
         }
 
         drain_to_completion(group.as_mut()).await;
-        assert!(true, "all futures completed without moving");
+        // no panic = all futures completed without moving!
     });
 }
 
@@ -128,7 +130,7 @@ fn stream_group_no_move_on_growth() {
         }
 
         drain_to_completion(group.as_mut()).await;
-        assert!(true, "all streams completed without moving");
+        // no panic = all futures completed without moving!
     });
 }
 
@@ -152,7 +154,7 @@ fn future_group_no_move_on_repeated_growth() {
         }
 
         drain_to_completion(group.as_mut()).await;
-        assert!(true, "interleaved inserts did not move futures");
+        // no panic = all futures completed without moving!
     });
 }
 
@@ -176,6 +178,6 @@ fn stream_group_no_move_on_repeated_growth() {
         }
 
         drain_to_completion(group.as_mut()).await;
-        assert!(true, "interleaved inserts did not move streams");
+        // no panic = all futures completed without moving!
     });
 }
