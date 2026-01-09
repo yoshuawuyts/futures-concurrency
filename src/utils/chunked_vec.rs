@@ -3,6 +3,7 @@
 //! Storage is organized as fixed-size chunks. Growth adds new chunks without
 //! moving existing elements, making it safe to hold pinned references.
 
+use alloc::{boxed::Box, vec::Vec};
 use core::{
     mem::MaybeUninit,
     ops::{Index, IndexMut},
