@@ -3,6 +3,8 @@
 //! Utilities to implement the different futures of this crate.
 
 mod array;
+#[cfg(feature = "alloc")]
+mod chunked_vec;
 mod futures;
 mod indexer;
 mod output;
@@ -19,6 +21,8 @@ pub(crate) use self::futures::FutureArray;
 #[cfg(feature = "alloc")]
 pub(crate) use self::futures::FutureVec;
 pub(crate) use array::array_assume_init;
+#[cfg(feature = "alloc")]
+pub(crate) use chunked_vec::ChunkedVec;
 pub(crate) use indexer::Indexer;
 pub(crate) use output::OutputArray;
 #[cfg(feature = "alloc")]

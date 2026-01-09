@@ -1,6 +1,7 @@
 //! Pin safety regression tests for FutureGroup and StreamGroup.
 
 #![cfg(feature = "alloc")]
+#![allow(clippy::assertions_on_constants)] // assert!(true, "it works because it didn't panic")
 
 use std::{
     future::Future,

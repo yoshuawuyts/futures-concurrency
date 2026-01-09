@@ -5,9 +5,8 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 use futures_core::stream::Stream;
 use futures_core::Future;
-use slab::Slab;
 
-use crate::utils::{PollState, PollVec, WakerVec};
+use crate::utils::{ChunkedVec, PollState, PollVec, WakerVec};
 
 /// A growable group of futures which act as a single unit.
 ///
@@ -61,19 +60,18 @@ use crate::utils::{PollState, PollVec, WakerVec};
 #[pin_project::pin_project]
 pub struct FutureGroup<F> {
     #[pin]
-    futures: Slab<F>,
+    futures: ChunkedVec<F>,
     wakers: WakerVec,
     states: PollVec,
     keys: BTreeSet<usize>,
-    capacity: usize,
 }
 
 impl<T: Debug> Debug for FutureGroup<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FutureGroup")
-            .field("slab", &"[..]")
+            .field("futures", &"[..]")
             .field("len", &self.len())
-            .field("capacity", &self.capacity)
+            .field("capacity", &self.capacity())
             .finish()
     }
 }
@@ -111,11 +109,10 @@ impl<F> FutureGroup<F> {
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            futures: Slab::with_capacity(capacity),
+            futures: ChunkedVec::with_capacity(capacity),
             wakers: WakerVec::new(capacity),
             states: PollVec::new(capacity),
             keys: BTreeSet::new(),
-            capacity,
         }
     }
 
@@ -147,11 +144,11 @@ impl<F> FutureGroup<F> {
     /// use futures_lite::stream;
     ///
     /// let group = FutureGroup::with_capacity(2);
-    /// assert_eq!(group.capacity(), 2);
+    /// assert!(group.capacity() >= 2);
     /// # let group: FutureGroup<usize> = group;
     /// ```
     pub fn capacity(&self) -> usize {
-        self.capacity
+        self.futures.capacity()
     }
 
     /// Returns true if there are no futures currently active in the group.
@@ -229,22 +226,18 @@ impl<F> FutureGroup<F> {
     /// let mut group: FutureGroup<Ready<usize>> = FutureGroup::with_capacity(0);
     /// assert_eq!(group.capacity(), 0);
     /// group.reserve(10);
-    /// assert_eq!(group.capacity(), 10);
+    /// assert!(group.capacity() >= 10);
     ///
     /// // does nothing if capacity is sufficient
     /// group.reserve(5);
-    /// assert_eq!(group.capacity(), 10);
+    /// assert!(group.capacity() >= 10);
     /// # })
     /// ```
     pub fn reserve(&mut self, additional: usize) {
-        if self.len() + additional < self.capacity {
-            return;
-        }
-        let new_cap = self.capacity + additional;
+        self.futures.reserve(additional);
+        let new_cap = self.futures.capacity();
         self.wakers.resize(new_cap);
         self.states.resize(new_cap);
-        self.futures.reserve_exact(additional);
-        self.capacity = new_cap;
     }
 }
 
@@ -264,43 +257,49 @@ impl<F: Future> FutureGroup<F> {
     where
         F: Future,
     {
-        if self.capacity <= self.len() {
-            self.reserve(self.capacity * 2 + 1);
-        }
-
         let index = self.futures.insert(future);
         self.keys.insert(index);
 
-        // Set the corresponding state
+        // ensure wakers and states have enough capacity
+        let new_cap = self.futures.capacity();
+        self.wakers.resize(new_cap);
+        self.states.resize(new_cap);
+
+        // set the corresponding state
         self.states[index].set_pending();
         self.wakers.readiness().set_ready(index);
 
         Key(index)
     }
 
-    #[allow(unused)]
     /// Insert a value into a pinned `FutureGroup`
     ///
     /// This method is private because it serves as an implementation detail for
     /// `ConcurrentStream`. We should never expose this publicly, as the entire
     /// point of this crate is that we abstract the futures poll machinery away
     /// from end-users.
+    ///
+    /// # Safety
+    ///
+    /// This is safe because `ChunkedVec` uses a triangular allocation
+    /// strategy that never moves existing elements when growing. Each bucket
+    /// is a heap-allocated box that remains at a stable address.
+    #[allow(unused)]
     pub(crate) fn insert_pinned(self: Pin<&mut Self>, future: F) -> Key
     where
         F: Future,
     {
         let mut this = self.project();
-        // SAFETY: inserting a value into the futures slab does not ever move
-        // any of the existing values.
+        // SAFETY: ChunkedVec guarantees that inserting a value never moves
+        // existing values. Growth allocates new buckets without touching existing ones.
         let index = unsafe { this.futures.as_mut().get_unchecked_mut() }.insert(future);
         this.keys.insert(index);
         let key = Key(index);
 
-        // If our slab allocated more space we need to
-        // update our tracking structures along with it.
-        let max_len = this.futures.as_ref().capacity().max(index);
-        this.wakers.resize(max_len);
-        this.states.resize(max_len);
+        // Update tracking structures to match the new capacity
+        let new_cap = this.futures.as_ref().capacity();
+        this.wakers.resize(new_cap);
+        this.states.resize(new_cap);
 
         // Set the corresponding state
         this.states[index].set_pending();
