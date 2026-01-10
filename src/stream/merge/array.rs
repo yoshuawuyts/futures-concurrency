@@ -62,6 +62,11 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
+        // return early if all streams are complete (handles empty array)
+        if *this.complete == N {
+            return Poll::Ready(None);
+        }
+
         let mut readiness = this.wakers.readiness();
         readiness.set_waker(cx.waker());
 
@@ -126,6 +131,16 @@ mod tests {
     use futures_lite::future::block_on;
     use futures_lite::prelude::*;
     use futures_lite::stream;
+
+    #[test]
+    fn empty_array() {
+        block_on(async {
+            let streams: [stream::Once<i32>; 0] = [];
+            let mut s = streams.merge();
+            let result = s.next().await;
+            assert_eq!(result, None);
+        })
+    }
 
     #[test]
     fn merge_array_4() {
