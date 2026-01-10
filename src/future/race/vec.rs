@@ -73,6 +73,7 @@ where
     type Future = Race<Fut::IntoFuture>;
 
     fn race(self) -> Self::Future {
+        assert!(!self.is_empty(), "race requires at least one future");
         Race {
             indexer: Indexer::new(self.len()),
             futures: self.into_iter().map(|fut| fut.into_future()).collect(),
@@ -86,6 +87,15 @@ mod test {
     use super::*;
     use alloc::vec;
     use core::future;
+
+    #[test]
+    #[should_panic(expected = "race requires at least one future")]
+    fn empty_vec() {
+        futures_lite::future::block_on(async {
+            let futs: Vec<future::Ready<()>> = vec![];
+            let _ = futs.race().await;
+        });
+    }
 
     // NOTE: we should probably poll in random order.
     #[test]

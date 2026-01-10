@@ -70,6 +70,7 @@ where
     type Future = Race<Fut::IntoFuture, N>;
 
     fn race(self) -> Self::Future {
+        assert!(N > 0, "race requires at least one future");
         Race {
             futures: self.map(|fut| fut.into_future()),
             indexer: Indexer::new(N),
@@ -82,6 +83,13 @@ where
 mod test {
     use super::*;
     use core::future;
+
+    #[test]
+    #[should_panic(expected = "race requires at least one future")]
+    fn empty_array() {
+        let futs: [future::Ready<()>; 0] = [];
+        let _ = futs.race();
+    }
 
     // NOTE: we should probably poll in random order.
     #[test]
