@@ -1,5 +1,5 @@
 use super::{Consumer, ConsumerState};
-use futures_buffered::FuturesUnordered;
+use crate::future::FutureGroup;
 use futures_lite::StreamExt;
 use pin_project::pin_project;
 
@@ -22,7 +22,7 @@ where
     // NOTE: we can remove the `Arc` here if we're willing to make this struct self-referential
     count: Arc<AtomicUsize>,
     #[pin]
-    group: FuturesUnordered<ForEachFut<F, FutT, T, FutB>>,
+    group: FutureGroup<ForEachFut<F, FutT, T, FutB>>,
     limit: usize,
     f: F,
     _phantom: PhantomData<(T, FutB)>,
@@ -44,7 +44,7 @@ where
             f,
             _phantom: PhantomData,
             count: Arc::new(AtomicUsize::new(0)),
-            group: FuturesUnordered::new(),
+            group: FutureGroup::new(),
         }
     }
 }
@@ -69,7 +69,7 @@ where
         // Space was available! - insert the item for posterity
         this.count.fetch_add(1, Ordering::Relaxed);
         let fut = ForEachFut::new(this.f.clone(), future, this.count.clone());
-        this.group.as_mut().push(fut);
+        this.group.as_mut().insert_pinned(fut);
 
         ConsumerState::Continue
     }

@@ -1,9 +1,9 @@
 use super::{ConcurrentStream, Consumer, ConsumerState, IntoConcurrentStream};
+use crate::future::FutureGroup;
 #[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
 use core::future::Future;
 use core::pin::Pin;
-use futures_buffered::FuturesUnordered;
 use futures_lite::StreamExt;
 use pin_project::pin_project;
 
@@ -44,14 +44,14 @@ impl<T, E> FromConcurrentStream<Result<T, E>> for Result<Vec<T>, E> {
 #[pin_project]
 pub(crate) struct VecConsumer<'a, Fut: Future> {
     #[pin]
-    group: FuturesUnordered<Fut>,
+    group: FutureGroup<Fut>,
     output: &'a mut Vec<Fut::Output>,
 }
 
 impl<'a, Fut: Future> VecConsumer<'a, Fut> {
     pub(crate) fn new(output: &'a mut Vec<Fut::Output>) -> Self {
         Self {
-            group: FuturesUnordered::new(),
+            group: FutureGroup::new(),
             output,
         }
     }
@@ -66,7 +66,7 @@ where
     async fn send(self: Pin<&mut Self>, future: Fut) -> super::ConsumerState {
         let mut this = self.project();
         // unbounded concurrency, so we just goooo
-        this.group.as_mut().push(future);
+        this.group.as_mut().insert_pinned(future);
         ConsumerState::Continue
     }
 
@@ -88,14 +88,14 @@ where
 #[pin_project]
 pub(crate) struct ResultVecConsumer<'a, Fut: Future, T, E> {
     #[pin]
-    group: FuturesUnordered<Fut>,
+    group: FutureGroup<Fut>,
     output: &'a mut Result<Vec<T>, E>,
 }
 
 impl<'a, Fut: Future, T, E> ResultVecConsumer<'a, Fut, T, E> {
     pub(crate) fn new(output: &'a mut Result<Vec<T>, E>) -> Self {
         Self {
-            group: FuturesUnordered::new(),
+            group: FutureGroup::new(),
             output,
         }
     }
@@ -110,7 +110,7 @@ where
     async fn send(self: Pin<&mut Self>, future: Fut) -> super::ConsumerState {
         let mut this = self.project();
         // unbounded concurrency, so we just goooo
-        this.group.as_mut().push(future);
+        this.group.as_mut().insert_pinned(future);
         ConsumerState::Continue
     }
 
