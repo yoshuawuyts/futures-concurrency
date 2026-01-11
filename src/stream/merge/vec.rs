@@ -66,6 +66,11 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
 
+        // return early if all streams are complete (handles empty vec)
+        if *this.complete == this.streams.len() {
+            return Poll::Ready(None);
+        }
+
         let mut readiness = this.wakers.readiness();
         readiness.set_waker(cx.waker());
 
@@ -139,6 +144,16 @@ mod tests {
     use futures_lite::stream;
 
     use crate::future::join::Join;
+
+    #[test]
+    fn empty_vec() {
+        block_on(async {
+            let streams: Vec<stream::Once<i32>> = vec![];
+            let mut s = streams.merge();
+            let result = s.next().await;
+            assert_eq!(result, None);
+        })
+    }
 
     #[test]
     fn merge_vec_4() {

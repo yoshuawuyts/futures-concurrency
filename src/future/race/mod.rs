@@ -22,5 +22,10 @@ pub trait Race {
     /// other futures are cancelled.
     ///
     /// This function returns a new future which polls all futures concurrently.
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if the collection is empty (for `Vec` and array
+    /// implementations) since there would be no future to race.
     fn race(self) -> Self::Future;
 }

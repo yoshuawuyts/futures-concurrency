@@ -17,7 +17,9 @@ impl Indexer {
     pub(crate) fn iter(&mut self) -> IndexIter {
         // Increment the starting point for next time.
         let offset = self.offset;
-        self.offset = (self.offset + 1).wrapping_rem(self.max);
+        if self.max > 0 {
+            self.offset = (self.offset + 1).wrapping_rem(self.max);
+        }
 
         IndexIter {
             iter: (0..self.max),
