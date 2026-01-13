@@ -12,7 +12,6 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use core::task::{ready, Context, Poll};
 
 // OK: validated! - all bounds should check out
-#[pin_project]
 pub(crate) struct ForEachConsumer<FutT, T, F, FutB>
 where
     FutT: Future<Output = T>,
@@ -21,11 +20,18 @@ where
 {
     // NOTE: we can remove the `Arc` here if we're willing to make this struct self-referential
     count: Arc<AtomicUsize>,
-    #[pin]
     group: FutureGroup<ForEachFut<F, FutT, T, FutB>>,
     limit: usize,
     f: F,
     _phantom: PhantomData<(T, FutB)>,
+}
+
+impl<FutT, T, F, FutB> Unpin for ForEachConsumer<FutT, T, F, FutB>
+where
+    FutT: Future<Output = T>,
+    F: Fn(T) -> FutB,
+    FutB: Future<Output = ()>,
+{
 }
 
 impl<A, T, F, B> ForEachConsumer<A, T, F, B>
@@ -60,32 +66,30 @@ where
     type Output = ();
 
     async fn send(self: Pin<&mut Self>, future: FutT) -> super::ConsumerState {
-        let mut this = self.project();
+        let mut this = self.get_mut();
         // If we have no space, we're going to provide backpressure until we have space
-        while this.count.load(Ordering::Relaxed) >= *this.limit {
+        while this.count.load(Ordering::Relaxed) >= this.limit {
             this.group.next().await;
         }
 
         // Space was available! - insert the item for posterity
         this.count.fetch_add(1, Ordering::Relaxed);
         let fut = ForEachFut::new(this.f.clone(), future, this.count.clone());
-        this.group.as_mut().insert_pinned(fut);
+        this.group.insert(fut);
 
         ConsumerState::Continue
     }
 
-    async fn progress(self: Pin<&mut Self>) -> super::ConsumerState {
-        let mut this = self.project();
-        while (this.group.next().await).is_some() {}
+    async fn progress(mut self: Pin<&mut Self>) -> super::ConsumerState {
+        while self.group.next().await.is_some() {}
         ConsumerState::Empty
     }
 
-    async fn flush(self: Pin<&mut Self>) -> Self::Output {
-        let mut this = self.project();
+    async fn flush(mut self: Pin<&mut Self>) -> Self::Output {
         // 4. We will no longer receive any additional futures from the
         // underlying stream; wait until all the futures in the group have
         // resolved.
-        while (this.group.next().await).is_some() {}
+        while self.group.next().await.is_some() {}
     }
 }
 

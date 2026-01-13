@@ -7,6 +7,8 @@ use alloc::{boxed::Box, vec::Vec};
 use core::{
     mem::MaybeUninit,
     ops::{Index, IndexMut},
+    pin::Pin,
+    ptr,
 };
 
 use fixedbitset::FixedBitSet;
@@ -109,43 +111,56 @@ impl<T> ChunkedVec<T> {
         index
     }
 
-    /// Removes and returns the value at the given index.
+    /// Removes and drops the value at the given index.
     ///
     /// # Panics
     ///
     /// Panics if the index is out of bounds or the slot is not occupied.
-    pub fn remove(&mut self, index: usize) -> T {
+    pub fn remove_in_place(&mut self, index: usize) {
         assert!(self.occupied.contains(index), "slot is not occupied");
 
         let (chunk, offset) = self.index_to_chunk_offset(index);
-        // SAFETY: we just verified the slot is occupied
-        let value = unsafe {
-            core::mem::replace(&mut self.chunks[chunk][offset], MaybeUninit::uninit()).assume_init()
-        };
+        // We verified that the slot is occupied.
+        // It's okay if the drop panics, because we mark the slot as unoccupied first
         self.occupied.set(index, false);
         self.free_list.push(index);
         self.len -= 1;
-        value
+        unsafe {
+            // SAFETY
+            // We know this was just occupied
+            ptr::drop_in_place(self.chunks[chunk][offset].as_mut_ptr());
+            // No double-frees occur because the slot was marked unoccupied
+        }
     }
 
     /// Returns a reference to the value at the given index.
-    pub fn get(&self, index: usize) -> Option<&T> {
+    pub fn get(&self, index: usize) -> Option<Pin<&T>> {
         if !self.occupied.contains(index) {
             return None;
         }
         let (chunk, offset) = self.index_to_chunk_offset(index);
-        // SAFETY: we just verified the slot is occupied
-        Some(unsafe { self.chunks[chunk][offset].assume_init_ref() })
+        Some(unsafe {
+            // SAFETY
+            // 1. We just verified the slot is occupied
+            // 2. We guarantee the memory stays pinned until dropped
+            let value = &self.chunks[chunk][offset];
+            Pin::new_unchecked(value.assume_init_ref())
+        })
     }
 
-    /// Returns a mutable reference to the value at the given index.
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
+    /// Returns a mutable reference to the (pinned) value at the given index.
+    pub fn get_mut(&mut self, index: usize) -> Option<Pin<&mut T>> {
         if !self.occupied.contains(index) {
             return None;
         }
         let (chunk, offset) = self.index_to_chunk_offset(index);
-        // SAFETY: we just verified the slot is occupied
-        Some(unsafe { self.chunks[chunk][offset].assume_init_mut() })
+        Some(unsafe {
+            // SAFETY
+            // 1. We just verified the slot is occupied
+            // 2. We guarantee the memory stays pinned until dropped
+            let value = &mut self.chunks[chunk][offset];
+            Pin::new_unchecked(value.assume_init_mut())
+        })
     }
 
     /// Returns `true` if the given index contains a value.
@@ -173,26 +188,31 @@ impl<T> Drop for ChunkedVec<T> {
     fn drop(&mut self) {
         for index in self.occupied.ones() {
             let (chunk, offset) = self.index_to_chunk_offset(index);
-            // SAFETY: we're iterating over occupied indices
             unsafe {
-                self.chunks[chunk][offset].assume_init_drop();
+                // SAFETY
+                // 1. We're iterating over occupied indices, so this is initialized
+                // 2. We make sure the value is dropped in-place
+                ptr::drop_in_place(self.chunks[chunk][offset].as_mut_ptr());
             }
         }
     }
 }
 
-impl<T> Index<usize> for ChunkedVec<T> {
+impl<T: Unpin> Index<usize> for ChunkedVec<T> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
-        self.get(index).expect("index out of bounds or slot empty")
+        self.get(index)
+            .expect("index out of bounds or slot empty")
+            .get_ref()
     }
 }
 
-impl<T> IndexMut<usize> for ChunkedVec<T> {
+impl<T: Unpin> IndexMut<usize> for ChunkedVec<T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.get_mut(index)
             .expect("index out of bounds or slot empty")
+            .get_mut()
     }
 }
 
@@ -218,8 +238,7 @@ mod tests {
         let idx0 = vec.insert(10);
         let idx1 = vec.insert(20);
 
-        let val = vec.remove(idx1);
-        assert_eq!(val, 20);
+        vec.remove_in_place(idx1);
         assert_eq!(vec.len(), 1);
         assert!(!vec.contains(idx1));
         assert!(vec.contains(idx0));
@@ -257,9 +276,9 @@ mod tests {
         let mut vec = ChunkedVec::new();
         vec.insert(10);
         vec.insert(20);
-        vec.remove(0);
+        vec.remove_in_place(0);
 
         assert!(vec.get(0).is_none());
-        assert_eq!(vec.get(1), Some(&20));
+        assert_eq!(vec.get(1).map(|v| *v), Some(20));
     }
 }

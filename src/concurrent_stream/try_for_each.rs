@@ -2,7 +2,6 @@ use crate::concurrent_stream::ConsumerState;
 use crate::future::FutureGroup;
 use crate::private::Try;
 use futures_lite::StreamExt;
-use pin_project::pin_project;
 
 use super::Consumer;
 use alloc::sync::Arc;
@@ -14,7 +13,6 @@ use core::pin::Pin;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use core::task::{ready, Context, Poll};
 
-#[pin_project]
 pub(crate) struct TryForEachConsumer<FutT, T, F, FutB, B>
 where
     FutT: Future<Output = T>,
@@ -24,12 +22,20 @@ where
 {
     // NOTE: we can remove the `Arc` here if we're willing to make this struct self-referential
     count: Arc<AtomicUsize>,
-    #[pin]
     group: FutureGroup<TryForEachFut<F, FutT, T, FutB, B>>,
     limit: usize,
     residual: Option<B::Residual>,
     f: F,
     _phantom: PhantomData<(T, FutB)>,
+}
+
+impl<FutT, T, F, FutB, B> Unpin for TryForEachConsumer<FutT, T, F, FutB, B>
+where
+    FutT: Future<Output = T>,
+    F: Clone + Fn(T) -> FutB,
+    FutB: Future<Output = B>,
+    B: Try<Output = ()>,
+{
 }
 
 impl<FutT, T, F, FutB, B> TryForEachConsumer<FutT, T, F, FutB, B>
@@ -66,9 +72,9 @@ where
     type Output = B;
 
     async fn send(self: Pin<&mut Self>, future: FutT) -> super::ConsumerState {
-        let mut this = self.project();
+        let mut this = self.get_mut();
         // If we have no space, we're going to provide backpressure until we have space
-        while this.count.load(Ordering::Relaxed) >= *this.limit {
+        while this.count.load(Ordering::Relaxed) >= this.limit {
             match this.group.next().await {
                 // Case 1: there are no more items available in the group. We
                 // can no longer iterate over them, and necessarily should be
@@ -82,7 +88,7 @@ where
                     // entirely so we can short-circuit with an error from the
                     // `flush` method.
                     ControlFlow::Break(residual) => {
-                        *this.residual = Some(residual);
+                        this.residual = Some(residual);
                         return ConsumerState::Break;
                     }
                 },
@@ -92,15 +98,15 @@ where
         // Space was available! - insert the item for posterity
         this.count.fetch_add(1, Ordering::Relaxed);
         let fut = TryForEachFut::new(this.f.clone(), future, this.count.clone());
-        this.group.as_mut().insert_pinned(fut);
+        this.group.insert(fut);
         ConsumerState::Continue
     }
 
     async fn progress(self: Pin<&mut Self>) -> super::ConsumerState {
-        let mut this = self.project();
+        let mut this = self.get_mut();
         while let Some(res) = this.group.next().await {
             if let ControlFlow::Break(residual) = res.branch() {
-                *this.residual = Some(residual);
+                this.residual = Some(residual);
                 return ConsumerState::Break;
             }
         }
@@ -108,7 +114,7 @@ where
     }
 
     async fn flush(self: Pin<&mut Self>) -> Self::Output {
-        let mut this = self.project();
+        let mut this = self.get_mut();
         // Return the error if we stopped iteration because of a previous error.
         if this.residual.is_some() {
             return B::from_residual(this.residual.take().unwrap());
