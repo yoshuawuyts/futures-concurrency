@@ -72,7 +72,7 @@ where
     type Output = B;
 
     async fn send(self: Pin<&mut Self>, future: FutT) -> super::ConsumerState {
-        let mut this = self.get_mut();
+        let this = self.get_mut();
         // If we have no space, we're going to provide backpressure until we have space
         while this.count.load(Ordering::Relaxed) >= this.limit {
             match this.group.next().await {
@@ -103,7 +103,7 @@ where
     }
 
     async fn progress(self: Pin<&mut Self>) -> super::ConsumerState {
-        let mut this = self.get_mut();
+        let this = self.get_mut();
         while let Some(res) = this.group.next().await {
             if let ControlFlow::Break(residual) = res.branch() {
                 this.residual = Some(residual);
@@ -114,7 +114,7 @@ where
     }
 
     async fn flush(self: Pin<&mut Self>) -> Self::Output {
-        let mut this = self.get_mut();
+        let this = self.get_mut();
         // Return the error if we stopped iteration because of a previous error.
         if this.residual.is_some() {
             return B::from_residual(this.residual.take().unwrap());

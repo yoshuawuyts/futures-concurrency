@@ -5,7 +5,6 @@ use alloc::vec::Vec;
 use core::future::Future;
 use core::pin::Pin;
 use futures_lite::StreamExt;
-use pin_project::pin_project;
 
 /// Conversion from a [`ConcurrentStream`]
 #[allow(async_fn_in_trait)]
