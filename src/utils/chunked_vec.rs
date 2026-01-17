@@ -197,9 +197,9 @@ impl<T> Drop for ChunkedVec<T> {
                 // SAFETY
                 // 1. We're iterating over occupied indices, so this is initialized
                 // 2. The value is dropped in-place
-                // 3. If drop_in_place panics, the pinned memory is not deallocated
                 let element = &mut chunks[chunk][offset];
                 ptr::drop_in_place(element.as_mut_ptr());
+                // If drop_in_place panicked, the remaining memory isn't dropped
             }
         }
         unsafe {
