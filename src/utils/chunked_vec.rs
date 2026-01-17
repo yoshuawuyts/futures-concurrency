@@ -5,7 +5,7 @@
 
 use alloc::{boxed::Box, vec::Vec};
 use core::{
-    mem::MaybeUninit,
+    mem::{self, ManuallyDrop, MaybeUninit},
     ops::{Index, IndexMut},
     pin::Pin,
     ptr,
@@ -186,14 +186,26 @@ impl<T> ChunkedVec<T> {
 
 impl<T> Drop for ChunkedVec<T> {
     fn drop(&mut self) {
+        // Manually deallocate the memory we use, ONLY if dropping futures succeeded
+        // This is required to uphold the drop guarantee for pinned data
+        let chunks = mem::take(&mut self.chunks);
+        let mut chunks = ManuallyDrop::new(chunks);
+
         for index in self.occupied.ones() {
             let (chunk, offset) = self.index_to_chunk_offset(index);
             unsafe {
                 // SAFETY
                 // 1. We're iterating over occupied indices, so this is initialized
-                // 2. We make sure the value is dropped in-place
-                ptr::drop_in_place(self.chunks[chunk][offset].as_mut_ptr());
+                // 2. The value is dropped in-place
+                // 3. If drop_in_place panics, the pinned memory is not deallocated
+                let element = &mut chunks[chunk][offset];
+                ptr::drop_in_place(element.as_mut_ptr());
             }
+        }
+        unsafe {
+            // SAFETY
+            // All elements were dropped, without panics. Can now release the memory
+            ManuallyDrop::drop(&mut chunks);
         }
     }
 }
