@@ -5,7 +5,6 @@ use alloc::vec::Vec;
 use core::future::Future;
 use core::pin::Pin;
 use futures_lite::StreamExt;
-use pin_project::pin_project;
 
 /// Conversion from a [`ConcurrentStream`]
 #[allow(async_fn_in_trait)]
@@ -41,9 +40,7 @@ impl<T, E> FromConcurrentStream<Result<T, E>> for Result<Vec<T>, E> {
 }
 
 // TODO: replace this with a generalized `fold` operation
-#[pin_project]
 pub(crate) struct VecConsumer<'a, Fut: Future> {
-    #[pin]
     group: FutureGroup<Fut>,
     output: &'a mut Vec<Fut::Output>,
 }
@@ -63,31 +60,28 @@ where
 {
     type Output = ();
 
-    async fn send(self: Pin<&mut Self>, future: Fut) -> super::ConsumerState {
-        let mut this = self.project();
+    async fn send(mut self: Pin<&mut Self>, future: Fut) -> super::ConsumerState {
         // unbounded concurrency, so we just goooo
-        this.group.as_mut().insert_pinned(future);
+        self.group.insert(future);
         ConsumerState::Continue
     }
 
     async fn progress(self: Pin<&mut Self>) -> super::ConsumerState {
-        let mut this = self.project();
+        let this = self.get_mut();
         while let Some(item) = this.group.next().await {
             this.output.push(item);
         }
         ConsumerState::Empty
     }
     async fn flush(self: Pin<&mut Self>) -> Self::Output {
-        let mut this = self.project();
+        let this = self.get_mut();
         while let Some(item) = this.group.next().await {
             this.output.push(item);
         }
     }
 }
 
-#[pin_project]
 pub(crate) struct ResultVecConsumer<'a, Fut: Future, T, E> {
-    #[pin]
     group: FutureGroup<Fut>,
     output: &'a mut Result<Vec<T>, E>,
 }
@@ -107,15 +101,14 @@ where
 {
     type Output = ();
 
-    async fn send(self: Pin<&mut Self>, future: Fut) -> super::ConsumerState {
-        let mut this = self.project();
+    async fn send(mut self: Pin<&mut Self>, future: Fut) -> super::ConsumerState {
         // unbounded concurrency, so we just goooo
-        this.group.as_mut().insert_pinned(future);
+        self.group.insert(future);
         ConsumerState::Continue
     }
 
     async fn progress(self: Pin<&mut Self>) -> super::ConsumerState {
-        let mut this = self.project();
+        let this = self.get_mut();
         let Ok(items) = this.output else {
             return ConsumerState::Break;
         };
@@ -126,7 +119,7 @@ where
                     items.push(item);
                 }
                 Err(e) => {
-                    **this.output = Err(e);
+                    *this.output = Err(e);
                     return ConsumerState::Break;
                 }
             }

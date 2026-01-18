@@ -9,6 +9,7 @@ use std::{
     future::Future,
     marker::PhantomPinned,
     pin::{pin, Pin},
+    ptr,
     task::{Context, Poll},
 };
 
@@ -23,18 +24,38 @@ fn get_inner_mut<T>(pin: Pin<&mut T>) -> &mut T {
     unsafe { pin.get_unchecked_mut() }
 }
 
-struct PinCheckFuture {
-    self_ptr: Option<*const Self>,
-    remaining: usize,
+#[derive(Default)]
+struct AntiMove {
+    saved: *const AntiMove,
     _pinned: PhantomPinned,
+}
+
+impl AntiMove {
+    fn anti_move_check(&mut self) {
+        if self.saved.is_null() {
+            self.saved = self;
+        } else {
+            assert!(ptr::eq(self.saved, self), "Failed anti-move check");
+        }
+    }
+}
+
+impl Drop for AntiMove {
+    fn drop(&mut self) {
+        self.anti_move_check();
+    }
+}
+
+struct PinCheckFuture {
+    anti_move: AntiMove,
+    remaining: usize,
 }
 
 impl PinCheckFuture {
     fn polls(polls: usize) -> Self {
         Self {
-            self_ptr: None,
+            anti_move: AntiMove::default(),
             remaining: polls,
-            _pinned: PhantomPinned,
         }
     }
 }
@@ -44,9 +65,7 @@ impl Future for PinCheckFuture {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<usize> {
         let this = unsafe { self.get_unchecked_mut() };
-        let current = this as *const Self;
-        let stored = *this.self_ptr.get_or_insert(current);
-        assert_eq!(stored, current, "moved after pinning");
+        this.anti_move.anti_move_check();
 
         if this.remaining > 0 {
             this.remaining -= 1;
@@ -59,17 +78,15 @@ impl Future for PinCheckFuture {
 }
 
 struct PinCheckStream {
+    anti_move: AntiMove,
     remaining: usize,
-    self_ptr: Option<*const Self>,
-    _pinned: PhantomPinned,
 }
 
 impl PinCheckStream {
     fn polls(items: usize) -> Self {
         Self {
+            anti_move: AntiMove::default(),
             remaining: items,
-            self_ptr: None,
-            _pinned: PhantomPinned,
         }
     }
 }
@@ -79,9 +96,7 @@ impl Stream for PinCheckStream {
 
     fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<usize>> {
         let this = unsafe { self.get_unchecked_mut() };
-        let current = this as *const Self;
-        let stored = *this.self_ptr.get_or_insert(current);
-        assert_eq!(stored, current, "moved after pinning");
+        this.anti_move.anti_move_check();
 
         if this.remaining > 0 {
             this.remaining -= 1;
