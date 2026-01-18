@@ -5,7 +5,11 @@
 mod array;
 #[cfg(feature = "alloc")]
 mod chunked_vec;
+/// Indexer used for dynamic number of futures, like with `Vec`.
+#[cfg(feature = "alloc")]
+mod dyn_indexer;
 mod futures;
+/// Indexer used for static number of futures, like with arrays and tuples.
 mod indexer;
 mod output;
 mod pin;
@@ -23,6 +27,8 @@ pub(crate) use self::futures::FutureVec;
 pub(crate) use array::array_assume_init;
 #[cfg(feature = "alloc")]
 pub(crate) use chunked_vec::ChunkedVec;
+#[cfg(feature = "alloc")]
+pub(crate) use dyn_indexer::DynIndexer;
 pub(crate) use indexer::Indexer;
 pub(crate) use output::OutputArray;
 #[cfg(feature = "alloc")]

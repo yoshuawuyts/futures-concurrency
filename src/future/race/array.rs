@@ -24,7 +24,7 @@ where
 {
     #[pin]
     futures: [Fut; N],
-    indexer: Indexer,
+    indexer: Indexer<N>,
     done: bool,
 }
 
@@ -73,7 +73,7 @@ where
         assert!(N > 0, "race requires at least one future");
         Race {
             futures: self.map(|fut| fut.into_future()),
-            indexer: Indexer::new(N),
+            indexer: Indexer::new(),
             done: false,
         }
     }
