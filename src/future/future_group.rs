@@ -57,9 +57,7 @@ use crate::utils::{ChunkedVec, PollState, PollVec, WakerVec};
 /// # });}
 /// ```
 #[must_use = "`FutureGroup` does nothing if not iterated over"]
-#[pin_project::pin_project]
 pub struct FutureGroup<F> {
-    #[pin]
     futures: ChunkedVec<F>,
     wakers: WakerVec,
     states: PollVec,
@@ -189,7 +187,7 @@ impl<F> FutureGroup<F> {
         let is_present = self.keys.remove(&key.0);
         if is_present {
             self.states[key.0].set_none();
-            self.futures.remove(key.0);
+            self.futures.remove_in_place(key.0);
         }
         is_present
     }
@@ -272,43 +270,6 @@ impl<F: Future> FutureGroup<F> {
         Key(index)
     }
 
-    /// Insert a value into a pinned `FutureGroup`
-    ///
-    /// This method is private because it serves as an implementation detail for
-    /// `ConcurrentStream`. We should never expose this publicly, as the entire
-    /// point of this crate is that we abstract the futures poll machinery away
-    /// from end-users.
-    ///
-    /// # Safety
-    ///
-    /// This is safe because `ChunkedVec` uses a triangular allocation
-    /// strategy that never moves existing elements when growing. Each bucket
-    /// is a heap-allocated box that remains at a stable address.
-    #[allow(unused)]
-    pub(crate) fn insert_pinned(self: Pin<&mut Self>, future: F) -> Key
-    where
-        F: Future,
-    {
-        let mut this = self.project();
-        // SAFETY: ChunkedVec guarantees that inserting a value never moves
-        // existing values. Growth allocates new buckets without touching existing ones.
-        let index = unsafe { this.futures.as_mut().get_unchecked_mut() }.insert(future);
-        this.keys.insert(index);
-        let key = Key(index);
-
-        // Update tracking structures to match the new capacity
-        let new_cap = this.futures.as_ref().capacity();
-        this.wakers.resize(new_cap);
-        this.states.resize(new_cap);
-
-        // Set the corresponding state
-        this.states[index].set_pending();
-        let mut readiness = this.wakers.readiness();
-        readiness.set_ready(index);
-
-        key
-    }
-
     /// Create a stream which also yields the key of each item.
     ///
     /// # Example
@@ -337,19 +298,14 @@ impl<F: Future> FutureGroup<F> {
 }
 
 impl<F: Future> FutureGroup<F> {
-    fn poll_next_inner(
-        self: Pin<&mut Self>,
-        cx: &Context<'_>,
-    ) -> Poll<Option<(Key, <F as Future>::Output)>> {
-        let mut this = self.project();
-
+    fn poll_next_inner(&mut self, cx: &Context<'_>) -> Poll<Option<(Key, <F as Future>::Output)>> {
         // Short-circuit if we have no futures to iterate over
-        if this.futures.is_empty() {
+        if self.futures.is_empty() {
             return Poll::Ready(None);
         }
 
         // Set the top-level waker and check readiness
-        let mut readiness = this.wakers.readiness();
+        let mut readiness = self.wakers.readiness();
         readiness.set_waker(cx.waker());
         if !readiness.any_ready() {
             // Nothing is ready yet
@@ -358,24 +314,21 @@ impl<F: Future> FutureGroup<F> {
 
         // Setup our futures state
         let mut ret = Poll::Pending;
-        let states = this.states;
+        let states = &mut self.states;
+        let futures = &mut self.futures;
 
-        // SAFETY: We unpin the future group so we can later individually access
-        // single futures. Either to read from them or to drop them.
-        let futures = unsafe { this.futures.as_mut().get_unchecked_mut() };
-
-        for index in this.keys.iter().cloned() {
+        for index in self.keys.iter().cloned() {
             if states[index].is_pending() && readiness.clear_ready(index) {
                 // unlock readiness so we don't deadlock when polling
                 #[allow(clippy::drop_non_drop)]
                 drop(readiness);
 
                 // Obtain the intermediate waker.
-                let mut cx = Context::from_waker(this.wakers.get(index).unwrap());
+                let mut cx = Context::from_waker(self.wakers.get(index).unwrap());
 
-                // SAFETY: this future here is a projection from the futures
+                // SAFETY: self future here is a projection from the futures
                 // vec, which we're reading from.
-                let future = unsafe { Pin::new_unchecked(&mut futures[index]) };
+                let future = futures.get_mut(index).expect("index ready but not init?");
                 match future.poll(&mut cx) {
                     Poll::Ready(item) => {
                         // Set the return type for the function
@@ -384,7 +337,7 @@ impl<F: Future> FutureGroup<F> {
                         // Remove all associated data with the future
                         // The only data we can't remove directly is the key entry.
                         states[index] = PollState::None;
-                        futures.remove(index);
+                        futures.remove_in_place(index);
 
                         break;
                     }
@@ -393,14 +346,14 @@ impl<F: Future> FutureGroup<F> {
                 };
 
                 // Lock readiness so we can use it again
-                readiness = this.wakers.readiness();
+                readiness = self.wakers.readiness();
             }
         }
 
-        // Now that we're no longer borrowing `this.keys` we can remove
+        // Now that we're no longer borrowing `self.keys` we can remove
         // the current key from the set
         if let Poll::Ready(Some((key, _))) = ret {
-            this.keys.remove(&key.0);
+            self.keys.remove(&key.0);
         }
 
         ret
@@ -410,7 +363,7 @@ impl<F: Future> FutureGroup<F> {
 impl<F: Future> Stream for FutureGroup<F> {
     type Item = <F as Future>::Output;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.poll_next_inner(cx) {
             Poll::Ready(Some((_key, item))) => Poll::Ready(Some(item)),
             Poll::Ready(None) => Poll::Ready(None),

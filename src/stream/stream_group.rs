@@ -57,9 +57,7 @@ use crate::utils::{ChunkedVec, PollState, PollVec, WakerVec};
 /// ```
 #[must_use = "`StreamGroup` does nothing if not iterated over"]
 #[derive(Default)]
-#[pin_project::pin_project]
 pub struct StreamGroup<S> {
-    #[pin]
     streams: ChunkedVec<S>,
     wakers: WakerVec,
     states: PollVec,
@@ -185,7 +183,7 @@ impl<S> StreamGroup<S> {
         let is_present = self.keys.remove(&key.0);
         if is_present {
             self.states[key.0].set_none();
-            self.streams.remove(key.0);
+            self.streams.remove_in_place(key.0);
         }
         is_present
     }
@@ -295,19 +293,14 @@ impl<S: Stream> StreamGroup<S> {
 }
 
 impl<S: Stream> StreamGroup<S> {
-    fn poll_next_inner(
-        mut self: Pin<&mut Self>,
-        cx: &Context<'_>,
-    ) -> Poll<Option<(Key, <S as Stream>::Item)>> {
-        let mut this = self.as_mut().project();
-
+    fn poll_next_inner(&mut self, cx: &Context<'_>) -> Poll<Option<(Key, <S as Stream>::Item)>> {
         // Short-circuit if we have no streams to iterate over
-        if this.streams.is_empty() {
+        if self.streams.is_empty() {
             return Poll::Ready(None);
         }
 
         // Set the top-level waker and check readiness
-        let mut readiness = this.wakers.readiness();
+        let mut readiness = self.wakers.readiness();
         readiness.set_waker(cx.waker());
         if !readiness.any_ready() {
             // Nothing is ready yet
@@ -317,25 +310,22 @@ impl<S: Stream> StreamGroup<S> {
         // Setup our stream state
         let mut ret = Poll::Pending;
         let mut done_count = 0;
-        let stream_count = this.streams.len();
-        let states = this.states;
+        let stream_count = self.streams.len();
+        let states = &mut self.states;
+        let streams = &mut self.streams;
 
-        // SAFETY: We unpin the stream set so we can later individually access
-        // single streams. Either to read from them or to drop them.
-        let streams = unsafe { this.streams.as_mut().get_unchecked_mut() };
-
-        for index in this.keys.iter().cloned() {
+        for index in self.keys.iter().cloned() {
             if states[index].is_pending() && readiness.clear_ready(index) {
                 // unlock readiness so we don't deadlock when polling
                 #[allow(clippy::drop_non_drop)]
                 drop(readiness);
 
                 // Obtain the intermediate waker.
-                let mut cx = Context::from_waker(this.wakers.get(index).unwrap());
+                let mut cx = Context::from_waker(self.wakers.get(index).unwrap());
 
                 // SAFETY: this stream here is a projection from the streams
                 // vec, which we're reading from.
-                let stream = unsafe { Pin::new_unchecked(&mut streams[index]) };
+                let stream = streams.get_mut(index).expect("index ready but not init?");
                 match stream.poll_next(&mut cx) {
                     Poll::Ready(Some(item)) => {
                         // Set the return type for the function
@@ -344,7 +334,7 @@ impl<S: Stream> StreamGroup<S> {
                         // We just obtained an item from this index, make sure
                         // we check it again on a next iteration
                         states[index] = PollState::Pending;
-                        let mut readiness = this.wakers.readiness();
+                        let mut readiness = self.wakers.readiness();
                         readiness.set_ready(index);
 
                         break;
@@ -356,25 +346,25 @@ impl<S: Stream> StreamGroup<S> {
                         // Remove all associated data about the stream.
                         // The only data we can't remove directly is the key entry.
                         states[index] = PollState::None;
-                        streams.remove(index);
-                        this.key_removal_queue.push(index);
+                        streams.remove_in_place(index);
+                        self.key_removal_queue.push(index);
                     }
                     // Keep looping if there is nothing for us to do
                     Poll::Pending => {}
                 };
 
                 // Lock readiness so we can use it again
-                readiness = this.wakers.readiness();
+                readiness = self.wakers.readiness();
             }
         }
 
         // Now that we're no longer borrowing `this.keys` we can loop over
         // which items we need to remove
-        if !this.key_removal_queue.is_empty() {
-            for key in this.key_removal_queue.iter() {
-                this.keys.remove(key);
+        if !self.key_removal_queue.is_empty() {
+            for key in self.key_removal_queue.iter() {
+                self.keys.remove(key);
             }
-            this.key_removal_queue.clear();
+            self.key_removal_queue.clear();
         }
 
         // If all streams turned up with `Poll::Ready(None)` our
@@ -390,7 +380,7 @@ impl<S: Stream> StreamGroup<S> {
 impl<S: Stream> Stream for StreamGroup<S> {
     type Item = <S as Stream>::Item;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.poll_next_inner(cx) {
             Poll::Ready(Some((_key, item))) => Poll::Ready(Some(item)),
             Poll::Ready(None) => Poll::Ready(None),
@@ -417,9 +407,7 @@ pub struct Key(usize);
 
 /// Iterate over items in the stream group with their associated keys.
 #[derive(Debug)]
-#[pin_project::pin_project]
 pub struct Keyed<S: Stream> {
-    #[pin]
     group: StreamGroup<S>,
 }
 
@@ -440,9 +428,8 @@ impl<S: Stream> DerefMut for Keyed<S> {
 impl<S: Stream> Stream for Keyed<S> {
     type Item = (Key, <S as Stream>::Item);
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut this = self.project();
-        this.group.as_mut().poll_next_inner(cx)
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.group.poll_next_inner(cx)
     }
 }
 
