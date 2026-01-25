@@ -29,6 +29,8 @@ where
     _phantom: PhantomData<(T, FutB)>,
 }
 
+/// SAFETY: The only non-Unpin field is `f: F`, but we never pin-project to it.
+/// The futures are stored in `FutureGroup` which handles pinning internally.
 impl<FutT, T, F, FutB, B> Unpin for TryForEachConsumer<FutT, T, F, FutB, B>
 where
     FutT: Future<Output = T>,

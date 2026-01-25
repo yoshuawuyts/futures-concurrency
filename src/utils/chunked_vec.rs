@@ -19,6 +19,13 @@ const DEFAULT_CHUNK_SIZE: usize = 16;
 ///
 /// This is suitable for storing pinned futures/streams because elements
 /// maintain their memory location for their entire lifetime.
+///
+/// # SAFETY
+///
+///`ChunkedVec` is `Unpin` regardless of `T` because `T` is stored behind
+/// a heap indirection. Moving a `ChunkedVec` never moves the stored `T` values,
+/// they remain at stable addresses in their heap-allocated chunks. This allows types
+/// like `FutureGroup<F>` and `StreamGroup<S>` to be `Unpin` even when F/S are `!Unpin`.
 pub struct ChunkedVec<T> {
     chunks: Vec<Box<[MaybeUninit<T>]>>,
     occupied: FixedBitSet,
@@ -231,6 +238,11 @@ impl<T: Unpin> IndexMut<usize> for ChunkedVec<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const _CHUNKED_VEC_MUST_BE_UNPIN: () = {
+        const fn assert_unpin<T: Unpin>() {}
+        assert_unpin::<ChunkedVec<std::marker::PhantomPinned>>();
+    };
 
     #[test]
     fn index_mapping() {
