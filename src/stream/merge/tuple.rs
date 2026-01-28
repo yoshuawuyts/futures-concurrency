@@ -65,8 +65,11 @@ macro_rules! impl_merge_tuple {
     };
     ($mod_name:ident $StructName:ident $($F:ident)+) => {
         mod $mod_name {
+            #[allow(non_snake_case)]
+
             #[pin_project::pin_project]
-            pub(super) struct Streams<$($F,)+> { $(#[pin] pub(super) $F: $F),+ }
+            #[derive(Debug)]
+            pub struct Streams<$($F,)+> { $( #[pin] pub $F: $F),+ }
 
             #[repr(usize)]
             pub(super) enum Indexes { $($F),+ }
@@ -91,6 +94,15 @@ macro_rules! impl_merge_tuple {
             wakers: WakerArray<{$mod_name::LEN}>,
             state: PollArray<{$mod_name::LEN}>,
             completed: u8,
+        }
+
+        impl<T, $($F),*> $StructName<T, $($F),*>
+        where $(
+            $F: Stream<Item = T>,
+        )* {
+            pub fn inner_streams(&mut self) -> &mut $mod_name::Streams<$($F,)+> {
+                &mut self.streams
+            }
         }
 
         impl<T, $($F),*> fmt::Debug for $StructName<T, $($F),*>
@@ -272,6 +284,29 @@ mod tests {
                 counter += n;
             }
             assert_eq!(counter, 10);
+        })
+    }
+
+    /// This test case access the merged streams and do some modification on them
+    #[test]
+    fn accessing_merged_tuple() {
+        block_on(async {
+            let a_init = stream::once(1);
+            let a_add = stream::once(2);
+            let mut a = futures_util::stream::SelectAll::new();
+            a.push(a_init);
+            let b = stream::once(3);
+            let mut s = (a, b).merge();
+
+            let mut counter = 0;
+            if let Some(n) = s.next().await {
+                counter += n;
+            }
+            s.inner_streams().A.push(a_add);
+            while let Some(n) = s.next().await {
+                counter += n;
+            }
+            assert_eq!(counter, 6);
         })
     }
 
