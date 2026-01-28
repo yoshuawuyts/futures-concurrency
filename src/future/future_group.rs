@@ -398,9 +398,7 @@ pub struct Key(usize);
 
 /// Iterate over items in the futures group with their associated keys.
 #[derive(Debug)]
-#[pin_project::pin_project]
 pub struct Keyed<F: Future> {
-    #[pin]
     group: FutureGroup<F>,
 }
 
@@ -421,9 +419,8 @@ impl<F: Future> DerefMut for Keyed<F> {
 impl<F: Future> Stream for Keyed<F> {
     type Item = (Key, <F as Future>::Output);
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut this = self.project();
-        this.group.as_mut().poll_next_inner(cx)
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.group.poll_next_inner(cx)
     }
 }
 
