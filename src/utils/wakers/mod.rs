@@ -3,6 +3,8 @@ mod array;
 mod dummy;
 #[cfg(feature = "alloc")]
 mod vec;
+// #[cfg(feature = "alloc")]
+mod shared_arc;
 
 #[cfg(all(test, feature = "alloc"))]
 pub(crate) use dummy::DummyWaker;
