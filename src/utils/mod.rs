@@ -13,6 +13,7 @@ mod futures;
 mod indexer;
 mod output;
 mod pin;
+mod pinned_slot;
 mod poll_state;
 mod stream;
 mod tuple;
@@ -36,6 +37,7 @@ pub(crate) use output::OutputVec;
 pub(crate) use pin::{get_pin_mut, iter_pin_mut};
 #[cfg(feature = "alloc")]
 pub(crate) use pin::{get_pin_mut_from_vec, iter_pin_mut_vec};
+pub(crate) use pinned_slot::PinnedSlot;
 pub(crate) use poll_state::PollArray;
 #[cfg(feature = "alloc")]
 pub(crate) use poll_state::{MaybeDone, PollState, PollVec};

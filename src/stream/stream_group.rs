@@ -6,7 +6,7 @@ use core::task::{Context, Poll};
 use futures_core::Stream;
 use smallvec::{smallvec, SmallVec};
 
-use crate::utils::{ChunkedVec, PollState, PollVec, WakerVec};
+use crate::utils::{ChunkedVec, PinnedSlot, PollState, PollVec, WakerVec};
 
 /// A growable group of streams which act as a single unit.
 ///
@@ -58,7 +58,7 @@ use crate::utils::{ChunkedVec, PollState, PollVec, WakerVec};
 #[must_use = "`StreamGroup` does nothing if not iterated over"]
 #[derive(Default)]
 pub struct StreamGroup<S> {
-    streams: ChunkedVec<S>,
+    streams: ChunkedVec<PinnedSlot<S>>,
     wakers: WakerVec,
     states: PollVec,
     keys: BTreeSet<usize>,
@@ -251,7 +251,7 @@ impl<S: Stream> StreamGroup<S> {
     where
         S: Stream,
     {
-        let index = self.streams.insert(stream);
+        let index = self.streams.insert(PinnedSlot::new(stream));
         self.keys.insert(index);
 
         // Ensure wakers and states have enough capacity

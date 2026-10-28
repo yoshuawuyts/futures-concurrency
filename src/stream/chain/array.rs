@@ -1,3 +1,4 @@
+use crate::utils::PinnedSlot;
 use core::fmt;
 use core::pin::Pin;
 use core::task::{Context, Poll};
@@ -19,7 +20,7 @@ use super::Chain as ChainTrait;
 #[pin_project]
 pub struct Chain<S, const N: usize> {
     #[pin]
-    streams: [S; N],
+    streams: [PinnedSlot<S>; N],
     index: usize,
     len: usize,
     done: bool,
@@ -70,7 +71,7 @@ impl<S: Stream, const N: usize> ChainTrait for [S; N] {
     fn chain(self) -> Self::Stream {
         Chain {
             len: self.len(),
-            streams: self,
+            streams: self.map(PinnedSlot::new),
             index: 0,
             done: false,
         }

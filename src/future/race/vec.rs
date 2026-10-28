@@ -1,4 +1,4 @@
-use crate::utils::{self, DynIndexer};
+use crate::utils::{self, DynIndexer, PinnedSlot};
 
 use super::Race as RaceTrait;
 
@@ -26,7 +26,7 @@ where
     Fut: Future,
 {
     #[pin]
-    futures: Vec<Fut>,
+    futures: Vec<PinnedSlot<Fut>>,
     indexer: DynIndexer,
     done: bool,
 }
@@ -76,7 +76,10 @@ where
         assert!(!self.is_empty(), "race requires at least one future");
         Race {
             indexer: DynIndexer::new(self.len()),
-            futures: self.into_iter().map(|fut| fut.into_future()).collect(),
+            futures: self
+                .into_iter()
+                .map(|fut| PinnedSlot::new(fut.into_future()))
+                .collect(),
             done: false,
         }
     }

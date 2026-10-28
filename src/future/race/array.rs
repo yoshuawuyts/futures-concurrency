@@ -1,4 +1,4 @@
-use crate::utils::{self, Indexer};
+use crate::utils::{self, Indexer, PinnedSlot};
 
 use super::Race as RaceTrait;
 
@@ -23,7 +23,7 @@ where
     Fut: Future,
 {
     #[pin]
-    futures: [Fut; N],
+    futures: [PinnedSlot<Fut>; N],
     indexer: Indexer<N>,
     done: bool,
 }
@@ -72,7 +72,7 @@ where
     fn race(self) -> Self::Future {
         assert!(N > 0, "race requires at least one future");
         Race {
-            futures: self.map(|fut| fut.into_future()),
+            futures: self.map(|fut| PinnedSlot::new(fut.into_future())),
             indexer: Indexer::new(),
             done: false,
         }

@@ -1,6 +1,6 @@
 use super::Zip as ZipTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, PollArray, WakerArray};
+use crate::utils::{self, PinnedSlot, PollArray, WakerArray};
 
 use core::array;
 use core::fmt;
@@ -24,7 +24,7 @@ where
     S: Stream,
 {
     #[pin]
-    streams: [S; N],
+    streams: [PinnedSlot<S>; N],
     output: [MaybeUninit<<S as Stream>::Item>; N],
     wakers: WakerArray<N>,
     state: PollArray<N>,
@@ -37,7 +37,7 @@ where
 {
     pub(crate) fn new(streams: [S; N]) -> Self {
         Self {
-            streams,
+            streams: streams.map(PinnedSlot::new),
             output: array::from_fn(|_| MaybeUninit::uninit()),
             state: PollArray::new_pending(),
             wakers: WakerArray::new(),

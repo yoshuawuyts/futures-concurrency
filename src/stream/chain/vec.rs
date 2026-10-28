@@ -1,3 +1,4 @@
+use crate::utils::PinnedSlot;
 #[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
 
@@ -22,7 +23,7 @@ use super::Chain as ChainTrait;
 #[pin_project]
 pub struct Chain<S> {
     #[pin]
-    streams: Vec<S>,
+    streams: Vec<PinnedSlot<S>>,
     index: usize,
     len: usize,
     done: bool,
@@ -73,7 +74,7 @@ impl<S: Stream> ChainTrait for Vec<S> {
     fn chain(self) -> Self::Stream {
         Chain {
             len: self.len(),
-            streams: self,
+            streams: self.into_iter().map(PinnedSlot::new).collect(),
             index: 0,
             done: false,
         }

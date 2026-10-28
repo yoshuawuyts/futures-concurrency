@@ -1,6 +1,6 @@
 use super::Zip as ZipTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, PollVec, WakerVec};
+use crate::utils::{self, PinnedSlot, PollVec, WakerVec};
 #[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
 
@@ -26,7 +26,7 @@ where
     S: Stream,
 {
     #[pin]
-    streams: Vec<S>,
+    streams: Vec<PinnedSlot<S>>,
     output: Vec<MaybeUninit<<S as Stream>::Item>>,
     wakers: WakerVec,
     state: PollVec,
@@ -42,7 +42,7 @@ where
         let len = streams.len();
         Self {
             len,
-            streams,
+            streams: streams.into_iter().map(PinnedSlot::new).collect(),
             wakers: WakerVec::new(len),
             output: (0..len).map(|_| MaybeUninit::uninit()).collect(),
             state: PollVec::new_pending(len),

@@ -1,6 +1,6 @@
 use super::Merge as MergeTrait;
 use crate::stream::IntoStream;
-use crate::utils::{self, Indexer, PollArray, WakerArray};
+use crate::utils::{self, Indexer, PinnedSlot, PollArray, WakerArray};
 
 use core::fmt;
 use core::pin::Pin;
@@ -20,7 +20,7 @@ where
     S: Stream,
 {
     #[pin]
-    streams: [S; N],
+    streams: [PinnedSlot<S>; N],
     indexer: Indexer<N>,
     wakers: WakerArray<N>,
     state: PollArray<N>,
@@ -34,7 +34,7 @@ where
 {
     pub(crate) fn new(streams: [S; N]) -> Self {
         Self {
-            streams,
+            streams: streams.map(PinnedSlot::new),
             indexer: Indexer::new(),
             wakers: WakerArray::new(),
             state: PollArray::new_pending(),

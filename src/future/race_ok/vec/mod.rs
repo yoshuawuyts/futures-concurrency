@@ -1,6 +1,5 @@
 use super::RaceOk as RaceOkTrait;
-use crate::utils::iter_pin_mut;
-use crate::utils::MaybeDone;
+use crate::utils::{iter_pin_mut, MaybeDone, PinnedSlot};
 
 #[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::{boxed::Box, vec::Vec};
@@ -27,7 +26,7 @@ pub struct RaceOk<Fut, T, E>
 where
     Fut: Future<Output = Result<T, E>>,
 {
-    elems: Pin<Box<[MaybeDone<Fut>]>>,
+    elems: Pin<Box<[PinnedSlot<MaybeDone<Fut>>]>>,
 }
 
 impl<Fut, T, E> fmt::Debug for RaceOk<Fut, T, E>
@@ -52,7 +51,7 @@ where
         for mut elem in iter_pin_mut(self.elems.as_mut()) {
             if elem.as_mut().poll(cx).is_pending() {
                 all_done = false
-            } else if let Some(output) = elem.take_ok() {
+            } else if let Some(output) = elem.project().take_ok() {
                 return Poll::Ready(Ok(output));
             }
         }
@@ -60,7 +59,7 @@ where
         if all_done {
             let mut elems = mem::replace(&mut self.elems, Box::pin([]));
             let result: Vec<E> = iter_pin_mut(elems.as_mut())
-                .map(|e| match e.take_err() {
+                .map(|e| match e.project().take_err() {
                     Some(err) => err,
                     // Since all futures are done without any one of them returning `Ok`, they're
                     // all `Err`s and so `take_err` cannot fail
@@ -85,7 +84,7 @@ where
     fn race_ok(self) -> Self::Future {
         let elems: Box<[_]> = self
             .into_iter()
-            .map(|fut| MaybeDone::new(fut.into_future()))
+            .map(|fut| PinnedSlot::new(MaybeDone::new(fut.into_future())))
             .collect();
         RaceOk {
             elems: elems.into(),

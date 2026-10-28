@@ -1,7 +1,5 @@
 use super::RaceOk as RaceOkTrait;
-use crate::utils::array_assume_init;
-use crate::utils::iter_pin_mut;
-use crate::utils::PollArray;
+use crate::utils::{array_assume_init, iter_pin_mut, PinnedSlot, PollArray};
 
 use core::array;
 use core::fmt;
@@ -30,7 +28,7 @@ where
     Fut: Future<Output = Result<T, E>>,
 {
     #[pin]
-    futures: [Fut; N],
+    futures: [PinnedSlot<Fut>; N],
     errors: [MaybeUninit<E>; N],
     error_states: PollArray<N>,
     completed: usize,
@@ -122,7 +120,7 @@ where
 
     fn race_ok(self) -> Self::Future {
         RaceOk {
-            futures: self.map(|fut| fut.into_future()),
+            futures: self.map(|fut| PinnedSlot::new(fut.into_future())),
             errors: array::from_fn(|_| MaybeUninit::uninit()),
             error_states: PollArray::new_pending(),
             completed: 0,

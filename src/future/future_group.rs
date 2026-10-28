@@ -6,7 +6,7 @@ use core::task::{Context, Poll};
 use futures_core::stream::Stream;
 use futures_core::Future;
 
-use crate::utils::{ChunkedVec, PollState, PollVec, WakerVec};
+use crate::utils::{ChunkedVec, PinnedSlot, PollState, PollVec, WakerVec};
 
 /// A growable group of futures which act as a single unit.
 ///
@@ -58,7 +58,7 @@ use crate::utils::{ChunkedVec, PollState, PollVec, WakerVec};
 /// ```
 #[must_use = "`FutureGroup` does nothing if not iterated over"]
 pub struct FutureGroup<F> {
-    futures: ChunkedVec<F>,
+    futures: ChunkedVec<PinnedSlot<F>>,
     wakers: WakerVec,
     states: PollVec,
     keys: BTreeSet<usize>,
@@ -255,7 +255,7 @@ impl<F: Future> FutureGroup<F> {
     where
         F: Future,
     {
-        let index = self.futures.insert(future);
+        let index = self.futures.insert(PinnedSlot::new(future));
         self.keys.insert(index);
 
         // ensure wakers and states have enough capacity
